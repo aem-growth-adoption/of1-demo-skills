@@ -1,0 +1,296 @@
+---
+name: of1-demo
+description: Orchestrate full demo preparation for any website — user-driven step pipeline via sprinkle UI
+user-invocable: true
+---
+
+# OF1 Demo — Orchestrator
+
+Lightweight orchestrator that opens the demo pipeline sprinkle and dispatches step skills based on user interactions.
+
+## How It Works
+
+1. The sprinkle (`of1-demo`) shows 12 steps as a pipeline
+2. User enters a domain and clicks "Run" on each step
+3. Each click fires a lick to the cone with `{action: "run:<step>:<skill>:<domain>"}`
+4. The cone spawns a scoop to execute the step skill with appropriate context
+5. Steps with review gates pause for user approval (Approve/Revise buttons in sprinkle)
+6. Steps 8–10 (Brand & content, Block guide, Suggestions) can run in parallel after step 7 (OF1 styling) completes
+
+## Setup
+
+Open the sprinkle:
+
+```
+scoop_scoop({
+  name: "of1-demo",
+  writablePaths: ["/scoops/of1-demo/", "/shared/sprinkles/of1-demo/"],
+  prompt: "You own the sprinkle 'of1-demo'. Copy /workspace/skills/of1-demo/of1-demo.shtml to /shared/sprinkles/of1-demo/of1-demo.shtml, then run: sprinkle open of1-demo. Stay ready for feed_scoop updates."
+})
+```
+
+## Lick Events
+
+The sprinkle sends licks as a single `action` string with colon-delimited fields.
+
+### `set-domain:<domain>`
+User entered the target domain. Store it for all subsequent steps.
+
+### `run:<step>:<skill>:<domain>`
+User clicked Run on step N. Parse the step number, skill name, and domain from the colon-delimited string. Spawn a scoop to execute the skill.
+
+**Model selection — these steps MUST use `claude-opus-4-6`:**
+- Step 2 (Discovery) — `of1-discovery`
+- Step 4 (Extraction) — `extract`
+- Step 5 (Prototype) — `prototype`
+- Step 6 (Snowflake) — `of1-snowflake`
+
+Pass `model: "claude-opus-4-6"` when calling `scoop_scoop()` for these steps.
+All other steps can use the default model.
+
+**For step 6 (Snowflake), the scoop MUST also be created with write access to `/workspace/of1-demo/`:**
+```
+scoop_scoop({
+  name: "of1-s6",
+  model: "claude-opus-4-6",
+  writablePaths: ["/scoops/of1-s6/", "/shared/", "/workspace/of1-demo/"]
+})
+```
+This allows the scoop to write blocks, styles, and content directly into the repo without needing the cone to copy files afterward.
+
+```
+feed_scoop("of1-demo-step-N", <system prompt with skill instructions + context>)
+```
+
+The system prompt MUST include:
+- The domain and branch name
+- Path to the relevant skill file to read: `read_file /workspace/skills/{skill-name}/SKILL.md`
+- Current working directory context (the of1-demo repo)
+- Any outputs from previous steps the skill needs
+- Instruction to write a completion marker on finish (NOT `sprinkle send` — the step scoop must NOT call sprinkle commands):
+  Write output to `/shared/of1-demo/step-N-output.md` and a status file to `/shared/of1-demo/step-N-status.json` with content `{"step":N,"status":"done"}` (or `"review"` or `"failed"`).
+
+**When status is `"review"`, the status JSON MUST include a `deliverable` URL** so the sprinkle renders an open button for the user. Before pushing to the sprinkle, use `serve` to host the reviewable artifact:
+```bash
+serve --entry <file.html> /path/to/dir
+# → returns a chrome-extension://... URL
+```
+Then include it: `{"step":N,"status":"review","deliverable":"chrome-extension://...","summary":"..."}`.
+Review steps without a deliverable URL will show the summary but no open button — always include one.
+
+**After spawning the step scoop, YOU must immediately poll for the status file and push to the sprinkle when it appears.** Use a loop:
+
+```bash
+while [ ! -f /shared/of1-demo/step-N-status.json ]; do sleep 5; done
+cat /shared/of1-demo/step-N-status.json
+```
+
+Then read the file and call `sprinkle send of1-demo '<contents>'` immediately.
+
+Only the of1-demo scoop may call `sprinkle send`. Step scoops write files; the orchestrator reads them and pushes to the sprinkle.
+
+**For parallel steps (8–10):** Spawn all parallel scoops at once, then poll for ALL their status files concurrently. As EACH one completes, push its status to the sprinkle immediately — do NOT wait for all parallel steps to finish before updating the UI. The user should see steps turn green/review one by one as they complete.
+
+```bash
+# Poll for all parallel status files and push each as it arrives
+while true; do
+  ALL_DONE=true
+  for STEP in 8 9 10; do
+    STATUS_FILE="/shared/of1-demo/step-${STEP}-status.json"
+    PUSHED_FILE="/shared/of1-demo/step-${STEP}-pushed"
+    if [ -f "$STATUS_FILE" ] && [ ! -f "$PUSHED_FILE" ]; then
+      # Push immediately when a step finishes
+      sprinkle send of1-demo "$(cat "$STATUS_FILE")"
+      touch "$PUSHED_FILE"
+    fi
+    if [ ! -f "$STATUS_FILE" ]; then
+      ALL_DONE=false
+    fi
+  done
+  if [ "$ALL_DONE" = true ]; then break; fi
+  sleep 5
+done
+```
+
+For step 8 (brand + content), the orchestrator must wait for BOTH `step-8-brand-status.json` and `step-8-content-status.json` before pushing the combined step 8 status to the sprinkle.
+
+### `open-deliverable:<step>:<encoded-url>`
+The user clicked a single deliverable button. Decode the URL and open it:
+```bash
+open <decoded-url>
+```
+
+### `open-deliverables:<step>:<encoded-json-array>`
+The user clicked a multi-deliverable button. Decode the JSON array and open each URL:
+```bash
+open <url1>
+open <url2>
+open <url3>
+```
+No sprinkle update needed for either — just open the file(s).
+
+### `approve:<step>:<domain>`
+User approved step N. The sprinkle auto-marks it done. No action needed unless the next step should auto-start.
+
+### `revise:<step>:<domain>`
+User wants changes. Ask in chat what they want different, then re-run the step skill with their feedback appended to the prompt.
+
+### `reset`
+User reset the pipeline. Clean up any running scoops.
+
+## Step → Skill Mapping
+
+| Step | Name | Skill(s) | Review Gate | Parallel |
+|------|------|-----------|-------------|----------|
+| 1 | Setup | `of1-setup` | No | No |
+| 2 | Discovery | `of1-discovery` | Yes | No |
+| 3 | Branch setup | `of1-branch-setup` | No | No |
+| 4 | Extraction | `extract` | Yes | No |
+| 5 | Prototype | `prototype` | Yes | No |
+| 6 | Snowflake | `of1-snowflake` | Yes | No |
+| 7 | OF1 styling | `generative-block-styler` | Yes | No |
+| 8 | Brand & content | `brand-voice-extractor` + `content-metadata` | No | Yes |
+| 9 | Block guide | `block-guide-builder` | No | Yes |
+| 10 | Suggestions | `quick-suggestions` | No | Yes |
+| 11 | Config review | (orchestrator-inline) | Yes | No |
+| 12 | Deploy | `of1-deploy` | Yes | No |
+
+Steps 8–10 can run in parallel once step 7 (OF1 styling) is done. Step 11 (Config review) requires all parallel steps to be done — the orchestrator generates a review page showing the block guide (as a subset of the block catalog), brand voice, products, and suggestions. Step 12 (Deploy) requires step 11 approval.
+
+## CRITICAL: Pixel-Perfect Copy — No Redesign, No Placeholders
+
+The OF1 demo pipeline produces a **pixel-perfect reproduction** of the existing site — NOT a redesign. The goal is to faithfully replicate the site's visual appearance so the OF1 personalization engine can run on top of it.
+
+### What this means in practice:
+
+**Do NOT:**
+- Run `stardust direct`, author new `DESIGN.md`/`PRODUCT.md` target specs, or change the visual direction
+- Use placeholder images, colored boxes, gradient divs, or CSS-drawn shapes in place of real images
+- Use emoji, system icons, or generic SVGs in place of the site's real icons
+- Invent, simplify, or redesign any visual element
+
+**Do:**
+- Use real images sourced directly from the live site via `playwright-cli eval` to extract actual `<img src>` URLs
+- Use the site's real SVG icons — extract them from the live DOM (`document.querySelectorAll('img[src*=".svg"]')`, inline SVGs, or icon font codepoints)
+- Match typography, colors, spacing, and layout exactly as they appear on the live site
+- Use `format=png` or `format=jpg` (not `format=webply`) when constructing image URLs to ensure browser compatibility
+- When the site uses private fonts (e.g. Sentinel, Gotham Narrow), use the closest system-font fallback AND note the substitution — do not invent a different typeface
+
+**Image extraction pattern:**
+```javascript
+// Run in playwright-cli eval against the live page tab
+Array.from(document.querySelectorAll('img'))
+  .filter(i => i.naturalWidth > 200 && i.src.includes('sitedomain'))
+  .map(i => ({ src: i.src, alt: i.alt, w: i.naturalWidth, h: i.naturalHeight }))
+```
+
+**Icon extraction pattern:**
+```javascript
+// Get all SVG icon URLs
+Array.from(document.querySelectorAll('img')).filter(i => i.src.includes('.svg'))
+  .map(i => i.src)
+// Get inline SVGs near feature/icon areas
+Array.from(document.querySelectorAll('[class*=icon] svg, [class*=feature] svg'))
+  .map(s => s.outerHTML)
+```
+
+The prototype is considered acceptable only when a side-by-side comparison with a screenshot of the live page shows no obvious visual differences in layout, imagery, iconography, or brand identity.
+
+## Scoop Naming
+
+Name step scoops: `of1-s1`, `of1-s2`, ..., `of1-s12`. This keeps them short and identifiable.
+
+## Context Passing Between Steps
+
+Each step scoop needs context from prior steps. Key dependencies:
+
+- **Step 1 (Setup)** needs: nothing (can run without domain)
+- **Step 2 (Discovery)** needs: domain
+- **Step 3 (Branch setup)** needs: domain → branch name
+- **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). If `PRODUCT.md` does not exist at project root, the scoop MUST run `/impeccable:teach` first using the Discovery answers as context to generate it. Then proceed with extraction.
+- **Step 5 (Prototype)** needs: domain, extraction outputs from step 4. The scoop prompt MUST instruct the scoop to:
+  1. Extract real image URLs from the live site using `playwright-cli eval` before writing any HTML
+  2. Extract real SVG icons from the live DOM (not emoji, not generic icons)
+  3. Use `format=png` or `format=jpg` (not `format=webply`) for any CDN image URLs
+  4. Take a screenshot of each live page and compare against the prototype before marking done
+  5. Never use placeholder divs, colored boxes, or gradient shapes in place of real images
+- **Step 6 (Snowflake)** needs: domain, branch, prototypes from step 5
+- **Step 7 (OF1 styling)** needs: domain, branch, block names from step 6, `stardust/` data
+- **Steps 8–10** need: domain, branch, block names from step 6, `stardust/` data
+- **Step 11 (Config review)** needs: all `output/{domain}/` files from steps 8–10 — orchestrator generates review page inline
+- **Step 12 (Deploy)** needs: step 11 approved, domain, branch, all `output/{domain}/` files
+
+When spawning a step scoop, read the relevant prior outputs and include key info in the prompt (or instruct the scoop to read specific files).
+
+## Step 11 — Config Review (orchestrator-inline)
+
+Once all parallel steps (8–10) are done, the orchestrator runs step 11 **inline** (no scoop needed). This is a review gate where the user validates all the config that will be deployed.
+
+### What to generate
+
+Build `deliverables/{BRANCH}/config-review.html` — a self-contained HTML page (OF1 dark theme, inline styles) showing:
+
+1. **Block Guide vs Block Catalog** — list the blocks selected for generation (from `block-guide.json`) and highlight that they are a subset of the full block catalog. Link to the block catalog preview URL for comparison.
+2. **Products** — grid of products with thumbnail images, names, categories, and keyword counts (from `products.json`). Flag any products with missing images.
+3. **Brand Voice** — personality, tone, vocabulary, avoid words (from `brand-voice.json`)
+4. **Personas** — cards for each persona with keywords (from `personas.json`)
+5. **Suggestions** — all suggestion chips with their query text (from `suggestions.json`)
+6. **Use Cases** — list with keywords (from `use-cases.json`)
+
+### How to run
+
+```bash
+# Generate the review page from output/{DOMAIN}/ JSON files
+# (the orchestrator writes this HTML itself — no scoop needed)
+mkdir -p deliverables/{BRANCH}
+# ... write config-review.html ...
+git add deliverables/{BRANCH}/config-review.html
+git commit -m "docs: config review page for {DOMAIN}"
+git push origin {BRANCH}
+```
+
+Then push to sprinkle:
+```bash
+BRANCH="{branch}"
+sprinkle send of1-demo '{"step":11,"status":"review","deliverable":"https://'${BRANCH}'--of1-demo--aem-growth-adoption.aem.page/deliverables/'${BRANCH}'/config-review.html","summary":"Review all config before deploy: block guide (subset of catalog), products, brand voice, personas, suggestions."}'
+```
+
+### What the user reviews
+
+- Are the right blocks selected? (compare against block catalog — the guide should be a subset)
+- Do all products have images? Are descriptions rich enough?
+- Is the brand voice accurate? Any wrong vocabulary or missing avoid-words?
+- Do suggestion chips cover enough intents?
+- Are persona keywords realistic search terms?
+
+The user approves or requests revisions. On revise, ask what needs changing and re-run the relevant parallel step.
+
+## Iteration
+
+If a step fails or the user requests revisions:
+1. The sprinkle shows Retry/Revise button
+2. User clicks it → lick with `run:<step>:<skill>:<domain>` (retry) or `revise:<step>:<domain>` (needs feedback)
+3. Re-spawn the step scoop with the same prompt + any user feedback
+4. The scoop can read prior outputs and iterate on them
+
+## Completion
+
+After step 12 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.
+
+## Shell Environment Pitfalls (SLICC-specific)
+
+These issues cost time in previous runs. Avoid them:
+
+1. **`set -o pipefail` is not supported** — don't run scripts that use it (`deploy-tenant.sh`). Execute commands manually or use the shell loop in the deploy skill.
+
+2. **Python in heredocs** — always quote the delimiter (`python3 << 'EOF'`). Unquoted heredocs mangle indentation and variables.
+
+3. **Large curl payloads fail on Cloudflare Workers (>~50KB)** — split into individual PUT requests per config key. See `of1-deploy` skill for the pattern.
+
+4. **Step 12 (Deploy) should be done inline by the cone** — it's just 4 curl calls and takes <2 minutes. Don't delegate to a scoop; the overhead of spawning + polling exceeds the actual work.
+
+5. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else (e.g. "approved", "running", "complete") corrupts the UI state.
+
+6. **EDS buttons** — `<strong><a>` = primary, `<em><a>` = secondary. The wrapper (`strong`/`em`) goes OUTSIDE the anchor, not inside.
+
+7. **DA preview auth** — needs BOTH `Authorization: Bearer <token>` AND `x-content-source-authorization: Bearer <token>` headers.
