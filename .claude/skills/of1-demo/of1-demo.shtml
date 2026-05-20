@@ -633,6 +633,77 @@
   .of1-root::-webkit-scrollbar { width: 4px; }
   .of1-root::-webkit-scrollbar-track { background: transparent; }
   .of1-root::-webkit-scrollbar-thumb { background: var(--of1-border); border-radius: 4px; }
+
+  /* ─── Quick Links ───────────────────────────────────────── */
+
+  .of1-quicklinks {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--of1-border);
+  }
+
+  .of1-quicklinks__title {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--of1-fg-muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .of1-quicklinks__title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--of1-border);
+  }
+
+  .of1-quicklinks__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .of1-quicklink {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--of1-body-font);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    padding: 4px 10px;
+    border-radius: var(--of1-radius-pill);
+    border: 1px solid var(--of1-border);
+    background: transparent;
+    color: var(--of1-fg-dim);
+    text-decoration: none;
+    cursor: default;
+    transition: all 0.2s ease;
+    opacity: 0.35;
+  }
+
+  .of1-quicklink--available {
+    opacity: 1;
+    cursor: pointer;
+    border-color: rgba(0, 229, 160, 0.25);
+    color: var(--of1-teal);
+  }
+
+  .of1-quicklink--available:hover {
+    border-color: rgba(0, 229, 160, 0.5);
+    background: rgba(0, 229, 160, 0.06);
+    color: #fff;
+  }
+
+  .of1-quicklink__icon {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+  }
 </style>
 
 <div class="of1-root">
@@ -648,6 +719,7 @@
     <button id="of1-domain-go">Start</button>
   </div>
   <div class="of1-steps" id="of1-steps"></div>
+  <div class="of1-quicklinks" id="of1-quicklinks"></div>
 </div>
 
 <script>
@@ -846,6 +918,35 @@
       }
     }
     container.innerHTML = html;
+
+    // Quick Links
+    var QUICKLINKS = [
+      { label: 'Discovery', step: 2 },
+      { label: 'Extraction', step: 4 },
+      { label: 'Prototype', step: 5 },
+      { label: 'Preview', step: 6 },
+      { label: 'OF1 Page', step: 7 },
+      { label: 'Config Review', step: 11 },
+      { label: 'Demo Hub', step: 12 }
+    ];
+
+    var linkIcon = '<svg class="of1-quicklink__icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var qlHtml = '<div class="of1-quicklinks__title">Quick Links</div><div class="of1-quicklinks__list">';
+    for (var q = 0; q < QUICKLINKS.length; q++) {
+      var ql = QUICKLINKS[q];
+      var idx = ql.step - 1;
+      var st = state.steps[idx];
+      var hasLink = st.deliverable || (st.deliverables && st.deliverables.length);
+      var availClass = hasLink ? ' of1-quicklink--available' : '';
+      if (hasLink) {
+        var url = st.deliverable || (st.deliverables && st.deliverables[0] && st.deliverables[0].url) || '';
+        qlHtml += '<button class="of1-quicklink' + availClass + '" data-step="' + ql.step + '" data-url="' + url + '">' + ql.label + linkIcon + '</button>';
+      } else {
+        qlHtml += '<span class="of1-quicklink">' + ql.label + linkIcon + '</span>';
+      }
+    }
+    qlHtml += '</div>';
+    document.getElementById('of1-quicklinks').innerHTML = qlHtml;
   }
 
   function startTimer() { stopTimer(); timerInterval = setInterval(render, 1000); }
@@ -975,6 +1076,17 @@
       slicc.focus();
     }
   };
+
+  // Quick link clicks
+  document.getElementById('of1-quicklinks').addEventListener('click', function (e) {
+    var btn = e.target.closest('.of1-quicklink--available');
+    if (!btn) return;
+    var step = parseInt(btn.getAttribute('data-step'), 10);
+    var url = btn.getAttribute('data-url');
+    if (url) {
+      slicc.lick({ action: 'open-deliverable:' + step + ':' + encodeURIComponent(url) });
+    }
+  });
 
   // Updates from cone
   slicc.on('update', function (data) {

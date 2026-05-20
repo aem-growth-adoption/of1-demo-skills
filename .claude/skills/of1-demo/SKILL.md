@@ -39,16 +39,11 @@ User entered the target domain. Store it for all subsequent steps.
 ### `run:<step>:<skill>:<domain>`
 User clicked Run on step N. Parse the step number, skill name, and domain from the colon-delimited string. Spawn a scoop to execute the skill.
 
-**Model selection — these steps MUST use `claude-opus-4-6`:**
-- Step 2 (Discovery) — `of1-discovery`
-- Step 4 (Extraction) — `extract`
-- Step 5 (Prototype) — `prototype`
-- Step 6 (Snowflake) — `of1-snowflake`
+**Model selection — ALL step scoops MUST use `claude-opus-4-6`:**
 
-Pass `model: "claude-opus-4-6"` when calling `scoop_scoop()` for these steps.
-All other steps can use the default model.
+Pass `model: "claude-opus-4-6"` when calling `scoop_scoop()` for every step. No exceptions.
 
-**For step 6 (Snowflake), the scoop MUST also be created with write access to `/workspace/of1-demo/`:**
+**For step 6 (Snowflake), the scoop MUST additionally be created with write access to `/workspace/of1-demo/`:**
 ```
 scoop_scoop({
   name: "of1-s6",
