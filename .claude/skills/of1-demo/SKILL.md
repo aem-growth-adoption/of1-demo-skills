@@ -84,13 +84,13 @@ Then read the file and call `sprinkle send of1-demo '<contents>'` immediately.
 
 Only the of1-demo scoop may call `sprinkle send`. Step scoops write files; the orchestrator reads them and pushes to the sprinkle.
 
-**For parallel steps (8–10):** Spawn all parallel scoops at once, then poll for ALL their status files concurrently. As EACH one completes, push its status to the sprinkle immediately — do NOT wait for all parallel steps to finish before updating the UI. The user should see steps turn green/review one by one as they complete.
+**For parallel steps (8–11):** Spawn all parallel scoops at once, then poll for ALL their status files concurrently. As EACH one completes, push its status to the sprinkle immediately — do NOT wait for all parallel steps to finish before updating the UI. The user should see steps turn green/review one by one as they complete.
 
 ```bash
 # Poll for all parallel status files and push each as it arrives
 while true; do
   ALL_DONE=true
-  for STEP in 8 9 10; do
+  for STEP in 8 9 10 11; do
     STATUS_FILE="/shared/of1-demo/step-${STEP}-status.json"
     PUSHED_FILE="/shared/of1-demo/step-${STEP}-pushed"
     if [ -f "$STATUS_FILE" ] && [ ! -f "$PUSHED_FILE" ]; then
@@ -147,10 +147,11 @@ User reset the pipeline. Clean up any running scoops.
 | 8 | Brand & content | `brand-voice-extractor` + `content-metadata` | No | Yes |
 | 9 | Block guide | `block-guide-builder` | No | Yes |
 | 10 | Suggestions | `quick-suggestions` | No | Yes |
-| 11 | Config review | (orchestrator-inline) | Yes | No |
-| 12 | Deploy | `of1-deploy` | Yes | No |
+| 11 | CTA template | `cta-template-builder` | No | Yes |
+| 12 | Config review | (orchestrator-inline) | Yes | No |
+| 13 | Deploy | `of1-deploy` | Yes | No |
 
-Steps 8–10 can run in parallel once step 7 (OF1 styling) is done. Step 11 (Config review) requires all parallel steps to be done — the orchestrator generates a review page showing the block guide (as a subset of the block catalog), brand voice, products, and suggestions. Step 12 (Deploy) requires step 11 approval.
+Steps 8–11 can run in parallel once step 7 (OF1 styling) is done. Step 12 (Config review) requires all parallel steps to be done — the orchestrator generates a review page showing the block guide (as a subset of the block catalog), brand voice, products, suggestions, and CTA template. Step 13 (Deploy) requires step 12 approval.
 
 ## CRITICAL: Pixel-Perfect Copy — No Redesign, No Placeholders
 
@@ -213,13 +214,15 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 7 (OF1 styling)** needs: domain, branch, block names from step 6, `stardust/` data
 - **Steps 8–10** need: domain, branch, block names from step 6, `stardust/` data
 - **Step 11 (Config review)** needs: all `output/{domain}/` files from steps 8–10 — orchestrator generates review page inline
-- **Step 12 (Deploy)** needs: step 11 approved, domain, branch, all `output/{domain}/` files
+- **Step 11 (CTA template)** needs: domain (analyzes live site)
+- **Step 12 (Config review)** needs: all `output/{domain}/` files from steps 8–11 — orchestrator generates review page inline
+- **Step 13 (Deploy)** needs: step 12 approved, domain, branch, all `output/{domain}/` files
 
 When spawning a step scoop, read the relevant prior outputs and include key info in the prompt (or instruct the scoop to read specific files).
 
-## Step 11 — Config Review (orchestrator-inline)
+## Step 12 — Config Review (orchestrator-inline)
 
-Once all parallel steps (8–10) are done, the orchestrator runs step 11 **inline** (no scoop needed). This is a review gate where the user validates all the config that will be deployed.
+Once all parallel steps (8–11) are done, the orchestrator runs step 12 **inline** (no scoop needed). This is a review gate where the user validates all the config that will be deployed.
 
 ### What to generate
 
@@ -231,6 +234,7 @@ Build `deliverables/{BRANCH}/config-review.html` — a self-contained HTML page 
 4. **Personas** — cards for each persona with keywords (from `personas.json`)
 5. **Suggestions** — all suggestion chips with their query text (from `suggestions.json`)
 6. **Use Cases** — list with keywords (from `use-cases.json`)
+7. **CTA Template** — rendered preview of the CTA template with fallback content filled in (from `cta-template.json`)
 
 ### How to run
 
@@ -270,7 +274,7 @@ If a step fails or the user requests revisions:
 
 ## Completion
 
-After step 12 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.
+After step 13 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.
 
 ## Shell Environment Pitfalls (SLICC-specific)
 
@@ -282,7 +286,7 @@ These issues cost time in previous runs. Avoid them:
 
 3. **Large curl payloads fail on Cloudflare Workers (>~50KB)** — split into individual PUT requests per config key. See `of1-deploy` skill for the pattern.
 
-4. **Step 12 (Deploy) should be done inline by the cone** — it's just 4 curl calls and takes <2 minutes. Don't delegate to a scoop; the overhead of spawning + polling exceeds the actual work.
+4. **Step 13 (Deploy) should be done inline by the cone** — it's just a few curl calls and takes <2 minutes. Don't delegate to a scoop; the overhead of spawning + polling exceeds the actual work.
 
 5. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else (e.g. "approved", "running", "complete") corrupts the UI state.
 

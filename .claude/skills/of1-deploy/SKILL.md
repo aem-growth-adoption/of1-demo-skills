@@ -109,7 +109,20 @@ for key_file in "brandVoice:brand-voice" "blockGuide:block-guide" "products:prod
 done
 ```
 
-### 6. Register OF1 endpoint
+### 6. Deploy CTA template
+
+```bash
+CTA_FILE="output/${DOMAIN}/cta-template.json"
+if [ -f "$CTA_FILE" ]; then
+  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+    -H "Content-Type: application/json" \
+    -d @"$CTA_FILE" \
+    "${WORKER_URL}/api/admin/tenants/${DOMAIN}/cta-template")
+  echo "cta-template -> HTTP ${HTTP_CODE}"
+fi
+```
+
+### 7. Register OF1 endpoint
 
 ```bash
 curl -s -X PUT "${WORKER_URL}/api/admin/tenants/${DOMAIN}/of1-endpoint" \
@@ -117,7 +130,7 @@ curl -s -X PUT "${WORKER_URL}/api/admin/tenants/${DOMAIN}/of1-endpoint" \
   -d "{\"url\": \"https://${BRANCH}--of1-demo--aem-growth-adoption.aem.page/${BRANCH}/of1\"}"
 ```
 
-### 7. Test generation
+### 8. Test generation
 
 ```bash
 curl -s -X POST "${WORKER_URL}/api/generate" \

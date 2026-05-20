@@ -12,6 +12,7 @@ Claude Code skills for preparing OF1 generative web search demos. These skills a
 | `content-metadata` | Scrape product data, personas, use cases, features, and FAQs | Yes |
 | `generative-block-styler` | Generate CSS for dynamically-rendered generative sections | Yes |
 | `quick-suggestions` | Generate suggestion chips and search UI copy | Yes |
+| `cta-template-builder` | Extract site design system and generate a branded CTA template | Yes |
 | `of1-discovery` | Crawl a target website and propose a demo focus/narrative | No |
 | `of1-branch-setup` | Create a git branch and output directory for the demo domain | No |
 | `of1-setup` | Verify prerequisites — skills, mounts, tokens, repo state | No |
@@ -44,6 +45,7 @@ Each skill can also be invoked independently for iterating on a specific step:
 /content-metadata
 /generative-block-styler
 /quick-suggestions
+/cta-template-builder
 ```
 
 ## Prerequisites
