@@ -735,7 +735,8 @@
     { name: 'Brand & content', skill: 'brand-voice-extractor,content-metadata', review: false, parallel: true, desc: 'Extract brand voice, products, personas, and assets', group: null },
     { name: 'Block guide', skill: 'block-guide-builder', review: false, parallel: true, desc: 'Build block catalog, select blocks for generation', group: null },
     { name: 'Suggestions', skill: 'quick-suggestions', review: false, parallel: true, desc: 'Generate search chips and UI copy for the demo', group: null },
-    { name: 'Config review', skill: 'config-review', review: true, parallel: false, desc: 'Review block guide, products, brand voice, suggestions before deploy', reviewNote: 'Config review page', group: null },
+    { name: 'CTA template', skill: 'cta-template-builder', review: false, parallel: true, desc: 'Extract design system, build branded CTA template', group: null },
+    { name: 'Config review', skill: 'config-review', review: true, parallel: false, desc: 'Review block guide, products, brand voice, CTA, suggestions before deploy', reviewNote: 'Config review page', group: null },
     { name: 'Deploy', skill: 'of1-deploy', review: true, parallel: false, desc: 'Deploy to worker, publish demo hub', reviewNote: 'Demo Hub', group: null }
   ];
 
@@ -926,8 +927,8 @@
       { label: 'Prototype', step: 5 },
       { label: 'Preview', step: 6 },
       { label: 'OF1 Page', step: 7 },
-      { label: 'Config Review', step: 11 },
-      { label: 'Demo Hub', step: 12 }
+      { label: 'Config Review', step: 12 },
+      { label: 'Demo Hub', step: 13 }
     ];
 
     var linkIcon = '<svg class="of1-quicklink__icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
