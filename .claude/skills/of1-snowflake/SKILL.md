@@ -28,6 +28,95 @@ DA_SOURCE=$(echo "$REPO_CONFIG" | jq -r '.daSource')
 
 All paths below are relative to `$REPO_DIR`. All AEM preview URLs use the pattern `https://main--${REPO}--${OWNER}.aem.page/`.
 
+## CRITICAL: EDS Content Authoring Constraints
+
+DA's content pipeline has strict limitations for programmatic content. Follow these rules:
+
+### Images in DA content
+
+**DA strips ALL `<img>`, `<picture>`, and `<svg>` elements** from programmatically uploaded HTML content. External URLs, git-committed paths, and inline SVGs all get converted to `about:error` or removed entirely.
+
+**The ONLY working pattern for images in programmatic DA content:**
+- Store image URLs as **plain text** in block table cells (e.g., `<div><p>https://example.com/image.jpg</p></div>`)
+- Block JS detects text URLs in cells and creates `<img>` elements at runtime
+
+Every block JS that handles images MUST include this helper:
+```js
+function convertTextToImages(block) {
+  block.querySelectorAll(':scope > div > div').forEach(cell => {
+    if (cell.querySelector('picture, img')) return;
+    const text = cell.textContent.trim();
+    if (text.match(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|svg)/i)
+      || text.match(/^https?:\/\/.*\/(dw|image|media)\//i)) {
+      const img = document.createElement('img');
+      img.src = text;
+      img.alt = '';
+      img.loading = 'lazy';
+      cell.textContent = '';
+      cell.appendChild(img);
+    }
+  });
+}
+```
+
+Call `convertTextToImages(block)` as the FIRST line in every block's `decorate()` function.
+
+### Brand logo
+
+DA strips SVGs from content. The brand logo MUST be:
+1. Committed to `/icons/logo.svg` in the git repo (extracted from the live site in step 4)
+2. Loaded by `header.js` via `fetch('/icons/logo.svg')` and injected into the `.nav-brand` link
+3. NEVER placed as inline SVG or `<img>` in DA content — it will be stripped
+
+The `header.js` must include:
+```js
+// In the decorate function, after setting up navBrand:
+const brandLink = navBrand.querySelector('a');
+if (brandLink) {
+  try {
+    const resp = await fetch('/icons/logo.svg');
+    if (resp.ok) {
+      brandLink.innerHTML = await resp.text();
+      brandLink.classList.add('nav-brand-logo');
+    }
+  } catch (e) { /* text fallback */ }
+}
+```
+
+### Full-bleed blocks
+
+EDS wraps all content sections in: `main > .section.{block}-container > .{block}-wrapper`  
+The wrapper has `max-width: var(--max-width); margin: 0 auto;` by default.
+
+**Blocks that should be full viewport width** (hero, hero-carousel, hero-banner, split-banners, activism, etc.) MUST have a CSS override on the WRAPPER element:
+
+```css
+.hero-carousel-wrapper,
+.hero-banner-wrapper,
+.split-banners-wrapper,
+.activism-wrapper {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+```
+
+Add these overrides to `styles/styles.css`. Without them, full-bleed sections will be constrained to 1440px with side margins.
+
+### DA upload method
+
+When uploading content to DA via the API, use inline content with `-d`:
+```bash
+CONTENT=$(cat "$file")
+curl -s -X PUT "https://admin.da.live/source/${OWNER}/${REPO}/${PAGE}.html" \
+  -H "Authorization: Bearer $IMS_TOKEN" \
+  -H "Content-Type: text/html" \
+  -d "$CONTENT"
+```
+
+**NEVER use `--data-binary @file`** — it sends the literal `@path` string instead of file contents in this environment.
+
+---
+
 ### 1. Read the stardust-to-snowflake skill (from ai-ecoverse/snowflake plugin)
 
 ```
