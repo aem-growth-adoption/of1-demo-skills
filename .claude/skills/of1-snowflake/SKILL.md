@@ -221,9 +221,9 @@ done
 
 Get the DA live tab ID with: `playwright-cli tab-list | grep "da.live.*${OWNER}"`
 
-### 6. Verify — visual comparison against prototypes
+### 6. Verify — Screenshot Diff Loop (up to 3 iterations)
 
-This step is **mandatory** before marking the step as review. You must verify each page visually to catch issues like unpublished content, broken nav, missing images, or layout regressions.
+This step is **mandatory** before marking the step as review. Use an iterative screenshot comparison loop to converge the EDS preview toward the prototype.
 
 **6a. Check all preview URLs return 200:**
 
@@ -241,36 +241,52 @@ done
 
 If any page returns non-200, re-trigger its preview and wait before continuing.
 
-**6b. Screenshot each preview page and compare against the prototype:**
+**6b. Screenshot diff loop (max 3 iterations per page):**
 
-For each content page (except of1.html):
+For each content page (except of1.html), run this loop:
 
-```bash
-# Take screenshot of the live preview
-playwright-cli screenshot "https://main--${REPO}--${OWNER}.aem.page/${PAGE}" --full-page --output /tmp/preview-${PAGE}.png
+```
+ITERATION = 1
+while ITERATION <= 3:
+  1. Screenshot the EDS preview page (full-page):
+     playwright-cli screenshot "https://main--${REPO}--${OWNER}.aem.page/${PAGE}" --full-page --output /tmp/preview-${PAGE}.png
 
-# Take screenshot of the corresponding prototype
-playwright-cli screenshot "file://$(pwd)/stardust/prototypes/${PAGE}.html" --full-page --output /tmp/prototype-${PAGE}.png
+  2. Screenshot the corresponding prototype:
+     playwright-cli screenshot "file://$(pwd)/stardust/prototypes/${PAGE}.html" --full-page --output /tmp/prototype-${PAGE}.png
+
+  3. Open BOTH screenshots and use LLM vision to compare them.
+     Ask yourself: "What are the significant visual differences between these two?"
+     
+     Focus on:
+     - Missing or broken images
+     - Layout differences (grid vs stack, wrong column count)
+     - Missing entire sections
+     - Wrong colors or backgrounds
+     - Nav/footer not rendering
+     - Obvious spacing issues (double padding, no padding)
+     
+     Ignore:
+     - Minor font rendering differences (anti-aliasing, web font vs fallback)
+     - Sub-pixel spacing differences
+     - Hover/animation states
+     - Cookie banners or overlays on the live page
+
+  4. If no significant differences → PASS, move to next page.
+  
+  5. If differences found:
+     - Identify WHICH section/block is wrong
+     - Fix the specific issue (CSS tweak, missing content, broken selector)
+     - git add + commit + push
+     - Re-trigger preview for that page
+     - Wait for CDN propagation (sleep 5)
+     - ITERATION += 1
+     - Continue loop
+
+  6. After 3 iterations, accept the result and note any remaining differences
+     in the step output as "known gaps."
 ```
 
-Then visually compare each pair. Check for:
-- **Nav loading** — header must render with logo + nav links (not blank or collapsed)
-- **Footer loading** — footer sections must render (not missing entirely)
-- **Hero images** — hero section must show the real image (not empty/broken)
-- **Card/grid images** — product images must load (not 404 broken icons)
-- **Typography** — headings and body text must render in the correct font (not system fallback everywhere)
-- **Layout** — sections must match the prototype's visual structure (no stacking where grid expected)
-- **Content completeness** — all text content from the prototype must appear on the preview
-- **Block catalog** — every block in `block-catalog.html` must render correctly with sample content visible (not broken/unstyled)
-
-**6c. Report issues:**
-
-If any page has visual regressions:
-1. Note what's wrong (e.g., "nav not loading — nav.html may not be published")
-2. Fix the issue (re-publish content, fix CSS selectors, etc.)
-3. Re-screenshot and verify the fix
-
-**6d. Confirm all pages pass:**
+**6c. Confirm all pages pass:**
 
 ```bash
 # Verify images in authored content
@@ -285,7 +301,7 @@ for f in content/*.html; do
 done
 ```
 
-Only proceed to the Completion section once ALL pages pass visual verification.
+Only proceed to the Completion section once ALL pages have been through the diff loop.
 
 ## Deliverables
 

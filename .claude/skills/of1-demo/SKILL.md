@@ -194,6 +194,51 @@ The step outputs `/shared/of1-demo/repo-config.json` which all subsequent steps 
 - The preview/live URL patterns (`previewUrl`)
 - The GitHub owner and repo name for branch URLs
 
+## Screenshot Diff Loop (Steps 5 & 6)
+
+Both the Prototype step (5) and the Snowflake step (6) MUST run a screenshot-based comparison loop before marking the step as review. This ensures visual fidelity.
+
+### How it works
+
+For each page, iterate up to **3 times**:
+
+1. **Screenshot the reference** — the live site (Step 5) or the prototype (Step 6)
+2. **Screenshot the output** — the prototype HTML (Step 5) or the EDS preview URL (Step 6)
+3. **Compare using LLM vision** — open both screenshots and analyze differences
+4. **If significant differences found:**
+   - Identify which specific section/block is wrong
+   - Fix only that section (targeted CSS/HTML fix, not full regeneration)
+   - Re-screenshot and compare again
+5. **If no significant differences** → PASS, move to next page
+6. **After 3 iterations** → accept result, note remaining gaps as "known differences"
+
+### What counts as "significant"
+
+Fix these:
+- Missing or broken images
+- Layout differences (grid vs stack, wrong column count, missing columns)
+- Missing entire sections or blocks
+- Wrong colors or backgrounds
+- Nav/footer not rendering or visually broken
+- Obvious spacing issues (doubled padding, collapsed margins)
+
+Ignore these:
+- Minor font rendering differences (web font vs fallback anti-aliasing)
+- Sub-pixel spacing (1-2px differences)
+- Hover/animation states
+- Cookie banners or overlays on the live page
+- Dynamic content that changes between loads (carousel position, time-based promos)
+
+### Step 5 specifics
+- Reference = live site screenshot
+- Output = prototype HTML served locally (`file://...`)
+- Fix = edit the prototype HTML/CSS directly
+
+### Step 6 specifics
+- Reference = prototype screenshot (from Step 5 output)
+- Output = EDS preview URL screenshot
+- Fix = edit block CSS/JS, content HTML, re-push + re-preview
+
 ## CRITICAL: Pixel-Perfect Copy — No Redesign, No Placeholders
 
 The OF1 demo pipeline produces a **pixel-perfect reproduction** of the existing site — NOT a redesign. The goal is to faithfully replicate the site's visual appearance so the OF1 personalization engine can run on top of it.
@@ -256,8 +301,9 @@ Each step scoop needs context from prior steps. Key dependencies:
   1. Extract real image URLs from the live site using `playwright-cli eval` before writing any HTML
   2. Extract real SVG icons from the live DOM (not emoji, not generic icons)
   3. Use `format=png` or `format=jpg` (not `format=webply`) for any CDN image URLs
-  4. Take a screenshot of each live page and compare against the prototype before marking done
+  4. Use the real brand SVG logo (extracted in step 4) in the nav — never substitute with text
   5. Never use placeholder divs, colored boxes, or gradient shapes in place of real images
+  6. **Run the Screenshot Diff Loop** (max 3 iterations per page) — see below
 - **Step 6 (Snowflake)** needs: domain, prototypes from step 5, repo-config.json
 - **Step 7 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
 - **Steps 8–11** need: domain, block names from step 6, `stardust/` data
