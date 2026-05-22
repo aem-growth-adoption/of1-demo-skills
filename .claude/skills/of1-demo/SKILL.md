@@ -10,12 +10,12 @@ Lightweight orchestrator that opens the demo pipeline sprinkle and dispatches st
 
 ## How It Works
 
-1. The sprinkle (`of1-demo`) shows 12 steps as a pipeline
+1. The sprinkle (`of1-demo`) shows 14 steps as a pipeline
 2. User enters a domain and clicks "Run" on each step
 3. Each click fires a lick to the cone with `{action: "run:<step>:<skill>:<domain>"}`
 4. The cone spawns a scoop to execute the step skill with appropriate context
 5. Steps with review gates pause for user approval (Approve/Revise buttons in sprinkle)
-6. Steps 8–10 (Brand & content, Block guide, Suggestions) can run in parallel after step 7 (OF1 styling) completes
+6. Steps 9–12 (Brand & content, Block guide, Suggestions, CTA template) can run in parallel after step 8 (OF1 styling) completes
 
 ## Setup
 
@@ -43,12 +43,12 @@ User clicked Run on step N. Parse the step number, skill name, and domain from t
 
 Pass `model: "claude-opus-4-6"` when calling `scoop_scoop()` for every step. No exceptions.
 
-**For step 6 (Snowflake), the scoop MUST additionally be created with write access to `/workspace/of1-demo/`:**
+**For step 7 (Snowflake), the scoop MUST additionally be created with write access to the project repo:**
 ```
 scoop_scoop({
-  name: "of1-s6",
+  name: "of1-s7",
   model: "claude-opus-4-6",
-  writablePaths: ["/scoops/of1-s6/", "/shared/", "/workspace/of1-demo/"]
+  writablePaths: ["/scoops/of1-s7/", "/shared/", "/workspace/{REPO_NAME}/"]
 })
 ```
 This allows the scoop to write blocks, styles, and content directly into the repo without needing the cone to copy files afterward.
@@ -59,8 +59,9 @@ feed_scoop("of1-demo-step-N", <system prompt with skill instructions + context>)
 
 The system prompt MUST include:
 - The domain and branch name
+- The repo owner, repo name, and local repo path (from `/shared/of1-demo/repo-config.json`)
 - Path to the relevant skill file to read: `read_file /workspace/skills/{skill-name}/SKILL.md`
-- Current working directory context (the of1-demo repo)
+- Current working directory context (the project repo)
 - Any outputs from previous steps the skill needs
 - Instruction to write a completion marker on finish (NOT `sprinkle send` — the step scoop must NOT call sprinkle commands):
   Write output to `/shared/of1-demo/step-N-output.md` and a status file to `/shared/of1-demo/step-N-status.json` with content `{"step":N,"status":"done"}` (or `"review"` or `"failed"`).
@@ -84,13 +85,13 @@ Then read the file and call `sprinkle send of1-demo '<contents>'` immediately.
 
 Only the of1-demo scoop may call `sprinkle send`. Step scoops write files; the orchestrator reads them and pushes to the sprinkle.
 
-**For parallel steps (8–11):** Spawn all parallel scoops at once, then poll for ALL their status files concurrently. As EACH one completes, push its status to the sprinkle immediately — do NOT wait for all parallel steps to finish before updating the UI. The user should see steps turn green/review one by one as they complete.
+**For parallel steps (9–12):** Spawn all parallel scoops at once, then poll for ALL their status files concurrently. As EACH one completes, push its status to the sprinkle immediately — do NOT wait for all parallel steps to finish before updating the UI. The user should see steps turn green/review one by one as they complete.
 
 ```bash
 # Poll for all parallel status files and push each as it arrives
 while true; do
   ALL_DONE=true
-  for STEP in 8 9 10 11; do
+  for STEP in 9 10 11 12; do
     STATUS_FILE="/shared/of1-demo/step-${STEP}-status.json"
     PUSHED_FILE="/shared/of1-demo/step-${STEP}-pushed"
     if [ -f "$STATUS_FILE" ] && [ ! -f "$PUSHED_FILE" ]; then
@@ -107,7 +108,7 @@ while true; do
 done
 ```
 
-For step 8 (brand + content), the orchestrator must wait for BOTH `step-8-brand-status.json` and `step-8-content-status.json` before pushing the combined step 8 status to the sprinkle.
+For step 9 (brand + content), the orchestrator must wait for BOTH `step-9-brand-status.json` and `step-9-content-status.json` before pushing the combined step 9 status to the sprinkle.
 
 ### `open-deliverable:<step>:<encoded-url>`
 The user clicked a single deliverable button. Decode the URL and open it:
@@ -137,21 +138,56 @@ User reset the pipeline. Clean up any running scoops.
 
 | Step | Name | Skill(s) | Review Gate | Parallel |
 |------|------|-----------|-------------|----------|
-| 1 | Setup | `of1-setup` | No | No |
-| 2 | Discovery | `of1-discovery` | Yes | No |
-| 3 | Branch setup | `of1-branch-setup` | No | No |
-| 4 | Extraction | `extract` | Yes | No |
-| 5 | Prototype | `prototype` | Yes | No |
-| 6 | Snowflake | `of1-snowflake` | Yes | No |
-| 7 | OF1 styling | `generative-block-styler` | Yes | No |
-| 8 | Brand & content | `brand-voice-extractor` + `content-metadata` | No | Yes |
-| 9 | Block guide | `block-guide-builder` | No | Yes |
-| 10 | Suggestions | `quick-suggestions` | No | Yes |
-| 11 | CTA template | `cta-template-builder` | No | Yes |
-| 12 | Config review | (orchestrator-inline) | Yes | No |
-| 13 | Deploy | `of1-deploy` | Yes | No |
+| 1 | Install dependencies | `of1-setup` | No | No |
+| 2 | Setup AEM/DA repo | `of1-repo-setup` | Yes | No |
+| 3 | Discovery | `of1-discovery` | Yes | No |
+| 4 | Branch setup | `of1-branch-setup` | No | No |
+| 5 | Extraction | `extract` | Yes | No |
+| 6 | Prototype | `prototype` | Yes | No |
+| 7 | Snowflake | `of1-snowflake` | Yes | No |
+| 8 | OF1 styling | `generative-block-styler` | Yes | No |
+| 9 | Brand & content | `brand-voice-extractor` + `content-metadata` | No | Yes |
+| 10 | Block guide | `block-guide-builder` | No | Yes |
+| 11 | Suggestions | `quick-suggestions` | No | Yes |
+| 12 | CTA template | `cta-template-builder` | No | Yes |
+| 13 | Config review | (orchestrator-inline) | Yes | No |
+| 14 | Deploy | `of1-deploy` | Yes | No |
 
-Steps 8–11 can run in parallel once step 7 (OF1 styling) is done. Step 12 (Config review) requires all parallel steps to be done — the orchestrator generates a review page showing the block guide (as a subset of the block catalog), brand voice, products, suggestions, and CTA template. Step 13 (Deploy) requires step 12 approval.
+Steps 9–12 can run in parallel once step 8 (OF1 styling) is done. Step 13 (Config review) requires all parallel steps to be done — the orchestrator generates a review page showing the block guide (as a subset of the block catalog), brand voice, products, suggestions, and CTA template. Step 14 (Deploy) requires step 13 approval.
+
+## Step 2 — Setup AEM/DA Repo
+
+This step supports two flows:
+
+### Flow A: User provides an existing EDS repo
+The user gives a GitHub URL. The scoop clones it, mounts DA, and verifies preview works.
+
+### Flow B: Create a new repo from the OF1 boilerplate
+The scoop:
+1. Creates a new repo from `https://github.com/aem-growth-adoption/of1-boilerplate` using the GitHub template API
+2. Asks the user to install AEM Code Sync GitHub App (status = "review" with link to installation page)
+3. After user confirms/approves, verifies the preview URL works
+4. Mounts DA and creates initial content if needed
+5. Verifies end-to-end: DA content → preview URL renders
+
+The step outputs `/shared/of1-demo/repo-config.json` which all subsequent steps use to know where the repo lives:
+```json
+{
+  "owner": "myorg",
+  "repo": "mysite-demo",
+  "repoUrl": "https://github.com/myorg/mysite-demo",
+  "previewUrl": "https://main--mysite-demo--myorg.aem.page/",
+  "daSource": "da://myorg/mysite-demo",
+  "repoDir": "/workspace/mysite-demo",
+  "domain": "example.com"
+}
+```
+
+**All subsequent steps MUST read this file** to determine:
+- Where to clone/find the git repo (`repoDir`)
+- The DA mount source (`daSource`)
+- The preview/live URL patterns (`previewUrl`)
+- The GitHub owner and repo name for branch URLs
 
 ## CRITICAL: Pixel-Perfect Copy — No Redesign, No Placeholders
 
@@ -194,35 +230,34 @@ The prototype is considered acceptable only when a side-by-side comparison with 
 
 ## Scoop Naming
 
-Name step scoops: `of1-s1`, `of1-s2`, ..., `of1-s12`. This keeps them short and identifiable.
+Name step scoops: `of1-s1`, `of1-s2`, ..., `of1-s14`. This keeps them short and identifiable.
 
 ## Context Passing Between Steps
 
 Each step scoop needs context from prior steps. Key dependencies:
 
-- **Step 1 (Setup)** needs: nothing (can run without domain)
-- **Step 2 (Discovery)** needs: domain
-- **Step 3 (Branch setup)** needs: domain → branch name
-- **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). If `PRODUCT.md` does not exist at project root, the scoop MUST run `/impeccable:teach` first using the Discovery answers as context to generate it. Then proceed with extraction.
-- **Step 5 (Prototype)** needs: domain, extraction outputs from step 4. The scoop prompt MUST instruct the scoop to:
+- **Step 1 (Install dependencies)** needs: nothing (can run without domain)
+- **Step 2 (Setup AEM/DA repo)** needs: domain (optional), user input about repo choice. Outputs `repo-config.json`.
+- **Step 3 (Discovery)** needs: domain
+- **Step 4 (Branch setup)** needs: domain → branch name, repo-config.json
+- **Step 5 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). If `PRODUCT.md` does not exist at project root, the scoop MUST run `/impeccable:teach` first using the Discovery answers as context to generate it. Then proceed with extraction.
+- **Step 6 (Prototype)** needs: domain, extraction outputs from step 5. The scoop prompt MUST instruct the scoop to:
   1. Extract real image URLs from the live site using `playwright-cli eval` before writing any HTML
   2. Extract real SVG icons from the live DOM (not emoji, not generic icons)
   3. Use `format=png` or `format=jpg` (not `format=webply`) for any CDN image URLs
   4. Take a screenshot of each live page and compare against the prototype before marking done
   5. Never use placeholder divs, colored boxes, or gradient shapes in place of real images
-- **Step 6 (Snowflake)** needs: domain, branch, prototypes from step 5
-- **Step 7 (OF1 styling)** needs: domain, branch, block names from step 6, `stardust/` data
-- **Steps 8–10** need: domain, branch, block names from step 6, `stardust/` data
-- **Step 11 (Config review)** needs: all `output/{domain}/` files from steps 8–10 — orchestrator generates review page inline
-- **Step 11 (CTA template)** needs: domain (analyzes live site)
-- **Step 12 (Config review)** needs: all `output/{domain}/` files from steps 8–11 — orchestrator generates review page inline
-- **Step 13 (Deploy)** needs: step 12 approved, domain, branch, all `output/{domain}/` files
+- **Step 7 (Snowflake)** needs: domain, branch, prototypes from step 6, repo-config.json
+- **Step 8 (OF1 styling)** needs: domain, branch, block names from step 7, `stardust/` data
+- **Steps 9–12** need: domain, branch, block names from step 7, `stardust/` data
+- **Step 13 (Config review)** needs: all `output/{domain}/` files from steps 9–12 — orchestrator generates review page inline
+- **Step 14 (Deploy)** needs: step 13 approved, domain, branch, all `output/{domain}/` files, repo-config.json
 
 When spawning a step scoop, read the relevant prior outputs and include key info in the prompt (or instruct the scoop to read specific files).
 
-## Step 12 — Config Review (orchestrator-inline)
+## Step 13 — Config Review (orchestrator-inline)
 
-Once all parallel steps (8–11) are done, the orchestrator runs step 12 **inline** (no scoop needed). This is a review gate where the user validates all the config that will be deployed.
+Once all parallel steps (9–12) are done, the orchestrator runs step 13 **inline** (no scoop needed). This is a review gate where the user validates all the config that will be deployed.
 
 ### What to generate
 
@@ -239,8 +274,14 @@ Build `deliverables/{BRANCH}/config-review.html` — a self-contained HTML page 
 ### How to run
 
 ```bash
+# Read repo-config.json to get owner/repo/branch
+REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
+REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
+REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
+
+cd "$REPO_DIR"
 # Generate the review page from output/{DOMAIN}/ JSON files
-# (the orchestrator writes this HTML itself — no scoop needed)
 mkdir -p deliverables/{BRANCH}
 # ... write config-review.html ...
 git add deliverables/{BRANCH}/config-review.html
@@ -251,7 +292,7 @@ git push origin {BRANCH}
 Then push to sprinkle:
 ```bash
 BRANCH="{branch}"
-sprinkle send of1-demo '{"step":11,"status":"review","deliverable":"https://'${BRANCH}'--of1-demo--aem-growth-adoption.aem.page/deliverables/'${BRANCH}'/config-review.html","summary":"Review all config before deploy: block guide (subset of catalog), products, brand voice, personas, suggestions."}'
+sprinkle send of1-demo '{"step":13,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/deliverables/'${BRANCH}'/config-review.html","summary":"Review all config before deploy: block guide (subset of catalog), products, brand voice, CTA, suggestions."}'
 ```
 
 ### What the user reviews
@@ -274,7 +315,7 @@ If a step fails or the user requests revisions:
 
 ## Completion
 
-After step 13 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.
+After step 14 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.
 
 ## Shell Environment Pitfalls (SLICC-specific)
 
@@ -286,7 +327,7 @@ These issues cost time in previous runs. Avoid them:
 
 3. **Large curl payloads fail on Cloudflare Workers (>~50KB)** — split into individual PUT requests per config key. See `of1-deploy` skill for the pattern.
 
-4. **Step 13 (Deploy) should be done inline by the cone** — it's just a few curl calls and takes <2 minutes. Don't delegate to a scoop; the overhead of spawning + polling exceeds the actual work.
+4. **Step 14 (Deploy) should be done inline by the cone** — it's just a few curl calls and takes <2 minutes. Don't delegate to a scoop; the overhead of spawning + polling exceeds the actual work.
 
 5. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else (e.g. "approved", "running", "complete") corrupts the UI state.
 
