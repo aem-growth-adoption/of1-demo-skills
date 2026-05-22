@@ -174,16 +174,21 @@ Push the branch to GitHub:
 git add -A && git commit -m "Snowflake conversion for {DOMAIN}" && git push origin {BRANCH}
 ```
 
-Upload all content pages to DA.live:
+Upload all content pages to DA.live.
+
+**CRITICAL: Do NOT use `--data-binary @file` syntax** — in some shell environments the `@` prefix is stored literally instead of reading the file contents. Always pipe the file into curl via stdin:
+
 ```bash
 for f in content/{BRANCH}/*.html; do
   PAGE=$(basename "$f" .html)
-  curl -s -X PUT "https://admin.da.live/source/aem-growth-adoption/of1-demo/{BRANCH}/${PAGE}.html" \
+  cat "$f" | curl -s -X PUT "https://admin.da.live/source/aem-growth-adoption/of1-demo/{BRANCH}/${PAGE}.html" \
     -H "Authorization: ${DA_TOKEN}" \
     -H "Content-Type: text/html" \
-    --data-binary @"$f"
+    --data-binary @-
 done
 ```
+
+The `@-` tells curl to read from stdin (piped from `cat`), which avoids the file-path expansion issue entirely.
 
 Trigger preview for each page. The admin API requires **two** Authorization headers — `Authorization` and `x-content-source-authorization` — both with the IMS token (no "Bearer" stripping; full `Bearer <token>` format):
 

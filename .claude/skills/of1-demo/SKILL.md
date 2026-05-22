@@ -293,3 +293,5 @@ These issues cost time in previous runs. Avoid them:
 6. **EDS buttons** — `<strong><a>` = primary, `<em><a>` = secondary. The wrapper (`strong`/`em`) goes OUTSIDE the anchor, not inside.
 
 7. **DA preview auth** — needs BOTH `Authorization: Bearer <token>` AND `x-content-source-authorization: Bearer <token>` headers.
+
+8. **`--data-binary @file` breaks in scoops** — curl's `@path` expansion can fail, storing the literal string `@/workspace/...` instead of file contents. Always pipe via stdin: `cat file | curl ... --data-binary @-`.
