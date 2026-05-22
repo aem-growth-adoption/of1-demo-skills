@@ -18,24 +18,28 @@ The step is considered **done** when:
 
 ## Inputs
 
-These are provided by the orchestrator in the scoop prompt:
+- `DOMAIN`: The target domain for the demo (e.g., `eu.patagonia.com`)
 
-- `DOMAIN`: The target domain for the demo (e.g., `advertising.amazon.com`)
-- `REPO_URL` (optional): If the user provided an existing EDS repo URL
-- `REPO_OWNER` (optional): GitHub owner/org for creating a new repo
-- `REPO_NAME` (optional): Desired repo name for creating a new repo
+**All other inputs MUST be asked from the user interactively.** Do NOT assume or default any values.
 
 ## Flow
 
-### Ask the user (via the orchestrator)
+### Ask the user
 
-If neither `REPO_URL` nor `REPO_NAME` are provided, the orchestrator should ask the user:
+The orchestrator MUST ask the user the following questions before proceeding:
 
-> Do you have an existing AEM EDS repository, or should I create a new one?
->
-> **Option A:** Provide the GitHub URL of your existing EDS repo (e.g., `https://github.com/myorg/mysite`)
->
-> **Option B:** I'll create a new one for you. What GitHub org and repo name would you like? (e.g., `myorg/mysite-demo`)
+**Question 1:** Do you have an existing AEM EDS repository, or should I create a new one?
+
+- **Option A:** Provide the GitHub URL of your existing EDS repo (e.g., `https://github.com/myorg/mysite`)
+- **Option B:** I'll create a new one for you.
+
+**If Option B (create new):**
+
+**Question 2:** What GitHub account or organization should I create the repo under? (e.g., `QuentinVecchio`, `myorg`)
+
+**Question 3:** What should the repo be named? (e.g., `patagonia-eu-demo`, `my-demo-site`)
+
+Do NOT proceed until the user has answered all required questions. Never assume a default org or repo name.
 
 ### Path A: Existing Repo
 

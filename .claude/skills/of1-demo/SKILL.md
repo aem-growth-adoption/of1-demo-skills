@@ -156,18 +156,24 @@ Steps 8–11 can run in parallel once step 7 (OF1 styling) is done. Step 12 (Con
 
 ## Step 2 — Setup AEM/DA Repo
 
-This step supports two flows:
+**This step requires user interaction BEFORE running.** The orchestrator (cone) MUST ask the user:
+1. Do you have an existing repo, or should I create a new one?
+2. If creating: What GitHub owner/org? (e.g., `QuentinVecchio`, `my-company`)
+3. If creating: What repo name? (e.g., `patagonia-eu-demo`)
+
+Do NOT assume defaults for org or repo name — always ask.
+
+Once the user provides answers, proceed with the appropriate flow:
 
 ### Flow A: User provides an existing EDS repo
-The user gives a GitHub URL. The scoop clones it, mounts DA, and verifies preview works.
+The user gives a GitHub URL. Clone it, mount DA, and verify preview works.
 
 ### Flow B: Create a new repo from the OF1 boilerplate
-The scoop:
-1. Creates a new repo from `https://github.com/aem-growth-adoption/of1-boilerplate` using the GitHub template API
-2. Asks the user to install AEM Code Sync GitHub App (status = "review" with link to installation page)
-3. After user confirms/approves, verifies the preview URL works
-4. Mounts DA and creates initial content if needed
-5. Verifies end-to-end: DA content → preview URL renders
+1. Create a new repo from `https://github.com/aem-growth-adoption/of1-boilerplate` using the GitHub template API
+2. Ask the user to install AEM Code Sync GitHub App (status = "review" with link to installation page)
+3. After user confirms/approves, verify the preview URL works
+4. Mount DA and create initial content if needed
+5. Verify end-to-end: DA content → preview URL renders
 
 The step outputs `/shared/of1-demo/repo-config.json` which all subsequent steps use to know where the repo lives:
 ```json
