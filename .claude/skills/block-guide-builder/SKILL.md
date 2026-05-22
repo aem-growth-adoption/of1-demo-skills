@@ -139,8 +139,10 @@ Write a status file with the block catalog URL as the deliverable:
 
 ```bash
 mkdir -p /shared/of1-demo
-BRANCH="{branch}"
-echo '{"step":9,"status":"review","deliverable":"https://'${BRANCH}'--of1-demo--aem-growth-adoption.aem.page/'${BRANCH}'/block-catalog"}' > /shared/of1-demo/step-9-status.json
+REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
+REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
+echo '{"step":9,"status":"review","deliverable":"https://main--'${REPO}'--'${OWNER}'.aem.page/block-catalog"}' > /shared/of1-demo/step-9-status.json
 ```
 
 ## MANDATORY: Images in Every Block

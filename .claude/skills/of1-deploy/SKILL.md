@@ -11,8 +11,18 @@ Generate deliverables hub, deploy all tenant config to the worker, and verify.
 ## Inputs
 
 - `DOMAIN`: Target domain
-- `BRANCH`: Git branch name
+- Repo config from `/shared/of1-demo/repo-config.json`
 - All config files in `output/{DOMAIN}/` (products.json, personas.json, use-cases.json, features.json, faqs.json, brand-voice.json, block-guide.json, suggestions.json)
+
+## Read repo config
+
+```bash
+REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
+REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
+REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
+PREVIEW_BASE="https://main--${REPO}--${OWNER}.aem.page"
+```
 
 ## Static HTML Hosting on EDS
 
@@ -20,36 +30,37 @@ Generate deliverables hub, deploy all tenant config to the worker, and verify.
 
 ```
 # Files at this repo path:
-deliverables/{BRANCH}/index.html
-deliverables/{BRANCH}/brand-review.html
-deliverables/{BRANCH}/prototype-home.html
+deliverables/index.html
+deliverables/brand-review.html
+deliverables/prototype-home.html
 
 # Are served at:
-https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/deliverables/{BRANCH}/index.html
-https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/deliverables/{BRANCH}/brand-review.html
-https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/deliverables/{BRANCH}/prototype-home.html
+${PREVIEW_BASE}/deliverables/index.html
+${PREVIEW_BASE}/deliverables/brand-review.html
+${PREVIEW_BASE}/deliverables/prototype-home.html
 ```
 
-Use relative links between files in the same directory. Use absolute URLs for AEM content pages (DA-published pages at `/{BRANCH}/of1`, `/{BRANCH}/block-catalog`, etc.).
+Use relative links between files in the same directory. Use absolute URLs for AEM content pages (DA-published pages at `/of1`, `/block-catalog`, etc.).
 
 ## Process
 
 ### 1. Build deliverables directory
 
-Create `deliverables/{BRANCH}/` and collect all standalone HTML deliverables:
+Create `deliverables/` and collect all standalone HTML deliverables:
 
 ```bash
-mkdir -p deliverables/{BRANCH}
+cd "$REPO_DIR"
+mkdir -p deliverables
 
 # Copy standalone HTML files
-cp stardust/current/brand-review.html deliverables/{BRANCH}/brand-review.html
-cp stardust/prototypes/*.html deliverables/{BRANCH}/   # rename to prototype-{slug}.html
-cp content/{BRANCH}/of1-review.html deliverables/{BRANCH}/of1-review.html
+cp stardust/current/brand-review.html deliverables/brand-review.html
+cp stardust/prototypes/*.html deliverables/   # rename to prototype-{slug}.html
+cp content/of1-review.html deliverables/of1-review.html 2>/dev/null || true
 ```
 
 ### 2. Generate OF1 config review page
 
-Build `deliverables/{BRANCH}/of1-review.html` — a self-contained HTML page (inline styles, no external deps) that displays ALL worker config for user approval:
+Build `deliverables/of1-review.html` — a self-contained HTML page (inline styles, no external deps) that displays ALL worker config for user approval:
 
 **Required sections:**
 - **Search UI** — title, subtitle, placeholder, all suggestion chips (from suggestions.json)
@@ -62,12 +73,12 @@ Build `deliverables/{BRANCH}/of1-review.html` — a self-contained HTML page (in
 
 ### 3. Generate demo hub page
 
-Build `deliverables/{BRANCH}/index.html` — a single entry point linking to all deliverables. Self-contained HTML with inline styles.
+Build `deliverables/index.html` — a single entry point linking to all deliverables. Self-contained HTML with inline styles.
 
 **Required sections:**
 - **Discovery & Extraction** — link to brand-review.html
 - **Prototypes** — links to each prototype-*.html file
-- **EDS Pages** — links to AEM preview URLs (absolute: `https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/{BRANCH}/`)
+- **EDS Pages** — links to AEM preview URLs (absolute: `${PREVIEW_BASE}/`)
 - **OF1 Generative** — links to OF1 page, block catalog (AEM), and config review (relative)
 
 Use badges to distinguish link types:
@@ -78,13 +89,13 @@ Use badges to distinguish link types:
 ### 4. Commit and push to trigger EDS serving
 
 ```bash
-git add deliverables/{BRANCH}/
+git add deliverables/
 git commit -m "feat: add demo hub and deliverables for {DOMAIN}"
-git push origin {BRANCH}
+git push origin main
 ```
 
 After push, files are immediately available at:
-`https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/deliverables/{BRANCH}/index.html`
+`${PREVIEW_BASE}/deliverables/index.html`
 
 **Present the hub URL to the user for review.** This is a gate — do not deploy to the worker until they approve.
 
@@ -127,7 +138,7 @@ fi
 ```bash
 curl -s -X PUT "${WORKER_URL}/api/admin/tenants/${DOMAIN}/of1-endpoint" \
   -H "Content-Type: application/json" \
-  -d "{\"url\": \"https://${BRANCH}--of1-demo--aem-growth-adoption.aem.page/${BRANCH}/of1\"}"
+  -d "{\"url\": \"${PREVIEW_BASE}/of1\"}"
 ```
 
 ### 8. Test generation
@@ -146,11 +157,11 @@ Verify:
 
 ## Deliverables
 
-- `deliverables/{BRANCH}/index.html` — **Demo Hub** (entry point to everything)
-- `deliverables/{BRANCH}/brand-review.html` — Brand extraction review
-- `deliverables/{BRANCH}/prototype-*.html` — Pixel-perfect HTML prototypes
-- `deliverables/{BRANCH}/of1-review.html` — Config review dashboard
-- `content/{BRANCH}/block-catalog.html` — Block catalog (DA/AEM published)
+- `deliverables/index.html` — **Demo Hub** (entry point to everything)
+- `deliverables/brand-review.html` — Brand extraction review
+- `deliverables/prototype-*.html` — Pixel-perfect HTML prototypes
+- `deliverables/of1-review.html` — Config review dashboard
+- `content/block-catalog.html` — Block catalog (DA/AEM published)
 - Tenant config deployed to worker
 - OF1 endpoint registered
 - Test generation verified
@@ -162,14 +173,14 @@ Present final report with the hub URL:
 ```
 ## Demo Ready: {DOMAIN}
 
-**Demo Hub:** https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/deliverables/{BRANCH}/index.html
+**Demo Hub:** ${PREVIEW_BASE}/deliverables/index.html
 
 All deliverables:
-- OF1 page: https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/{BRANCH}/of1
-- Block catalog: https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/{BRANCH}/block-catalog
-- EDS site: https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/{BRANCH}/
-- Config review: https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/deliverables/{BRANCH}/of1-review.html
-- DA.live: https://da.live/#/aem-growth-adoption/of1-demo/{BRANCH}
+- OF1 page: ${PREVIEW_BASE}/of1
+- Block catalog: ${PREVIEW_BASE}/block-catalog
+- EDS site: ${PREVIEW_BASE}/
+- Config review: ${PREVIEW_BASE}/deliverables/of1-review.html
+- DA.live: https://da.live/#/${OWNER}/${REPO}
 - Worker tenant: deployed + verified
 ```
 
@@ -177,5 +188,5 @@ Write a status file — do NOT call `sprinkle send` directly (only the of1-demo 
 
 ```bash
 mkdir -p /shared/of1-demo
-echo '{"step":12,"status":"done","deliverable":"https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/deliverables/{BRANCH}/index.html"}' > /shared/of1-demo/step-12-status.json
+echo '{"step":13,"status":"done","deliverable":"'${PREVIEW_BASE}'/deliverables/index.html"}' > /shared/of1-demo/step-13-status.json
 ```

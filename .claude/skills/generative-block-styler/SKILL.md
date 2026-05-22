@@ -127,11 +127,11 @@ Start the dev server and test:
 
 ### Step 7: Commit and push
 
-Push to the branch so the preview updates:
+Push so the preview updates:
 ```bash
 git add blocks/of1/of1.css
 git commit -m "feat: brand-aligned OF1 generative block styling for {DOMAIN}"
-git push origin {BRANCH}
+git push origin main
 ```
 
 ## Key Principles
@@ -154,8 +154,10 @@ Write a status file — do NOT call `sprinkle send` directly (only the of1-demo 
 
 ```bash
 mkdir -p /shared/of1-demo
-BRANCH="{branch}"
-echo '{"step":7,"status":"review","deliverable":"https://'${BRANCH}'--of1-demo--aem-growth-adoption.aem.page/'${BRANCH}'/of1","summary":"OF1 generative block CSS styled to match brand. Please open the OF1 page, test search chips, and review the design."}' > /shared/of1-demo/step-7-status.json
+REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
+REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
+echo '{"step":7,"status":"review","deliverable":"https://main--'${REPO}'--'${OWNER}'.aem.page/of1","summary":"OF1 generative block CSS styled to match brand. Please open the OF1 page, test search chips, and review the design."}' > /shared/of1-demo/step-7-status.json
 ```
 
 The user will:
