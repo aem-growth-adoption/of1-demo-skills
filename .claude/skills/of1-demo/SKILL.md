@@ -245,6 +245,13 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 2 (Setup AEM/DA repo)** needs: domain (optional), user input about repo choice. Outputs `repo-config.json`.
 - **Step 3 (Discovery)** needs: domain
 - **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). If `PRODUCT.md` does not exist at project root, the scoop MUST run `/impeccable:teach` first using the Discovery answers as context to generate it. Then proceed with extraction.
+  
+  **CRITICAL — Deliverable post-processing for Step 4:**
+  The `extract` skill generates `stardust/current/brand-review.html` with relative image paths (`assets/screenshots/...`) and may produce a truncated brand logo SVG. When copying to `deliverables/brand-review.html`, the scoop MUST:
+  1. Copy `stardust/current/assets/screenshots/` to `deliverables/assets/screenshots/`
+  2. Fix image paths in the HTML to use `/deliverables/assets/screenshots/` (absolute from repo root) so they resolve on the EDS preview URL
+  3. Verify the brand logo SVG is complete — extract the full logo from the live site using `playwright-cli eval` and replace any truncated SVG path data
+  4. Verify all images load by checking the paths exist in the committed repo
 - **Step 5 (Prototype)** needs: domain, extraction outputs from step 4. The scoop prompt MUST instruct the scoop to:
   1. Extract real image URLs from the live site using `playwright-cli eval` before writing any HTML
   2. Extract real SVG icons from the live DOM (not emoji, not generic icons)
@@ -339,3 +346,7 @@ These issues cost time in previous runs. Avoid them:
 7. **DA preview auth** — needs BOTH `Authorization: Bearer <token>` AND `x-content-source-authorization: Bearer <token>` headers.
 
 8. **`--data-binary @file` breaks in scoops** — curl's `@path` expansion can fail, storing the literal string `@/workspace/...` instead of file contents. Always pipe via stdin: `cat file | curl ... --data-binary @-`.
+
+9. **Deliverable HTML with images** — When HTML deliverables reference images (screenshots, logos), paths must be absolute from the repo root (e.g., `/deliverables/assets/screenshots/home.png`) so they resolve on the EDS preview URL. Relative paths like `assets/screenshots/...` break because the HTML is served at `/deliverables/brand-review.html` while images are at `/deliverables/assets/screenshots/`. Always commit the image assets alongside the HTML.
+
+10. **Logo SVG extraction** — The brand logo extracted via Playwright can be truncated if it comes from a `<symbol>` sprite. Always extract the full `innerHTML` of the symbol element and wrap it in a standalone `<svg>` with the correct `viewBox`. Verify the rendered SVG shows the complete wordmark before committing.
