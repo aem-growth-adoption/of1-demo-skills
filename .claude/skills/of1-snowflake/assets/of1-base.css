@@ -66,15 +66,16 @@
   color: var(--text);
   line-height: 1.1;
   letter-spacing: -0.02em;
-  margin-bottom: 12px;
+  margin: 0 auto 12px;
   text-align: center;
+  width: 100%;
 }
 
 .of1-subtitle {
   font-family: var(--font-body);
   font-size: 1.0625rem;
   color: var(--text-secondary);
-  margin-bottom: 40px;
+  margin: 0 auto 40px;
   max-width: 520px;
   line-height: 1.55;
   text-align: center;
