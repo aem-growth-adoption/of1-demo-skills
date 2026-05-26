@@ -44,7 +44,7 @@ For each block, determine:
 
 ### Step 3: Get domain context
 
-If `DOMAIN` was provided in your prompt (pipeline mode), use it directly and infer the site focus from `output/{domain}/products.json` and prior discovery output. Skip asking.
+If `DOMAIN` was provided in your prompt (pipeline mode), use it directly and infer the site focus from `of1/config/products.json` and prior discovery output. Skip asking.
 
 Otherwise, ask the user:
 > What domain is this block guide for? (e.g., nvidia.com)
@@ -56,7 +56,7 @@ Before presenting the block selection, generate a **block catalog page** that re
 
 Write the catalog to `content/{branch}/block-catalog.html` in standard EDS authoring HTML format:
 - One section per block: h2 with block name, p with description, then the block markup
-- Use real product images from `output/{domain}/products.json`
+- Use real product images from `of1/config/products.json`
 - Include the site's nav/footer metadata
 
 Publish to DA and trigger AEM preview so the user can see all blocks rendered with the site's actual CSS.
@@ -92,7 +92,7 @@ Which blocks should OF1 use? Feel free to override my recommendations.
 
 ### Step 6: Generate block-guide.json
 
-Write to `output/{domain}/block-guide.json`.
+Write to `of1/config/block-guide.json`.
 
 The block guide is a **prompt string** that tells the LLM how to output structured JSON blocks. The worker's `json-to-html.js` converts the JSON into EDS HTML at runtime — no `html_template` or `scoped_css` needed. The EDS site's own block CSS handles styling.
 
@@ -110,9 +110,19 @@ The worker's `build-prompt.js` checks `blockGuide.guide` (text format) first, th
 
 The `guide` string must include:
 
-1. **Rules section** — output format (JSON objects separated by `===`), content item types table
+1. **Rules section** — output format (CRITICAL: each block is a separate JSON object, separated by `===` on its own line. NOT wrapped in a `{"blocks":[...]}` array). Include content item types table.
 2. **Block definitions** — each block with name, description, rules, and a complete JSON example using the `rows` format
-3. **Suggestions section** — instructions for the required trailing suggestions object
+3. **Suggestions section** — instructions for the required trailing suggestions object (also separated by `===`)
+
+**CRITICAL OUTPUT FORMAT:** The guide MUST instruct the LLM to output blocks like this:
+```
+{"block":"hero","rows":[...]}
+===
+{"block":"cards","rows":[...]}
+===
+{"suggestions":["query1","query2","query3"]}
+```
+The worker's `json-to-html.js` splits the LLM output on `===` and processes each JSON object individually. If the LLM wraps blocks in `{"blocks":[...]}`, the worker cannot parse them and NO sections will render. This is the #1 cause of blank generation pages.
 
 **Do NOT include `html_template` or `scoped_css`** — these are unnecessary. The worker converts the LLM's JSON output to standard EDS block HTML using `json-to-html.js`, and the site's own block CSS (already deployed) handles all styling. The LLM just needs to know the block names and row/cell structure.
 
@@ -131,7 +141,7 @@ The `example` is a **JSON string** (escaped) showing one complete block object. 
 
 ### Step 7: Confirm
 
-> Block guide written to `output/{domain}/block-guide.json` with [N] blocks defined.
+> Block guide written to `of1/config/block-guide.json` with [N] blocks defined.
 > Each block includes a `rows`-based example for the LLM.
 > Block catalog available at: [preview URL]
 
@@ -139,8 +149,10 @@ Write a status file with the block catalog URL as the deliverable:
 
 ```bash
 mkdir -p /shared/of1-demo
-BRANCH="{branch}"
-echo '{"step":9,"status":"review","deliverable":"https://'${BRANCH}'--of1-demo--aem-growth-adoption.aem.page/'${BRANCH}'/block-catalog"}' > /shared/of1-demo/step-9-status.json
+REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
+REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
+echo '{"step":9,"status":"review","deliverable":"https://main--'${REPO}'--'${OWNER}'.aem.page/block-catalog"}' > /shared/of1-demo/step-9-status.json
 ```
 
 ## MANDATORY: Images in Every Block
@@ -161,7 +173,7 @@ Every block example in the guide that supports images MUST show an image content
 
 ## MANDATORY: Use Real Image URLs
 
-**All image URLs in examples MUST be real, working URLs from `output/{domain}/products.json`.** The LLM treats example URLs as patterns to follow — if you use fake/invented URLs (e.g. `/content/dam/...` paths), the LLM will hallucinate similar broken URLs in generation.
+**All image URLs in examples MUST be real, working URLs from `of1/config/products.json`.** The LLM treats example URLs as patterns to follow — if you use fake/invented URLs (e.g. `/content/dam/...` paths), the LLM will hallucinate similar broken URLs in generation.
 
 ```
 CRITICAL:
@@ -176,7 +188,7 @@ CRITICAL:
 - **Less is more:** 5-8 well-described blocks with good examples beat 20 poorly described ones
 - **Examples are mandatory:** The LLM ONLY produces correct output when it sees exact examples. A block without an `example` field will produce broken HTML.
 - **Match decorate():** Trace mentally: "If the LLM outputs this example → json-to-html converts it → the block's decorate() receives it — will it work?"
-- **Use real content:** Examples should use realistic content from the site, not generic placeholders. Use real image URLs from `output/{domain}/products.json`.
+- **Use real content:** Examples should use realistic content from the site, not generic placeholders. Use real image URLs from `of1/config/products.json`.
 - **Every example with a visual block MUST include an image content item** — if you write an example without `{"type":"image",...}` in a block that renders images, the LLM will skip images in generation.
 - **The `rows` format:** `rows[row_index][cell_index][item_index]` — that's the nested structure
 - **Intent-driven layout guidance:** The worker's `build-prompt.js` tells the LLM what kind of page to generate based on detected intent:

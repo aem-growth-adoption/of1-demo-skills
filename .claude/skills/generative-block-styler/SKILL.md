@@ -11,7 +11,9 @@ Generate a polished, brand-aligned CSS file for the of1 generative block. This m
 ## CRITICAL RULES
 
 1. **NEVER modify `blocks/of1/of1.js`** — the OF1 block JavaScript is shared infrastructure and must not be changed. Only the CSS (`blocks/of1/of1.css`) is customized per brand.
-2. **Style using the brand guidelines from stardust** — read `stardust/current/_brand-extraction.json`, `DESIGN.json`, and the `:root` tokens in `styles/styles.css`. The OF1 block must feel native to the brand, not like a generic overlay.
+2. **Verify `blocks/of1/of1.js` EXISTS before starting** — if it's missing, the block won't render at all. The snowflake step (Step 6) should have installed it. If missing, copy it from the skill assets: `cp /workspace/skills/of1-snowflake/assets/of1.js blocks/of1/of1.js` and commit it.
+3. **Style using the brand guidelines from stardust** — read `stardust/current/_brand-extraction.json`, `DESIGN.json`, and the `:root` tokens in `styles/styles.css`. The OF1 block must feel native to the brand, not like a generic overlay.
+4. **Commit BOTH of1.js and of1.css** — of1.js must be deployed as-is (unmodified) alongside your styled of1.css. Always `git add blocks/of1/` to include both files. A missing JS = blank page.
 
 ## Why This Exists
 
@@ -33,7 +35,7 @@ Read the following files to understand the brand:
 - `DESIGN.md` or `DESIGN.json` — design tokens (colors, fonts, spacing, radius)
 - `styles/styles.css` — CSS custom properties (the actual deployed tokens)
 - `blocks/of1/of1.css` — current of1 block styles
-- `output/{domain}/block-guide.json` — which blocks the LLM generates
+- `of1/config/block-guide.json` — which blocks the LLM generates
 
 ### Step 2: Generate brand-appropriate styles
 
@@ -127,11 +129,11 @@ Start the dev server and test:
 
 ### Step 7: Commit and push
 
-Push to the branch so the preview updates:
+Push so the preview updates:
 ```bash
 git add blocks/of1/of1.css
 git commit -m "feat: brand-aligned OF1 generative block styling for {DOMAIN}"
-git push origin {BRANCH}
+git push origin main
 ```
 
 ## Key Principles
@@ -154,8 +156,10 @@ Write a status file — do NOT call `sprinkle send` directly (only the of1-demo 
 
 ```bash
 mkdir -p /shared/of1-demo
-BRANCH="{branch}"
-echo '{"step":7,"status":"review","deliverable":"https://'${BRANCH}'--of1-demo--aem-growth-adoption.aem.page/'${BRANCH}'/of1","summary":"OF1 generative block CSS styled to match brand. Please open the OF1 page, test search chips, and review the design."}' > /shared/of1-demo/step-7-status.json
+REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
+REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
+echo '{"step":7,"status":"review","deliverable":"https://main--'${REPO}'--'${OWNER}'.aem.page/of1","summary":"OF1 generative block CSS styled to match brand. Please open the OF1 page, test search chips, and review the design."}' > /shared/of1-demo/step-7-status.json
 ```
 
 The user will:

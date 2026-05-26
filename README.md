@@ -50,13 +50,7 @@ Each skill can also be invoked independently for iterating on a specific step:
 
 ## Prerequisites
 
-The demo repo (where the actual site code lives) will be cloned automatically during setup:
-
-```
-https://github.com/aem-growth-adoption/of1-demo
-```
-
-By default it clones to `~/of1-demo`. Set `OF1_DEMO_DIR` to override the location.
+The demo repo (where the actual site code lives) is created or selected during Step 2 (of1-repo-setup). It can be any AEM EDS repository — the pipeline does not depend on a specific repo.
 
 The following plugins are also required by the pipeline:
 

@@ -88,7 +88,7 @@ Wait for confirmation.
 
 ### Step 5: Generate brand-voice.json
 
-Determine the domain from the URL (e.g., `nvidia.com`). Write to `output/{domain}/brand-voice.json`:
+Determine the domain from the URL (e.g., `nvidia.com`). Write to `of1/config/brand-voice.json`:
 
 ```json
 {
@@ -116,11 +116,11 @@ The worker's `build-prompt.js` reads `ctx.tenant.brandVoice` and injects it into
 
 These directly shape how the LLM writes generated sections. The more specific and accurate these are, the more on-brand the output will be. Generic values like "professional and friendly" produce generic output.
 
-Create the output directory if needed: `mkdir -p output/{domain}`
+Create the output directory if needed: `mkdir -p of1/config`
 
 ### Step 6: Confirm
 
-> Brand voice written to `output/{domain}/brand-voice.json`. Ready for the next step.
+> Brand voice written to `of1/config/brand-voice.json`. Ready for the next step.
 
 ## Completion (pipeline mode)
 

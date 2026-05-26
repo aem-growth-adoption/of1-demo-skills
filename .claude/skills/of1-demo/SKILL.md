@@ -10,12 +10,15 @@ Lightweight orchestrator that opens the demo pipeline sprinkle and dispatches st
 
 ## How It Works
 
-1. The sprinkle (`of1-demo`) shows 12 steps as a pipeline
+1. The sprinkle (`of1-demo`) shows 13 steps as a pipeline
 2. User enters a domain and clicks "Run" on each step
 3. Each click fires a lick to the cone with `{action: "run:<step>:<skill>:<domain>"}`
 4. The cone spawns a scoop to execute the step skill with appropriate context
 5. Steps with review gates pause for user approval (Approve/Revise buttons in sprinkle)
-6. Steps 8–10 (Brand & content, Block guide, Suggestions) can run in parallel after step 7 (OF1 styling) completes
+6. After step 5 (Prototype), two tracks run in parallel:
+   - **Track A (EDS Site):** Step 6 (Snowflake) → Steps 7 + 8 (Templates + OF1 styling) in parallel
+   - **Track B (Config):** Steps 9–12 (Brand, Block guide, Suggestions, CTA) in parallel → Step 13 (Config review)
+7. Step 14 (Deploy) requires Track A steps 7 + 8 done AND Track B step 13 approved
 
 ## Setup
 
@@ -43,12 +46,12 @@ User clicked Run on step N. Parse the step number, skill name, and domain from t
 
 Pass `model: "claude-opus-4-6"` when calling `scoop_scoop()` for every step. No exceptions.
 
-**For step 6 (Snowflake), the scoop MUST additionally be created with write access to `/workspace/of1-demo/`:**
+**For step 6 (Snowflake), the scoop MUST additionally be created with write access to the project repo:**
 ```
 scoop_scoop({
   name: "of1-s6",
   model: "claude-opus-4-6",
-  writablePaths: ["/scoops/of1-s6/", "/shared/", "/workspace/of1-demo/"]
+  writablePaths: ["/scoops/of1-s6/", "/shared/", "/workspace/{REPO_NAME}/"]
 })
 ```
 This allows the scoop to write blocks, styles, and content directly into the repo without needing the cone to copy files afterward.
@@ -58,9 +61,12 @@ feed_scoop("of1-demo-step-N", <system prompt with skill instructions + context>)
 ```
 
 The system prompt MUST include:
-- The domain and branch name
-- Path to the relevant skill file to read: `read_file /workspace/skills/{skill-name}/SKILL.md`
-- Current working directory context (the of1-demo repo)
+- The domain
+- The repo owner, repo name, and local repo path (from `/shared/of1-demo/repo-config.json`)
+- How to load the skill:
+  - For local skills: `read_file /workspace/skills/{skill-name}/SKILL.md`
+  - For plugin skills (steps 4 & 5): instruct the scoop to invoke the Skill tool with `stardust:extract` or `stardust:prototype` — these are NOT local files
+- Current working directory context (the project repo)
 - Any outputs from previous steps the skill needs
 - Instruction to write a completion marker on finish (NOT `sprinkle send` — the step scoop must NOT call sprinkle commands):
   Write output to `/shared/of1-demo/step-N-output.md` and a status file to `/shared/of1-demo/step-N-status.json` with content `{"step":N,"status":"done"}` (or `"review"` or `"failed"`).
@@ -84,17 +90,22 @@ Then read the file and call `sprinkle send of1-demo '<contents>'` immediately.
 
 Only the of1-demo scoop may call `sprinkle send`. Step scoops write files; the orchestrator reads them and pushes to the sprinkle.
 
-**For parallel steps (8–11):** Spawn all parallel scoops at once, then poll for ALL their status files concurrently. As EACH one completes, push its status to the sprinkle immediately — do NOT wait for all parallel steps to finish before updating the UI. The user should see steps turn green/review one by one as they complete.
+**After step 5 is approved, spawn BOTH tracks in parallel:**
+
+**Track A** — spawn step 6 (Snowflake). When step 6 completes, spawn steps 7 and 8 in parallel.
+
+**Track B** — spawn steps 9, 10, 11, 12 all at once. When all four complete, run step 13 (Config review) inline.
+
+Poll for ALL status files concurrently. As EACH one completes, push its status to the sprinkle immediately — the user should see steps turn green/review one by one.
 
 ```bash
-# Poll for all parallel status files and push each as it arrives
+# Poll for all active step status files and push each as it arrives
 while true; do
   ALL_DONE=true
-  for STEP in 8 9 10 11; do
+  for STEP in 6 7 8 9 10 11 12 13; do
     STATUS_FILE="/shared/of1-demo/step-${STEP}-status.json"
     PUSHED_FILE="/shared/of1-demo/step-${STEP}-pushed"
     if [ -f "$STATUS_FILE" ] && [ ! -f "$PUSHED_FILE" ]; then
-      # Push immediately when a step finishes
       sprinkle send of1-demo "$(cat "$STATUS_FILE")"
       touch "$PUSHED_FILE"
     fi
@@ -107,7 +118,7 @@ while true; do
 done
 ```
 
-For step 8 (brand + content), the orchestrator must wait for BOTH `step-8-brand-status.json` and `step-8-content-status.json` before pushing the combined step 8 status to the sprinkle.
+For step 9 (brand + content), the orchestrator must wait for BOTH `step-9-brand-status.json` and `step-9-content-status.json` before pushing the combined step 9 status to the sprinkle.
 
 ### `open-deliverable:<step>:<encoded-url>`
 The user clicked a single deliverable button. Decode the URL and open it:
@@ -137,21 +148,105 @@ User reset the pipeline. Clean up any running scoops.
 
 | Step | Name | Skill(s) | Review Gate | Parallel |
 |------|------|-----------|-------------|----------|
-| 1 | Setup | `of1-setup` | No | No |
-| 2 | Discovery | `of1-discovery` | Yes | No |
-| 3 | Branch setup | `of1-branch-setup` | No | No |
-| 4 | Extraction | `extract` | Yes | No |
-| 5 | Prototype | `prototype` | Yes | No |
+| 1 | Install dependencies | `of1-setup` | No | No |
+| 2 | Branch setup | `of1-branch-setup` | No | No |
+| 3 | Discovery | `of1-discovery` | Yes | No |
+| 4 | Extraction | `stardust:extract` | Yes | No |
+| 5 | Prototype | `stardust:prototype` | Yes | No |
 | 6 | Snowflake | `of1-snowflake` | Yes | No |
-| 7 | OF1 styling | `generative-block-styler` | Yes | No |
-| 8 | Brand & content | `brand-voice-extractor` + `content-metadata` | No | Yes |
-| 9 | Block guide | `block-guide-builder` | No | Yes |
-| 10 | Suggestions | `quick-suggestions` | No | Yes |
-| 11 | CTA template | `cta-template-builder` | No | Yes |
-| 12 | Config review | (orchestrator-inline) | Yes | No |
-| 13 | Deploy | `of1-deploy` | Yes | No |
+| 7 | Templates | `of1-template-generation` | Yes | No |
+| 8 | OF1 styling | `generative-block-styler` | Yes | No |
+| 9 | Brand & content | `brand-voice-extractor` + `content-metadata` | No | Yes |
+| 10 | Block guide | `block-guide-builder` | No | Yes |
+| 11 | Suggestions | `quick-suggestions` | No | Yes |
+| 12 | CTA template | `cta-template-builder` | No | Yes |
+| 13 | Config review | (orchestrator-inline) | Yes | No |
+| 14 | Deploy | `of1-deploy` | Yes | No |
 
-Steps 8–11 can run in parallel once step 7 (OF1 styling) is done. Step 12 (Config review) requires all parallel steps to be done — the orchestrator generates a review page showing the block guide (as a subset of the block catalog), brand voice, products, suggestions, and CTA template. Step 13 (Deploy) requires step 12 approval.
+After step 5 (Prototype), two parallel tracks begin:
+
+**Track A (EDS Site):** Step 6 (Snowflake) runs first, then steps 7 (Templates) and 8 (OF1 styling) run in parallel — both depend on step 6.
+
+**Track B (Config):** Steps 9–12 (Brand & content, Block guide, Suggestions, CTA template) all run in parallel immediately after step 5. Step 13 (Config review) requires all of 9–12 to be done.
+
+**Step 14 (Deploy)** requires steps 7 + 8 (Track A) done AND step 13 (Track B) approved.
+
+## Step 2 — Branch Setup
+
+This step creates a domain-specific branch on the shared `aem-growth-adoption/of1-demo` repo and sets up the output directory.
+
+The repo is already cloned at `/workspace/of1-demo`. The step:
+1. Fetches latest from origin
+2. Creates a branch named after the domain (without TLD, e.g., `bmwusa` for `bmwusa.com`)
+3. Creates `output/{DOMAIN}/` directory for deliverables
+4. Verifies DA mount at `/mnt/da`
+
+The step outputs `/shared/of1-demo/repo-config.json` which all subsequent steps use:
+```json
+{
+  "owner": "aem-growth-adoption",
+  "repo": "of1-demo",
+  "branch": "bmwusa",
+  "repoUrl": "https://github.com/aem-growth-adoption/of1-demo",
+  "previewUrl": "https://bmwusa--of1-demo--aem-growth-adoption.aem.page/",
+  "daSource": "da://aem-growth-adoption/of1-demo",
+  "repoDir": "/workspace/of1-demo",
+  "domain": "bmwusa.com"
+}
+```
+
+**All subsequent steps MUST read this file** to determine:
+- Where to find the git repo (`repoDir`)
+- Which branch to work on (`branch`)
+- The DA mount source (`daSource`)
+- The EDS preview URL (`previewUrl`)
+- The preview/live URL patterns (`previewUrl`)
+- The GitHub owner and repo name for branch URLs
+
+## Screenshot Diff Loop (Steps 5 & 6)
+
+Both the Prototype step (5) and the Snowflake step (6) MUST run a screenshot-based comparison loop before marking the step as review. This ensures visual fidelity.
+
+### How it works
+
+For each page, iterate up to **3 times**:
+
+1. **Screenshot the reference** — the live site (Step 5) or the prototype (Step 6)
+2. **Screenshot the output** — the prototype HTML (Step 5) or the EDS preview URL (Step 6)
+3. **Compare using LLM vision** — open both screenshots and analyze differences
+4. **If significant differences found:**
+   - Identify which specific section/block is wrong
+   - Fix only that section (targeted CSS/HTML fix, not full regeneration)
+   - Re-screenshot and compare again
+5. **If no significant differences** → PASS, move to next page
+6. **After 3 iterations** → accept result, note remaining gaps as "known differences"
+
+### What counts as "significant"
+
+Fix these:
+- Missing or broken images
+- Layout differences (grid vs stack, wrong column count, missing columns)
+- Missing entire sections or blocks
+- Wrong colors or backgrounds
+- Nav/footer not rendering or visually broken
+- Obvious spacing issues (doubled padding, collapsed margins)
+
+Ignore these:
+- Minor font rendering differences (web font vs fallback anti-aliasing)
+- Sub-pixel spacing (1-2px differences)
+- Hover/animation states
+- Cookie banners or overlays on the live page
+- Dynamic content that changes between loads (carousel position, time-based promos)
+
+### Step 5 specifics
+- Reference = live site screenshot
+- Output = prototype HTML served locally (`file://...`)
+- Fix = edit the prototype HTML/CSS directly
+
+### Step 6 specifics
+- Reference = prototype screenshot (from Step 5 output)
+- Output = EDS preview URL screenshot
+- Fix = edit block CSS/JS, content HTML, re-push + re-preview
 
 ## CRITICAL: Pixel-Perfect Copy — No Redesign, No Placeholders
 
@@ -194,39 +289,47 @@ The prototype is considered acceptable only when a side-by-side comparison with 
 
 ## Scoop Naming
 
-Name step scoops: `of1-s1`, `of1-s2`, ..., `of1-s12`. This keeps them short and identifiable.
+Name step scoops: `of1-s1`, `of1-s2`, ..., `of1-s13`. This keeps them short and identifiable.
 
 ## Context Passing Between Steps
 
 Each step scoop needs context from prior steps. Key dependencies:
 
-- **Step 1 (Setup)** needs: nothing (can run without domain)
-- **Step 2 (Discovery)** needs: domain
-- **Step 3 (Branch setup)** needs: domain → branch name
-- **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). If `PRODUCT.md` does not exist at project root, the scoop MUST run `/impeccable:teach` first using the Discovery answers as context to generate it. Then proceed with extraction.
-- **Step 5 (Prototype)** needs: domain, extraction outputs from step 4. The scoop prompt MUST instruct the scoop to:
+- **Step 1 (Install dependencies)** needs: nothing (can run without domain)
+- **Step 2 (Branch setup)** needs: domain. Creates branch on `aem-growth-adoption/of1-demo` and outputs `repo-config.json`.
+- **Step 3 (Discovery)** needs: domain
+- **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). The scoop MUST invoke the `stardust:extract` skill (not a local skill — it's from the stardust plugin). If `PRODUCT.md` does not exist at project root, the scoop MUST run `/impeccable:teach` first using the Discovery answers as context to generate it. Then proceed with extraction.
+  
+  **CRITICAL — Deliverable post-processing for Step 4:**
+  The `stardust:extract` skill generates `stardust/current/brand-review.html` with relative image paths (`assets/screenshots/...`) and may produce a truncated brand logo SVG. When copying to `deliverables/brand-review.html`, the scoop MUST:
+  1. Copy `stardust/current/assets/screenshots/` to `deliverables/assets/screenshots/`
+  2. Fix image paths in the HTML to use `/deliverables/assets/screenshots/` (absolute from repo root) so they resolve on the EDS preview URL
+  3. Verify the brand logo SVG is complete — extract the full logo from the live site using `playwright-cli eval` and replace any truncated SVG path data
+  4. Verify all images load by checking the paths exist in the committed repo
+- **Step 5 (Prototype)** needs: domain, extraction outputs from step 4. The scoop MUST invoke the `stardust:prototype` skill (from the stardust plugin). The scoop prompt MUST instruct the scoop to:
   1. Extract real image URLs from the live site using `playwright-cli eval` before writing any HTML
   2. Extract real SVG icons from the live DOM (not emoji, not generic icons)
   3. Use `format=png` or `format=jpg` (not `format=webply`) for any CDN image URLs
-  4. Take a screenshot of each live page and compare against the prototype before marking done
+  4. Use the real brand SVG logo (extracted in step 4) in the nav — never substitute with text
   5. Never use placeholder divs, colored boxes, or gradient shapes in place of real images
-- **Step 6 (Snowflake)** needs: domain, branch, prototypes from step 5
-- **Step 7 (OF1 styling)** needs: domain, branch, block names from step 6, `stardust/` data
-- **Steps 8–10** need: domain, branch, block names from step 6, `stardust/` data
-- **Step 11 (Config review)** needs: all `output/{domain}/` files from steps 8–10 — orchestrator generates review page inline
-- **Step 11 (CTA template)** needs: domain (analyzes live site)
-- **Step 12 (Config review)** needs: all `output/{domain}/` files from steps 8–11 — orchestrator generates review page inline
-- **Step 13 (Deploy)** needs: step 12 approved, domain, branch, all `output/{domain}/` files
+  6. **Run the Screenshot Diff Loop** (max 3 iterations per page) — see below
+- **Step 6 (Snowflake)** needs: domain, prototypes from step 5, repo-config.json
+- **Step 7 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
+- **Step 7 (Templates)** needs: domain, design tokens from step 4 (`DESIGN.json`), demo narrative from step 3, snowflake output from step 6
+- **Step 8 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
+- **Steps 9–12 (Track B)** need: domain, `stardust/` data from step 4. They do NOT depend on the snowflake — they can start immediately after step 5.
+- **Step 13 (Config review)** needs: all `of1/config/` files from steps 9–12 — orchestrator generates review page inline
+- **Step 14 (Deploy)** needs: steps 7 + 8 done (Track A) AND step 13 approved (Track B), plus domain, all config files, repo-config.json
 
 When spawning a step scoop, read the relevant prior outputs and include key info in the prompt (or instruct the scoop to read specific files).
 
-## Step 12 — Config Review (orchestrator-inline)
+## Step 13 — Config Review (orchestrator-inline)
 
-Once all parallel steps (8–11) are done, the orchestrator runs step 12 **inline** (no scoop needed). This is a review gate where the user validates all the config that will be deployed.
+Once all parallel steps (9–12) are done, the orchestrator runs step 13 **inline** (no scoop needed). This is a review gate where the user validates all the config that will be deployed.
 
 ### What to generate
 
-Build `deliverables/{BRANCH}/config-review.html` — a self-contained HTML page (OF1 dark theme, inline styles) showing:
+Build `deliverables/config-review.html` in the repo — a self-contained HTML page (OF1 dark theme, inline styles) showing:
 
 1. **Block Guide vs Block Catalog** — list the blocks selected for generation (from `block-guide.json`) and highlight that they are a subset of the full block catalog. Link to the block catalog preview URL for comparison.
 2. **Products** — grid of products with thumbnail images, names, categories, and keyword counts (from `products.json`). Flag any products with missing images.
@@ -239,19 +342,24 @@ Build `deliverables/{BRANCH}/config-review.html` — a self-contained HTML page 
 ### How to run
 
 ```bash
-# Generate the review page from output/{DOMAIN}/ JSON files
-# (the orchestrator writes this HTML itself — no scoop needed)
-mkdir -p deliverables/{BRANCH}
+# Read repo-config.json to get owner/repo
+REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
+REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
+REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
+
+cd "$REPO_DIR"
+# Generate the review page from of1/config/ JSON files
+mkdir -p deliverables
 # ... write config-review.html ...
-git add deliverables/{BRANCH}/config-review.html
+git add deliverables/config-review.html
 git commit -m "docs: config review page for {DOMAIN}"
-git push origin {BRANCH}
+git push origin main
 ```
 
 Then push to sprinkle:
 ```bash
-BRANCH="{branch}"
-sprinkle send of1-demo '{"step":11,"status":"review","deliverable":"https://'${BRANCH}'--of1-demo--aem-growth-adoption.aem.page/deliverables/'${BRANCH}'/config-review.html","summary":"Review all config before deploy: block guide (subset of catalog), products, brand voice, personas, suggestions."}'
+sprinkle send of1-demo '{"step":12,"status":"review","deliverable":"https://main--'${REPO}'--'${OWNER}'.aem.page/deliverables/config-review.html","summary":"Review all config before deploy: block guide (subset of catalog), products, brand voice, CTA, suggestions."}'
 ```
 
 ### What the user reviews
@@ -274,7 +382,7 @@ If a step fails or the user requests revisions:
 
 ## Completion
 
-After step 13 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.
+After step 14 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.
 
 ## Shell Environment Pitfalls (SLICC-specific)
 
@@ -284,9 +392,9 @@ These issues cost time in previous runs. Avoid them:
 
 2. **Python in heredocs** — always quote the delimiter (`python3 << 'EOF'`). Unquoted heredocs mangle indentation and variables.
 
-3. **Large curl payloads fail on Cloudflare Workers (>~50KB)** — split into individual PUT requests per config key. See `of1-deploy` skill for the pattern.
+3. **Config sync uses EDS** — configs are committed to `of1/config/` in git, then synced via `POST /api/tenants/{id}/sync`. The tenant ID is `main--{repo}--{owner}` format.
 
-4. **Step 13 (Deploy) should be done inline by the cone** — it's just a few curl calls and takes <2 minutes. Don't delegate to a scoop; the overhead of spawning + polling exceeds the actual work.
+4. **Step 14 (Deploy)** — just `git push` + one POST to `/api/tenants/{id}/sync`. Can be done inline by the cone (no scoop needed).
 
 5. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else (e.g. "approved", "running", "complete") corrupts the UI state.
 
@@ -295,3 +403,17 @@ These issues cost time in previous runs. Avoid them:
 7. **DA preview auth** — needs BOTH `Authorization: Bearer <token>` AND `x-content-source-authorization: Bearer <token>` headers.
 
 8. **`--data-binary @file` breaks in scoops** — curl's `@path` expansion can fail, storing the literal string `@/workspace/...` instead of file contents. Always pipe via stdin: `cat file | curl ... --data-binary @-`.
+
+9. **Deliverable HTML with images** — When HTML deliverables reference images (screenshots, logos), paths must be absolute from the repo root (e.g., `/deliverables/assets/screenshots/home.png`) so they resolve on the EDS preview URL. Relative paths like `assets/screenshots/...` break because the HTML is served at `/deliverables/brand-review.html` while images are at `/deliverables/assets/screenshots/`. Always commit the image assets alongside the HTML.
+
+10. **Logo SVG extraction** — The brand logo extracted via Playwright can be truncated if it comes from a `<symbol>` sprite. Always extract the full `innerHTML` of the symbol element and wrap it in a standalone `<svg>` with the correct `viewBox`. Verify the rendered SVG shows the complete wordmark before committing.
+
+11. **Brand logo in prototypes** — Prototypes MUST use the real brand SVG logo (extracted in Step 4 and saved to `stardust/current/assets/logo.svg` or inline in `_brand-extraction.json`). Never substitute with text or a placeholder. The logo SVG should be inlined directly in the nav HTML of every prototype page.
+
+12. **DA strips images from programmatic content** — DA's HTML→MD→HTML pipeline removes ALL `<img>`, `<picture>`, and `<svg>` elements from content uploaded via PUT. The solution: store image URLs as plain text in block cells, and have block JS create `<img>` elements at runtime. Every block that handles images needs a `convertTextToImages(block)` helper. See `of1-snowflake` skill § "EDS Content Authoring Constraints" for the full pattern.
+
+13. **Full-bleed blocks need wrapper override** — EDS wraps sections in `.{block}-wrapper` with `max-width: 1440px`. Hero, banners, and other full-width blocks MUST have `.{block}-wrapper { max-width: 100% !important; padding: 0 !important; }` in `styles/styles.css`.
+
+14. **Brand logo in EDS header** — DA strips SVGs from nav content. Commit logo to `/icons/logo.svg` and have `header.js` fetch + inject it into the brand link at runtime. Never rely on inline SVG in DA content.
+
+15. **Static file URLs need `.html` extension** — EDS serves git-committed static HTML files at their exact path including the extension. A file at `deliverables/config-review.html` is served at `/deliverables/config-review.html` — NOT at `/deliverables/config-review` (that 404s). Always include the `.html` extension in deliverable URLs sent to the sprinkle. DA-authored content pages (like `/home`, `/block-catalog`) do NOT need the extension.

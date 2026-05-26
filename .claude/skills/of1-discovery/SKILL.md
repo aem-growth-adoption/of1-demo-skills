@@ -12,6 +12,14 @@ Crawl the target site to understand what it offers, then propose a demo focus an
 
 You will be given a `DOMAIN` (e.g., `bmwusa.com`).
 
+Read the repo config from step 2:
+```bash
+REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
+REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
+REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
+```
+
 ## Process
 
 ### 1. Crawl the homepage
@@ -49,7 +57,7 @@ Based on what you found, propose:
 
 ### 4. Generate discovery report HTML
 
-Generate a self-contained HTML report at `deliverables/{BRANCH}/discovery.html` using the OF1 dark theme (same aesthetic as the sprinkle UI):
+Generate a self-contained HTML report at `deliverables/discovery.html` using the OF1 dark theme (same aesthetic as the sprinkle UI):
 
 ```css
 /* Use these design tokens inline in the HTML */
@@ -74,15 +82,16 @@ Use cards, pills, and visual hierarchy similar to the sprinkle panel. Load Googl
 
 Commit and push to make it available via EDS static hosting:
 ```bash
-mkdir -p deliverables/{BRANCH}
+cd "$REPO_DIR"
+mkdir -p deliverables
 # ... write discovery.html ...
-git add deliverables/{BRANCH}/discovery.html
+git add deliverables/discovery.html
 git commit -m "docs: discovery report for {DOMAIN}"
-git push origin {BRANCH}
+git push origin main
 ```
 
 The report is then available at:
-`https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/deliverables/{BRANCH}/discovery.html`
+`https://main--${REPO}--${OWNER}.aem.page/deliverables/discovery.html`
 
 ### 5. Present in chat
 
@@ -102,7 +111,7 @@ Also present the proposal in chat as a structured summary:
 **Key pages:** [2-3 URLs to reproduce]
 **Why:** [rationale]
 
-**Full report:** https://{BRANCH}--of1-demo--aem-growth-adoption.aem.page/deliverables/{BRANCH}/discovery.html
+**Full report:** https://main--{REPO}--{OWNER}.aem.page/deliverables/discovery.html
 ```
 
 Then ask the user:
@@ -117,11 +126,10 @@ Write a status file — do NOT call `sprinkle send` directly (only the of1-demo 
 After presenting findings, write:
 ```bash
 mkdir -p /shared/of1-demo
-BRANCH="{branch}"
-echo '{"step":2,"status":"review","deliverable":"https://'${BRANCH}'--of1-demo--aem-growth-adoption.aem.page/deliverables/'${BRANCH}'/discovery.html","summary":"Demo focus: [focus]. Persona: [persona]. Pages: [N] key pages identified."}' > /shared/of1-demo/step-2-status.json
+echo '{"step":3,"status":"review","deliverable":"https://main--'${REPO}'--'${OWNER}'.aem.page/deliverables/discovery.html","summary":"Demo focus: [focus]. Persona: [persona]. Pages: [N] key pages identified."}' > /shared/of1-demo/step-3-status.json
 ```
 
 On approval (user confirms via sprinkle), the orchestrator will handle the `done` update. If you receive explicit approval in chat, write:
 ```bash
-echo '{"step":2,"status":"done"}' > /shared/of1-demo/step-2-status.json
+echo '{"step":3,"status":"done"}' > /shared/of1-demo/step-3-status.json
 ```

@@ -544,7 +544,36 @@
     background: rgba(100, 100, 255, 0.25);
   }
 
-  /* ─── Parallel Group ─────────────────────────────────────── */
+  /* ─── Parallel Tracks ─────────────────────────────────────── */
+
+  .of1-tracks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 6px 0;
+  }
+
+  .of1-track {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .of1-track__label {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--of1-fg-muted);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--of1-border-subtle);
+    margin-bottom: 2px;
+  }
+
+  .of1-track:first-child .of1-track__label { color: var(--of1-teal); border-color: rgba(0, 229, 160, 0.15); }
+  .of1-track:last-child .of1-track__label { color: rgba(100, 100, 255, 0.9); border-color: rgba(26, 26, 255, 0.15); }
+
+  /* ─── Parallel Group (within a track) ───────────────────── */
 
   .of1-parallel-group {
     display: grid;
@@ -725,19 +754,20 @@
 <script>
 (function () {
   var STEPS = [
-    { name: 'Setup', skill: 'of1-setup', review: false, parallel: false, desc: 'Verify skills, mounts, tokens, and tools are ready', group: null },
-    { name: 'Discovery', skill: 'of1-discovery', review: true, parallel: false, desc: 'Crawl site, identify products, propose demo focus', reviewNote: 'Demo focus and narrative', group: null },
-    { name: 'Branch setup', skill: 'of1-branch-setup', review: false, parallel: false, desc: 'Create git branch and output directory', group: null },
-    { name: 'Extraction', skill: 'extract', review: true, parallel: false, desc: 'Extract design tokens, fonts, colors, and page structure', reviewNote: 'Brand review page', group: 'Stardust' },
-    { name: 'Prototype', skill: 'prototype', review: true, parallel: false, desc: 'Generate pixel-perfect HTML reproductions of key pages', reviewNote: 'HTML prototypes', group: 'Stardust' },
-    { name: 'Snowflake', skill: 'of1-snowflake', review: true, parallel: false, desc: 'Convert prototypes to EDS blocks, publish to DA.live', reviewNote: 'Preview URL', group: 'Snowflake' },
-    { name: 'OF1 styling', skill: 'generative-block-styler', review: true, parallel: false, desc: 'Style the generative search UI to match the brand', reviewNote: 'OF1 page', group: null },
-    { name: 'Brand & content', skill: 'brand-voice-extractor,content-metadata', review: false, parallel: true, desc: 'Extract brand voice, products, personas, and assets', group: null },
-    { name: 'Block guide', skill: 'block-guide-builder', review: false, parallel: true, desc: 'Build block catalog, select blocks for generation', group: null },
-    { name: 'Suggestions', skill: 'quick-suggestions', review: false, parallel: true, desc: 'Generate search chips and UI copy for the demo', group: null },
-    { name: 'CTA template', skill: 'cta-template-builder', review: false, parallel: true, desc: 'Extract design system, build branded CTA template', group: null },
-    { name: 'Config review', skill: 'config-review', review: true, parallel: false, desc: 'Review block guide, products, brand voice, CTA, suggestions before deploy', reviewNote: 'Config review page', group: null },
-    { name: 'Deploy', skill: 'of1-deploy', review: true, parallel: false, desc: 'Deploy to worker, publish demo hub', reviewNote: 'Demo Hub', group: null }
+    { name: 'Install dependencies', skill: 'of1-setup', review: false, desc: 'Verify skills, tools, and prerequisites are ready', track: null, requires: [] },
+    { name: 'Branch setup', skill: 'of1-branch-setup', review: false, desc: 'Create domain branch on of1-demo repo, set up output directory, verify DA mount', track: null, requires: [0] },
+    { name: 'Discovery', skill: 'of1-discovery', review: true, desc: 'Crawl site, identify products, propose demo focus', reviewNote: 'Demo focus and narrative', track: null, requires: [1] },
+    { name: 'Extraction', skill: 'extract', review: true, desc: 'Extract design tokens, fonts, colors, and page structure', reviewNote: 'Brand review page', track: null, requires: [2] },
+    { name: 'Prototype', skill: 'prototype', review: true, desc: 'Generate pixel-perfect HTML reproductions of key pages', reviewNote: 'HTML prototypes', track: null, requires: [3] },
+    { name: 'Snowflake', skill: 'of1-snowflake', review: true, desc: 'Convert prototypes to EDS overlay pages, publish to DA.live', reviewNote: 'Preview URL', track: 'A', requires: [4] },
+    { name: 'Templates', skill: 'of1-template-generation', review: true, desc: 'Generate 25 branded templates (5 intents × 5 variations)', reviewNote: 'Template gallery', track: 'A', requires: [5] },
+    { name: 'OF1 styling', skill: 'generative-block-styler', review: true, desc: 'Style the generative search UI to match the brand', reviewNote: 'OF1 page', track: 'A', requires: [5] },
+    { name: 'Brand & content', skill: 'brand-voice-extractor,content-metadata', review: false, desc: 'Extract brand voice, products, personas, and assets', track: 'B', requires: [4] },
+    { name: 'Block guide', skill: 'block-guide-builder', review: false, desc: 'Build block catalog, select blocks for generation', track: 'B', requires: [4] },
+    { name: 'Suggestions', skill: 'quick-suggestions', review: false, desc: 'Generate search chips and UI copy for the demo', track: 'B', requires: [4] },
+    { name: 'CTA template', skill: 'cta-template-builder', review: false, desc: 'Extract design system, build branded CTA template', track: 'B', requires: [4] },
+    { name: 'Config review', skill: 'config-review', review: true, desc: 'Review all config before deploy', reviewNote: 'Config review page', track: 'B', requires: [8, 9, 10, 11] },
+    { name: 'Deploy', skill: 'of1-deploy', review: true, desc: 'Deploy to worker, publish demo hub', reviewNote: 'Demo Hub', track: null, requires: [6, 7, 12] }
   ];
 
   var ICONS = {
@@ -772,28 +802,14 @@
 
   function canRun(idx) {
     if (!state.domain && idx > 0) return false;
-    if (idx === 0 && !state.domain) return true; // Setup can run without domain
+    if (idx === 0 && !state.domain) return true; // Install deps can run without domain
     var st = state.steps[idx];
     if (st.status === 'active') return false;
 
-    // Parallel steps need OF1 styling (index 6) done
-    if (STEPS[idx].parallel) {
-      return state.steps[6].status === 'done';
-    }
-
-    // Sequential: all previous non-parallel steps must be done
-    for (var i = 0; i < idx; i++) {
-      if (!STEPS[i].parallel && state.steps[i].status !== 'done') return false;
-    }
-    // Steps after the parallel group need all parallel steps done
-    var hasParallelBefore = false;
-    for (var i = 0; i < idx; i++) {
-      if (STEPS[i].parallel) { hasParallelBefore = true; break; }
-    }
-    if (hasParallelBefore && !STEPS[idx].parallel) {
-      for (var i = 0; i < STEPS.length; i++) {
-        if (STEPS[i].parallel && state.steps[i].status !== 'done') return false;
-      }
+    // Check all required steps are done
+    var reqs = STEPS[idx].requires || [];
+    for (var i = 0; i < reqs.length; i++) {
+      if (state.steps[reqs[i]].status !== 'done') return false;
     }
     return true;
   }
@@ -873,62 +889,85 @@
       return h;
     }
 
+    // Render steps with two-track parallel layout
+    // Steps without a track render linearly; tracks A and B render side-by-side
     var i = 0;
-    var currentGroup = null;
-    while (i < STEPS.length) {
-      // Emit group label if entering a new group
-      var stepGroup = STEPS[i].group || null;
-      if (stepGroup !== currentGroup) {
-        if (stepGroup && !STEPS[i].parallel) {
-          html += '<div class="of1-group-label">' + stepGroup + '</div>';
-        }
-        currentGroup = stepGroup;
-      }
 
-      if (STEPS[i].parallel) {
-        // Connector into parallel group
-        html += '<div class="of1-connector of1-connector--fork"></div>';
-        html += '<div class="of1-parallel-group">';
-        while (i < STEPS.length && STEPS[i].parallel) {
-          html += renderCard(i);
-          i++;
-        }
-        html += '</div>';
-        currentGroup = null;
-        // Connector out of parallel group
-        if (i < STEPS.length) {
-          html += '<div class="of1-connector of1-connector--fork"></div>';
-        }
-      } else {
-        html += renderCard(i);
-        // Add connector after this card (if not last and next isn't parallel-start)
-        if (i + 1 < STEPS.length && !STEPS[i + 1].parallel) {
-          // No connector between cards in the same group
-          var nextGroup = STEPS[i + 1].group || null;
-          if (stepGroup && nextGroup === stepGroup) {
-            html += '<div class="of1-connector" style="height:10px"></div>';
-          } else {
-            var connClass = 'of1-connector';
-            var prevStatus = state.steps[i].status;
-            if (prevStatus === 'done') connClass += ' of1-connector--done';
-            else if (prevStatus === 'active') connClass += ' of1-connector--active';
-            html += '<div class="' + connClass + '"></div>';
-          }
-        }
-        i++;
+    // Render linear steps before tracks start
+    while (i < STEPS.length && !STEPS[i].track) {
+      html += renderCard(i);
+      if (i + 1 < STEPS.length && !STEPS[i + 1].track) {
+        var connClass = 'of1-connector';
+        if (state.steps[i].status === 'done') connClass += ' of1-connector--done';
+        else if (state.steps[i].status === 'active') connClass += ' of1-connector--active';
+        html += '<div class="' + connClass + '"></div>';
       }
+      i++;
     }
+
+    // Render parallel tracks
+    if (i < STEPS.length && STEPS[i].track) {
+      html += '<div class="of1-connector of1-connector--fork"></div>';
+      html += '<div class="of1-parallel-label">Parallel tracks<span class="of1-badge of1-badge--parallel">A + B</span></div>';
+      html += '<div class="of1-tracks">';
+
+      // Track A
+      html += '<div class="of1-track"><div class="of1-track__label">Track A — EDS Site</div>';
+      for (var a = i; a < STEPS.length; a++) {
+        if (STEPS[a].track === 'A') {
+          html += renderCard(a);
+        }
+      }
+      html += '</div>';
+
+      // Track B
+      html += '<div class="of1-track"><div class="of1-track__label">Track B — Config</div>';
+      html += '<div class="of1-parallel-group">';
+      for (var b = i; b < STEPS.length; b++) {
+        if (STEPS[b].track === 'B' && b !== 12) { // Config review separate
+          html += renderCard(b);
+        }
+      }
+      html += '</div>';
+      // Config review (needs the parallel ones above)
+      for (var c = i; c < STEPS.length; c++) {
+        if (STEPS[c].track === 'B' && c === 12) {
+          html += renderCard(c);
+        }
+      }
+      html += '</div>';
+
+      html += '</div>';
+
+      // Skip past all tracked steps
+      while (i < STEPS.length && STEPS[i].track) { i++; }
+      html += '<div class="of1-connector of1-connector--fork"></div>';
+    }
+
+    // Render remaining linear steps (Deploy)
+    while (i < STEPS.length) {
+      html += renderCard(i);
+      if (i + 1 < STEPS.length) {
+        var connClass2 = 'of1-connector';
+        if (state.steps[i].status === 'done') connClass2 += ' of1-connector--done';
+        html += '<div class="' + connClass2 + '"></div>';
+      }
+      i++;
+    }
+
     container.innerHTML = html;
 
     // Quick Links
     var QUICKLINKS = [
-      { label: 'Discovery', step: 2 },
+      { label: 'Repo', step: 2 },
+      { label: 'Discovery', step: 3 },
       { label: 'Extraction', step: 4 },
       { label: 'Prototype', step: 5 },
       { label: 'Preview', step: 6 },
-      { label: 'OF1 Page', step: 7 },
-      { label: 'Config Review', step: 12 },
-      { label: 'Demo Hub', step: 13 }
+      { label: 'Gallery', step: 7 },
+      { label: 'OF1 Page', step: 8 },
+      { label: 'Config Review', step: 13 },
+      { label: 'Demo Hub', step: 14 }
     ];
 
     var linkIcon = '<svg class="of1-quicklink__icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';

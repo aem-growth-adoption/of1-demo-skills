@@ -14,7 +14,7 @@ Analyze a website's visual design system (fonts, colors, button styles, spacing)
 
 ## Output
 
-`output/{domain}/cta-template.json`:
+`of1/config/cta-template.json`:
 
 ```json
 {
@@ -87,17 +87,17 @@ Generate appropriate static fallback content that fits the brand:
 ### Step 5: Write cta-template.json
 
 ```bash
-mkdir -p output/{domain}
+mkdir -p of1/config
 ```
 
-Write the JSON file to `output/{domain}/cta-template.json`. Ensure:
+Write the JSON file to `of1/config/cta-template.json`. Ensure:
 - HTML is on a single line (no newlines inside the `html` field)
 - All double quotes inside the HTML use escaped `\"` 
 - No trailing commas
 
 ### Step 6: Confirm
 
-> CTA template written to `output/{domain}/cta-template.json`. 
+> CTA template written to `of1/config/cta-template.json`. 
 > Visual: [describe the look — e.g., "dark background, white heading, orange pill button matching BMW brand"]
 
 ## Quality Checklist
