@@ -8,12 +8,12 @@ user-invocable: false
 
 Convert prototype HTML pages into EDS overlay pages using the snowflake methodology. This makes the pages editable in Document Authoring (DA) while preserving the original visual design byte-for-byte.
 
-## ⚡ Speed Priority
+## ⚡ Speed Priority — Target: 5 minutes
 
-This step MUST complete in under 5 minutes. To achieve this:
-- Do NOT spend time reading/exploring skills at runtime — everything you need is in THIS file
-- Do NOT attempt multiple auth strategies — follow the exact commands below
-- Do NOT verify things redundantly — one check per item is enough
+- Environment is fully documented below — DO NOT trial-and-error auth methods or file paths
+- Read the snowflake skill files (Step 1) for overlay methodology — that IS required
+- DO NOT attempt multiple auth strategies — follow the exact commands below
+- DO NOT verify things redundantly — one check per item is enough
 - Generate ALL artifacts in one pass, then push once, upload once, preview once
 
 ---
