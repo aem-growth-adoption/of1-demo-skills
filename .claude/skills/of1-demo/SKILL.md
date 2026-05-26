@@ -101,19 +101,51 @@ Then read the file and call `sprinkle send of1-demo '<contents>'` immediately.
 
 Only the of1-demo scoop may call `sprinkle send`. Step scoops write files; the orchestrator reads them and pushes to the sprinkle.
 
-**After step 5 is approved, spawn BOTH tracks in parallel:**
+## Parallelism — CRITICAL for Speed
 
-**Track A** — spawn step 6 (Snowflake). When step 6 completes, spawn steps 7 and 8 in parallel.
+The pipeline has TWO parallel tracks that MUST run concurrently. **Do NOT serialize steps that can run in parallel.**
 
-**Track B** — spawn steps 9, 10, 11, 12 all at once. When all four complete, run step 13 (Config review) inline.
+### When to spawn what:
 
-Poll for ALL status files concurrently. As EACH one completes, push its status to the sprinkle immediately — the user should see steps turn green/review one by one.
+| Trigger | Spawn immediately |
+|---------|-------------------|
+| Step 5 (Prototype) approved | **Track A:** Step 6 (Snowflake) AND **Track B:** Steps 9, 10, 11, 12 (all four at once) |
+| Step 6 (Snowflake) approved | Steps 7 AND 8 in parallel (both depend on step 6 only) |
+| Steps 9-12 ALL complete | Step 13 (Config review) — run inline by the cone |
+| Steps 7 + 8 done AND Step 13 approved | Step 14 (Deploy) |
+
+### Dependency graph:
+```
+Steps 1→2→3→4→5 (sequential)
+                 ↓
+         ┌───────┴───────┐
+         ↓               ↓
+    Track A          Track B
+         ↓               ↓
+    Step 6          Steps 9,10,11,12
+    (Snowflake)     (all parallel)
+         ↓               ↓
+    Steps 7+8       Step 13
+    (parallel)      (config review)
+         ↓               ↓
+         └───────┬───────┘
+                 ↓
+            Step 14 (Deploy)
+```
+
+### Key rules:
+1. **Track B does NOT wait for Step 6** — it starts immediately after Step 5 is approved
+2. **Steps 7 and 8 run in parallel** — don't wait for one to finish before starting the other
+3. **Steps 9, 10, 11, 12 ALL run at once** — spawn all 4 scoops simultaneously
+4. **Push each status as it arrives** — don't wait for all parallel steps to finish before updating the sprinkle
+
+### Polling pattern for parallel steps:
 
 ```bash
 # Poll for all active step status files and push each as it arrives
 while true; do
   ALL_DONE=true
-  for STEP in 6 7 8 9 10 11 12 13; do
+  for STEP in 6 7 8 9 10 11 12; do
     STATUS_FILE="/shared/of1-demo/step-${STEP}-status.json"
     PUSHED_FILE="/shared/of1-demo/step-${STEP}-pushed"
     if [ -f "$STATUS_FILE" ] && [ ! -f "$PUSHED_FILE" ]; then
@@ -128,6 +160,13 @@ while true; do
   sleep 5
 done
 ```
+
+### Handling scoop completion without status file:
+
+Sometimes a scoop completes its work but forgets to write the status file (it shows "ready" in list_scoops but no `/shared/of1-demo/step-N-status.json` exists). When this happens:
+1. Check if the scoop's output files exist (e.g., `ls /workspace/of1-demo/of1/config/`)
+2. If the work IS done, write the status file manually
+3. Push to sprinkle
 
 For step 9 (brand + content), the orchestrator must wait for BOTH `step-9-brand-status.json` and `step-9-content-status.json` before pushing the combined step 9 status to the sprinkle.
 
@@ -157,30 +196,32 @@ User reset the pipeline. Clean up any running scoops.
 
 ## Step → Skill Mapping
 
-| Step | Name | Skill(s) | Review Gate | Parallel |
-|------|------|-----------|-------------|----------|
-| 1 | Install dependencies | `of1-setup` | No | No |
-| 2 | Branch setup | `of1-branch-setup` | No | No |
-| 3 | Discovery | `of1-discovery` | Yes | No |
-| 4 | Extraction | `of1-extraction` | Yes | No |
-| 5 | Prototype | `of1-prototype` | Yes | No |
-| 6 | Snowflake | `of1-snowflake` | Yes | No |
-| 7 | Templates | `of1-template-generation` | Yes | No |
-| 8 | OF1 styling | `generative-block-styler` | Yes | No |
-| 9 | Brand & content | `brand-voice-extractor` + `content-metadata` | No | Yes |
-| 10 | Block guide | `block-guide-builder` | No | Yes |
-| 11 | Suggestions | `quick-suggestions` | No | Yes |
-| 12 | CTA template | `cta-template-builder` | No | Yes |
-| 13 | Config review | (orchestrator-inline) | Yes | No |
-| 14 | Deploy | `of1-deploy` | Yes | No |
+| Step | Name | Skill(s) | Review | Track | Depends on |
+|------|------|-----------|--------|-------|------------|
+| 1 | Install dependencies | `of1-setup` | No | — | nothing |
+| 2 | Branch setup | `of1-branch-setup` | No | — | step 1 |
+| 3 | Discovery | `of1-discovery` | Yes | — | step 2 |
+| 4 | Extraction | `of1-extraction` | Yes | — | step 3 |
+| 5 | Prototype | `of1-prototype` | Yes | — | step 4 |
+| 6 | Snowflake | `of1-snowflake` | Yes | A | step 5 |
+| 7 | Templates | `of1-template-generation` | Yes | A | step 6 |
+| 8 | OF1 styling | `generative-block-styler` | Yes | A | step 6 |
+| 9 | Brand & content | `brand-voice-extractor` + `content-metadata` | No | B | step 5 |
+| 10 | Block guide | `block-guide-builder` | No | B | step 5 |
+| 11 | Suggestions | `quick-suggestions` | No | B | step 5 |
+| 12 | CTA template | `cta-template-builder` | No | B | step 5 |
+| 13 | Config review | (orchestrator-inline) | Yes | B | steps 9+10+11+12 |
+| 14 | Deploy | `of1-deploy` | Yes | — | steps 7+8+13 |
 
-After step 5 (Prototype), two parallel tracks begin:
+### Track Summary
 
-**Track A (EDS Site):** Step 6 (Snowflake) runs first, then steps 7 (Templates) and 8 (OF1 styling) run in parallel — both depend on step 6.
+**Track A (EDS Site):** Step 6 → Steps 7 + 8 (parallel after step 6 approved)
 
-**Track B (Config):** Steps 9–12 (Brand & content, Block guide, Suggestions, CTA template) all run in parallel immediately after step 5. Step 13 (Config review) requires all of 9–12 to be done.
+**Track B (Config):** Steps 9 + 10 + 11 + 12 (ALL parallel, start immediately after step 5) → Step 13
 
-**Step 14 (Deploy)** requires steps 7 + 8 (Track A) done AND step 13 (Track B) approved.
+**Both tracks start after Step 5 is approved.** Track B does NOT wait for Step 6.
+
+**Step 14 (Deploy)** requires Track A (steps 7+8 done) AND Track B (step 13 approved).
 
 ## Step 2 — Branch Setup
 
