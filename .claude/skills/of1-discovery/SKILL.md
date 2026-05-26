@@ -37,15 +37,13 @@ Analyze:
 - Target audience
 - Key CTAs and conversion paths
 
-### 2. Crawl 3-5 navigation pages (NO MORE)
+### 2. Crawl 5-10 navigation pages
 
-Follow the top 3-5 navigation links that look most product/content rich. Skip About, Contact, Privacy, Legal pages. For each page note:
+Follow top navigation links. For each page note:
 - Page type (product listing / detail / category / about / blog)
 - What products/services are featured
 - Page structure (hero, grid, features, FAQ, etc.)
 - Specific product names and categories
-
-**⚡ Speed rule:** Stop after 5 pages MAX. You need enough to propose a demo focus, not an exhaustive site map. The homepage + 3 category pages is usually sufficient.
 
 ### 3. Propose demo focus
 
@@ -85,16 +83,15 @@ Use cards, pills, and visual hierarchy similar to the sprinkle panel. Load Googl
 Commit and push to make it available via EDS static hosting:
 ```bash
 cd "$REPO_DIR"
-BRANCH=$(cat /shared/of1-demo/repo-config.json | jq -r '.branch')
 mkdir -p deliverables
 # ... write discovery.html ...
 git add deliverables/discovery.html
 git commit -m "docs: discovery report for {DOMAIN}"
-git push origin ${BRANCH}
+git push origin main
 ```
 
 The report is then available at:
-`https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/discovery.html`
+`https://main--${REPO}--${OWNER}.aem.page/deliverables/discovery.html`
 
 ### 5. Present in chat
 
@@ -129,8 +126,7 @@ Write a status file — do NOT call `sprinkle send` directly (only the of1-demo 
 After presenting findings, write:
 ```bash
 mkdir -p /shared/of1-demo
-BRANCH=$(cat /shared/of1-demo/repo-config.json | jq -r '.branch')
-echo '{"step":3,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/deliverables/discovery.html","summary":"Demo focus: [focus]. Persona: [persona]. Pages: [N] key pages identified."}' > /shared/of1-demo/step-3-status.json
+echo '{"step":3,"status":"review","deliverable":"https://main--'${REPO}'--'${OWNER}'.aem.page/deliverables/discovery.html","summary":"Demo focus: [focus]. Persona: [persona]. Pages: [N] key pages identified."}' > /shared/of1-demo/step-3-status.json
 ```
 
 On approval (user confirms via sprinkle), the orchestrator will handle the `done` update. If you receive explicit approval in chat, write:
