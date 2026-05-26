@@ -352,46 +352,41 @@ If any page returns non-200, re-trigger its preview and wait before continuing.
 
 For each content page (except of1.html), run this loop:
 
-```
-ITERATION = 1
-while ITERATION <= 3:
-  1. Screenshot the EDS preview page (full-page):
-     playwright-cli screenshot "https://main--${REPO}--${OWNER}.aem.page/${PAGE}" --full-page --output /tmp/preview-${PAGE}.png
+Repeat up to 3 times per page. Stop early if the page passes.
 
-  2. Screenshot the corresponding prototype:
-     playwright-cli screenshot "file://$(pwd)/stardust/prototypes/${PAGE}.html" --full-page --output /tmp/prototype-${PAGE}.png
+**Iteration steps:**
 
-  3. Open BOTH screenshots and use LLM vision to compare them.
-     Ask yourself: "What are the significant visual differences between these two?"
-     
-     Focus on:
-     - Missing or broken images
-     - Layout differences (grid vs stack, wrong column count)
-     - Missing entire sections
-     - Wrong colors or backgrounds
-     - Nav/footer not rendering
-     - Obvious spacing issues (double padding, no padding)
-     
-     Ignore:
-     - Minor font rendering differences (anti-aliasing, web font vs fallback)
-     - Sub-pixel spacing differences
-     - Hover/animation states
-     - Cookie banners or overlays on the live page
+1. Screenshot the EDS preview (full-page):
+   ```bash
+   playwright-cli screenshot "https://main--${REPO}--${OWNER}.aem.page/${PAGE}" --full-page --output /tmp/preview-${PAGE}.png
+   ```
 
-  4. If no significant differences → PASS, move to next page.
-  
-  5. If differences found:
-     - Identify WHICH section/block is wrong
-     - Fix the specific issue (CSS tweak, missing content, broken selector)
-     - git add + commit + push
-     - Re-trigger preview for that page
-     - Wait for CDN propagation (sleep 5)
-     - ITERATION += 1
-     - Continue loop
+2. Screenshot the prototype:
+   ```bash
+   playwright-cli screenshot "file://$(pwd)/stardust/prototypes/${PAGE}.html" --full-page --output /tmp/prototype-${PAGE}.png
+   ```
 
-  6. After 3 iterations, accept the result and note any remaining differences
-     in the step output as "known gaps."
-```
+3. Open BOTH screenshots and use LLM vision to compare. Focus on:
+   - Missing or broken images
+   - Layout differences (grid vs stack, wrong column count)
+   - Missing entire sections
+   - Wrong colors or backgrounds
+   - Nav/footer not rendering
+   - Obvious spacing issues (double padding, no padding)
+
+   Ignore: minor font rendering (anti-aliasing), sub-pixel spacing, hover states, cookie banners.
+
+4. **If no significant differences** → PASS, move to next page.
+
+5. **If differences found:**
+   - Identify which section/block is wrong
+   - Fix the specific issue (CSS tweak, missing content, broken selector)
+   - `git add . && git commit -m "fix: [description]" && git push origin main`
+   - Re-trigger preview for that page
+   - `sleep 5` (CDN propagation)
+   - Go back to step 1 for the next iteration
+
+6. **After 3 iterations**, accept the result and note remaining differences as "known gaps" in the step output.
 
 **6c. Confirm all pages pass:**
 

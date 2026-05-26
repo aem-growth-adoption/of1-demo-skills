@@ -202,7 +202,9 @@ Verify all ID references are consistent across files. Fix mismatches.
 
 Download 5 images per product from the source site and store them locally so the OF1 generation has reliable, self-hosted image URLs (no external CDN dependency, no encoding issues, no CORS/referrer problems).
 
-**Target:** At least 5 images per product — prioritize:
+**Prerequisite:** `DA_TOKEN` must be available (from the `da-auth` skill earlier in the pipeline). If DA auth is not available, stop and inform the user — DA upload is required for image hosting.
+
+**Target:** Up to 5 images per product (use fewer if the source page has less) — prioritize:
 1. Main product shot (flat lay, front view)
 2. Alternate colorway(s)
 3. Lifestyle/on-model shot(s)
@@ -212,7 +214,7 @@ Download 5 images per product from the source site and store them locally so the
 ```bash
 curl -s "{PDP_URL}" | grep -oP 'https://[^"?&\s]+\.(jpg|png|webp)' | sort -u
 ```
-Pick 5 unique, high-quality product images per product.
+Pick up to 5 unique, high-quality product images per product. If fewer are available, use what exists.
 
 **Where to store:**
 ```
@@ -248,28 +250,34 @@ done
 
 **Update products.json images array:**
 
-After uploading/committing, update each product's `images` field with local EDS URLs:
+After uploading, update each product's `images` field with local EDS URLs (include only the images that were successfully downloaded):
 ```
 "images": [
   "${PREVIEW_BASE}/assets/products/{product-id}/1.png",
   "${PREVIEW_BASE}/assets/products/{product-id}/2.png",
-  "${PREVIEW_BASE}/assets/products/{product-id}/3.png",
-  "${PREVIEW_BASE}/assets/products/{product-id}/4.png",
-  "${PREVIEW_BASE}/assets/products/{product-id}/5.png"
+  ...
 ]
 ```
 
 Where `PREVIEW_BASE` is `https://main--{repo}--{owner}.aem.page` (from repo-config.json).
 
 **Write a manifest:**
-```bash
-# assets/products/manifest.json — maps product IDs to their image paths
+```json
+// assets/products/manifest.json
+{
+  "products": {
+    "{product-id}": {
+      "images": ["1.png", "2.png", "3.png", "4.png", "5.png"],
+      "source": "{original-pdp-url}"
+    }
+  }
+}
 ```
 
 ### Step 10: Confirm
 
 > Content metadata written to `of1/config/`. Files: products.json, personas.json, use-cases.json, features.json, faqs.json.
-> Product images: [N] products × 5 images = [total] assets at /assets/products/.
+> Product images: [N] products, [total] assets at /assets/products/.
 
 ## Tips
 

@@ -63,7 +63,7 @@ which node >/dev/null 2>&1 && echo "Node OK" || echo "FAIL: node not found"
 ### 6. DA_TOKEN
 
 ```bash
-[ -n "${DA_TOKEN}" ] && echo "DA_TOKEN OK" || echo "WARN: DA_TOKEN not set — needed for later steps"
+[ -n "${DA_TOKEN}" ] && echo "DA_TOKEN OK" || echo "WARN: DA_TOKEN not set — needed for DA uploads in later steps"
 ```
 
 ## Completion

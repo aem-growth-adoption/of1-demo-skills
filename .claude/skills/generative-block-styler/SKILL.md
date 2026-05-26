@@ -11,9 +11,9 @@ Generate a polished, brand-aligned CSS file for the of1 generative block. This m
 ## CRITICAL RULES
 
 1. **NEVER modify `blocks/of1/of1.js`** — the OF1 block JavaScript is shared infrastructure and must not be changed. Only the CSS (`blocks/of1/of1.css`) is customized per brand.
-2. **Verify `blocks/of1/of1.js` EXISTS before starting** — if it's missing, the block won't render at all. The snowflake step (Step 6) should have installed it. If missing, copy it from the reference repo: `cp /workspace/of1-demo/blocks/of1/of1.js blocks/of1/of1.js` and commit it.
+2. **Verify `blocks/of1/of1.js` EXISTS before starting** — if it's missing, the block won't render at all. The snowflake step (Step 6) should have installed it. If missing, copy it from the skill assets: `cp /workspace/skills/of1-snowflake/assets/of1.js blocks/of1/of1.js` and commit it.
 3. **Style using the brand guidelines from stardust** — read `stardust/current/_brand-extraction.json`, `DESIGN.json`, and the `:root` tokens in `styles/styles.css`. The OF1 block must feel native to the brand, not like a generic overlay.
-4. **Commit BOTH of1.js and of1.css** — even if you didn't modify the JS, ensure `git add blocks/of1/` includes both files. A missing JS = blank page.
+4. **Commit BOTH of1.js and of1.css** — of1.js must be deployed as-is (unmodified) alongside your styled of1.css. Always `git add blocks/of1/` to include both files. A missing JS = blank page.
 
 ## Why This Exists
 

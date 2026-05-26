@@ -425,14 +425,13 @@ export default async function decorate(block) {
   }
   if (!config.domain) {
     const host = window.location.hostname;
-    config.domain = document.querySelector('meta[name="domain"]')?.content
-      || (host.endsWith('.aem.page') || host.endsWith('.aem.live') ? host.replace(/\.aem\.(page|live)$/, '') : host);
-  }
-  // If domain doesn't look like a tenant ID (branch--repo--owner), derive from hostname
-  if (config.domain && !config.domain.includes('--')) {
-    const host = window.location.hostname;
-    if (host.endsWith('.aem.page') || host.endsWith('.aem.live')) {
+    const metaDomain = document.querySelector('meta[name="domain"]')?.content;
+    if (metaDomain && metaDomain.includes('--')) {
+      config.domain = metaDomain;
+    } else if (host.endsWith('.aem.page') || host.endsWith('.aem.live')) {
       config.domain = host.replace(/\.aem\.(page|live)$/, '');
+    } else {
+      config.domain = metaDomain || host;
     }
   }
 

@@ -44,7 +44,7 @@ The OF1 worker now syncs config from the EDS repo directly:
 ```bash
 cd "$REPO_DIR"
 echo "Config files:"
-for f in brand-voice block-guide products personas use-cases features faqs suggestions cta-template; do
+for f in brand-voice block-guide products personas use-cases features faqs suggestions cta-template of1-endpoint; do
   if [ -f "of1/config/${f}.json" ]; then
     echo "  ✓ ${f}.json ($(wc -c < "of1/config/${f}.json") bytes)"
   else
