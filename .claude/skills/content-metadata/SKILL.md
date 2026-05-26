@@ -131,7 +131,7 @@ The worker's pipeline steps consume these files as follows:
 - `persona` (string): ID of the primary persona this product is for — used by `persona-match.js` to boost RAG scoring
 - `useCase` (string): ID of the primary use-case — used by `use-case-match.js` for RAG boosting
 - `keywords` (array of 8-12 strings): Search terms a user might type to find this product — used by `rag-products.js` for direct keyword matching (each match adds +2 to score)
-- `images` (array): Real image URLs from the site — the LLM uses these in generated sections
+- `images` (array): Self-hosted image URLs (uploaded to DA or committed to git at `/assets/products/{id}/{n}.png`). These MUST be local EDS URLs, never external CDN URLs — external URLs break due to encoding issues, CORS, and EDS image optimization rewriting.
 - `description` (string): Must be rich enough for the LLM to generate detailed content in deep-dive mode
 
 Without `persona`, `useCase`, and `keywords`, the worker cannot match user queries to the right products and will return irrelevant content.
@@ -198,9 +198,89 @@ Without `persona`, `useCase`, and `keywords`, the worker cannot match user queri
 
 Verify all ID references are consistent across files. Fix mismatches.
 
-### Step 9: Confirm
+### Step 9: Pull Product Assets
+
+Download 5 images per product from the source site and store them locally so the OF1 generation has reliable, self-hosted image URLs (no external CDN dependency, no encoding issues, no CORS/referrer problems).
+
+**Target:** At least 5 images per product — prioritize:
+1. Main product shot (flat lay, front view)
+2. Alternate colorway(s)
+3. Lifestyle/on-model shot(s)
+4. Detail shots (pockets, zips, cuffs, materials)
+
+**How to find images on a product page:**
+```bash
+curl -s "{PDP_URL}" | grep -oP 'https://[^"?&\s]+\.(jpg|png|webp)' | sort -u
+```
+Pick 5 unique, high-quality product images per product.
+
+**Where to store:**
+```
+{REPO_DIR}/assets/products/{product-id}/1.png
+{REPO_DIR}/assets/products/{product-id}/2.png
+{REPO_DIR}/assets/products/{product-id}/3.png
+{REPO_DIR}/assets/products/{product-id}/4.png
+{REPO_DIR}/assets/products/{product-id}/5.png
+```
+
+**How to download:**
+```bash
+mkdir -p assets/products/{product-id}
+curl -sL "{IMAGE_URL}" -o assets/products/{product-id}/1.png
+```
+
+**Verify each download:** must be > 10KB (failed downloads are 0 bytes or tiny error pages).
+
+**Upload to DA (preferred — gives responsive image optimization):**
+
+If `DA_TOKEN` is available (from the `da-auth` skill earlier in the pipeline):
+```bash
+for f in assets/products/${PRODUCT_ID}/*.png; do
+  FILENAME=$(basename "$f")
+  cat "$f" | curl -s -X PUT "https://admin.da.live/source/${OWNER}/${REPO}/assets/products/${PRODUCT_ID}/${FILENAME}" \
+    -H "Authorization: ${DA_TOKEN}" \
+    -H "x-content-source-authorization: ${DA_TOKEN}" \
+    -H "Content-Type: image/png" \
+    --data-binary @-
+done
+```
+
+**CRITICAL:** Do NOT use `--data-binary @filepath` — it sends the literal `@path` string in this environment. Always pipe via stdin: `cat file | curl ... --data-binary @-`
+
+**Fallback (git-commit — works without DA auth):**
+```bash
+cd ${REPO_DIR}
+git add assets/products/
+git commit -m "feat: add product images (5 per product) to local assets"
+git push origin main
+```
+
+Git-committed static files are served immediately by EDS at their exact path.
+
+**Update products.json images array:**
+
+After uploading/committing, update each product's `images` field with local EDS URLs:
+```
+"images": [
+  "${PREVIEW_BASE}/assets/products/{product-id}/1.png",
+  "${PREVIEW_BASE}/assets/products/{product-id}/2.png",
+  "${PREVIEW_BASE}/assets/products/{product-id}/3.png",
+  "${PREVIEW_BASE}/assets/products/{product-id}/4.png",
+  "${PREVIEW_BASE}/assets/products/{product-id}/5.png"
+]
+```
+
+Where `PREVIEW_BASE` is `https://main--{repo}--{owner}.aem.page` (from repo-config.json).
+
+**Write a manifest:**
+```bash
+# assets/products/manifest.json — maps product IDs to their image paths
+```
+
+### Step 10: Confirm
 
 > Content metadata written to `of1/config/`. Files: products.json, personas.json, use-cases.json, features.json, faqs.json.
+> Product images: [N] products × 5 images = [total] assets at /assets/products/.
 
 ## Tips
 
@@ -208,6 +288,7 @@ Verify all ID references are consistent across files. Fix mismatches.
 - Don't fabricate data — if not on the page, omit it
 - Persona keywords should be words users would type, not marketing terms
 - 10-30 well-described products work better than 200 sparse entries
+- Product images MUST be self-hosted (git or DA) — external CDN URLs break due to encoding, CORS, or image optimization rewriting
 
 ## Completion (pipeline mode)
 
