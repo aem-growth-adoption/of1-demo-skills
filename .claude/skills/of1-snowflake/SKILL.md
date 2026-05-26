@@ -25,6 +25,8 @@ REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
 BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
 REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
 DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
+CONTENT_PREFIX=$(echo "$REPO_CONFIG" | jq -r '.contentPrefix // .branch')
+DA_CONTENT_PATH=$(echo "$REPO_CONFIG" | jq -r '.daContentPath // "/mnt/da/"+.branch')
 ```
 
 ### 1. Load the snowflake skill
@@ -55,7 +57,7 @@ done
 For each page, run the snowflake skill's phases 0–6 with:
 - **Source URL**: `file://${REPO_DIR}/stardust/prototypes/${PAGE_SLUG}.html`
 - **Target repo**: `${OWNER}/${REPO}` on branch `${BRANCH}`
-- **DA root path**: `/` (branch isolation handles separation)
+- **Content prefix**: `${CONTENT_PREFIX}` (pages live under this subfolder in DA)
 - **Page slug**: `${PAGE_SLUG}`
 - **Run number**: sequential (001, 002, ...)
 
@@ -75,21 +77,49 @@ cp /workspace/skills/of1-snowflake/assets/of1-base.css blocks/of1/of1.css
 git add blocks/of1/
 ```
 
-The OF1 styling step (Step 7) rewrites `of1.css` for the brand — it depends on both files being present.
+The OF1 styling step (Step 8) rewrites `of1.css` for the brand — it depends on both files being present.
 
-### 4. Create OF1 content page
-
-Create the OF1 page DA content and upload it:
+### 4. Push code to git
 
 ```bash
-cat > /tmp/of1-page.html <<'EOF'
+cd "$REPO_DIR"
+git add -A
+git commit -m "feat: snowflake conversion + OF1 block for ${DOMAIN}"
+git push origin ${BRANCH}
+```
+
+### 5. Upload DA content via mount
+
+**DO NOT use curl against admin.da.live** — the SLICC secret proxy blocks it.
+
+Instead, use the DA filesystem mount which handles auth automatically:
+
+```bash
+# The DA mount at /mnt/da/ is the root of da://aem-growth-adoption/of1-demo
+# Each demo uses a subfolder named after the branch (e.g., /mnt/da/frescopa/)
+# This matches the URL pattern: /{branch}/{page}
+
+mkdir -p "${DA_CONTENT_PATH}" 2>/dev/null
+
+# Upload all page DA docs
+for PROJECT_DIR in ${REPO_DIR}/.snowflake/projects/*/da/; do
+  for DOC in ${PROJECT_DIR}*.html; do
+    BASENAME=$(basename "$DOC")
+    cp "$DOC" "${DA_CONTENT_PATH}/${BASENAME}"
+    echo "Uploaded: ${DA_CONTENT_PATH}/${BASENAME}"
+  done
+done
+
+# Also create OF1 page if not already in .snowflake
+if [ ! -f "${DA_CONTENT_PATH}/of1.html" ]; then
+  cat > "${DA_CONTENT_PATH}/of1.html" <<EOF
 <html>
 <body>
   <header></header>
   <main>
     <div>
       <div class="of1">
-        <div><div>domain</div><div>DOMAIN_PLACEHOLDER</div></div>
+        <div><div>domain</div><div>${DOMAIN}</div></div>
       </div>
     </div>
   </main>
@@ -97,31 +127,41 @@ cat > /tmp/of1-page.html <<'EOF'
 </body>
 </html>
 EOF
-sed -i "s/DOMAIN_PLACEHOLDER/${DOMAIN}/" /tmp/of1-page.html
-
-DA_TOKEN="${DA_TOKEN:-$(cat ~/.aem/da-token.json 2>/dev/null | jq -r .access_token)}"
-cat /tmp/of1-page.html | curl -s -X PUT "https://admin.da.live/source/${OWNER}/${REPO}/of1.html" \
-  -H "Authorization: Bearer ${DA_TOKEN}" \
-  -H "Content-Type: text/html" \
-  --data-binary @-
+  echo "Uploaded: ${DA_CONTENT_PATH}/of1.html"
+fi
 ```
 
-### 5. Push and trigger preview
+### 6. Trigger preview
+
+Use `oauth-token adobe` for the IMS token (works in SLICC without browser flow):
 
 ```bash
-cd "$REPO_DIR"
-git add -A
-git commit -m "feat: snowflake conversion + OF1 block for ${DOMAIN}"
-git push origin ${BRANCH}
+DA_TOKEN=$(oauth-token adobe)
 
-# Trigger preview for OF1 page
-curl -s -X POST \
-  -H "Authorization: Bearer ${DA_TOKEN}" \
-  -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
-  "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/of1"
+# Preview all pages — note the content path includes the branch prefix
+for DOC in ${DA_CONTENT_PATH}/*.html; do
+  PAGE_SLUG=$(basename "$DOC" .html)
+  RESP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer ${DA_TOKEN}" \
+    -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
+    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${CONTENT_PREFIX}/${PAGE_SLUG}")
+  echo "Preview ${CONTENT_PREFIX}/${PAGE_SLUG}: ${RESP}"
+done
 ```
 
-### 6. Screenshot diff loop (max 3 iterations per page)
+All pages should return 200. If any return 404, verify the DA content was written correctly.
+
+### 7. Verify pages render
+
+```bash
+for DOC in ${DA_CONTENT_PATH}/*.html; do
+  PAGE_SLUG=$(basename "$DOC" .html)
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${CONTENT_PREFIX}/${PAGE_SLUG}")
+  echo "${CONTENT_PREFIX}/${PAGE_SLUG}: ${CODE}"
+done
+```
+
+### 8. Screenshot diff loop (max 3 iterations per page)
 
 **Mandatory before marking as review.**
 
@@ -129,7 +169,7 @@ For each converted page (not of1), compare the EDS preview against the prototype
 
 1. Screenshot EDS preview:
    ```bash
-   playwright-cli screenshot "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${PAGE_SLUG}" --full-page --output /tmp/preview-${PAGE_SLUG}.png
+   playwright-cli screenshot "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${CONTENT_PREFIX}/${PAGE_SLUG}" --full-page --output /tmp/preview-${PAGE_SLUG}.png
    ```
 
 2. Screenshot prototype:
@@ -150,11 +190,23 @@ For each converted page (not of1), compare the EDS preview against the prototype
 
 5. **Diffs found** → fix the specific section (CSS/template tweak), push, re-preview, re-check. Max 3 iterations then accept.
 
+## SLICC Environment Notes
+
+These are CRITICAL for avoiding wasted time:
+
+1. **DA writes go through the mount** at `/mnt/da/` — never use `curl` against `admin.da.live`
+2. **DA mount path structure**: `/mnt/da/{branch}/` — NOT `/mnt/da/{repo}/`. The mount root IS the repo.
+3. **`oauth-token adobe`** gives you the IMS token instantly — no npx, no browser flow, no da-auth-helper needed
+4. **`admin.hlx.page`** IS in the allowed secret domains — use it for preview triggers
+5. **`admin.da.live`** is NOT in the allowed domains — curl will fail with "forbidden"
+6. **Content URL pattern**: `https://{branch}--{repo}--{owner}.aem.page/{branch}/{page}` — the branch appears TWICE (once in the subdomain for code bus, once in the path for content prefix)
+7. **Don't explore/read skills at runtime** — all context you need is in this file. Just generate the artifacts.
+
 ## Deliverables
 
 - Overlay templates + fragments (generated by snowflake skill)
 - `blocks/of1/of1.js` + `blocks/of1/of1.css`
-- OF1 content page uploaded to DA
+- OF1 content page uploaded to DA via mount
 - All preview URLs return 200
 - Code pushed to branch `${BRANCH}`
 
@@ -163,16 +215,19 @@ For each converted page (not of1), compare the EDS preview against the prototype
 ```bash
 mkdir -p /shared/of1-demo
 
+PREVIEW_BASE="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${CONTENT_PREFIX}"
+
 DELIVERABLES="["
 FIRST=true
-for PROTO in ${REPO_DIR}/stardust/prototypes/*.html; do
-  PAGE_SLUG=$(basename "$PROTO" .html)
-  URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${PAGE_SLUG}"
+for DOC in ${DA_CONTENT_PATH}/*.html; do
+  PAGE_SLUG=$(basename "$DOC" .html)
+  URL="${PREVIEW_BASE}/${PAGE_SLUG}"
+  LABEL="${PAGE_SLUG}"
   if [ "$FIRST" = true ]; then
-    DELIVERABLES="${DELIVERABLES}{\"url\":\"${URL}\",\"label\":\"${PAGE_SLUG}\"}"
+    DELIVERABLES="${DELIVERABLES}{\"url\":\"${URL}\",\"label\":\"${LABEL}\"}"
     FIRST=false
   else
-    DELIVERABLES="${DELIVERABLES},{\"url\":\"${URL}\",\"label\":\"${PAGE_SLUG}\"}"
+    DELIVERABLES="${DELIVERABLES},{\"url\":\"${URL}\",\"label\":\"${LABEL}\"}"
   fi
 done
 DELIVERABLES="${DELIVERABLES}]"

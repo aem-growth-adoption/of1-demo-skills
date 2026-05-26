@@ -392,7 +392,7 @@ These issues cost time in previous runs. Avoid them:
 
 2. **Python in heredocs** — always quote the delimiter (`python3 << 'EOF'`). Unquoted heredocs mangle indentation and variables.
 
-3. **Config sync uses EDS** — configs are committed to `of1/config/` in git, then synced via `POST /api/tenants/{id}/sync`. The tenant ID is `main--{repo}--{owner}` format.
+3. **Config sync uses EDS** — configs are committed to `of1/config/` in git, then synced via `POST /api/tenants/{id}/sync`. The tenant ID is `{branch}--{repo}--{owner}` format.
 
 4. **Step 14 (Deploy)** — just `git push` + one POST to `/api/tenants/{id}/sync`. Can be done inline by the cone (no scoop needed).
 
@@ -400,7 +400,7 @@ These issues cost time in previous runs. Avoid them:
 
 6. **EDS buttons** — `<strong><a>` = primary, `<em><a>` = secondary. The wrapper (`strong`/`em`) goes OUTSIDE the anchor, not inside.
 
-7. **DA preview auth** — needs BOTH `Authorization: Bearer <token>` AND `x-content-source-authorization: Bearer <token>` headers.
+7. **DA preview auth** — use `oauth-token adobe` to get the IMS token. For preview triggers, pass BOTH `Authorization: Bearer <token>` AND `x-content-source-authorization: Bearer <token>` headers to `admin.hlx.page`.
 
 8. **`--data-binary @file` breaks in scoops** — curl's `@path` expansion can fail, storing the literal string `@/workspace/...` instead of file contents. Always pipe via stdin: `cat file | curl ... --data-binary @-`.
 
@@ -417,3 +417,67 @@ These issues cost time in previous runs. Avoid them:
 14. **Brand logo in EDS header** — DA strips SVGs from nav content. Commit logo to `/icons/logo.svg` and have `header.js` fetch + inject it into the brand link at runtime. Never rely on inline SVG in DA content.
 
 15. **Static file URLs need `.html` extension** — EDS serves git-committed static HTML files at their exact path including the extension. A file at `deliverables/config-review.html` is served at `/deliverables/config-review.html` — NOT at `/deliverables/config-review` (that 404s). Always include the `.html` extension in deliverable URLs sent to the sprinkle. DA-authored content pages (like `/home`, `/block-catalog`) do NOT need the extension.
+
+## DA Authentication & Content Upload (SLICC-specific)
+
+**This is the #1 time waster in previous runs. Follow these rules exactly:**
+
+### Getting the IMS token
+```bash
+DA_TOKEN=$(oauth-token adobe)
+```
+That's it. No npx, no da-auth-helper, no browser flow, no manual paste. Works instantly.
+
+### Writing DA content — USE THE MOUNT, NOT curl
+
+The DA mount at `/mnt/da/` handles auth automatically. It is mounted at the REPO root level (`da://aem-growth-adoption/of1-demo`).
+
+**Path structure:**
+```
+/mnt/da/                    ← repo root (da://aem-growth-adoption/of1-demo)
+/mnt/da/{branch}/           ← content subfolder for this demo (e.g., /mnt/da/frescopa/)
+/mnt/da/{branch}/page.html  ← a DA content page
+```
+
+**To upload a page:**
+```bash
+cp /path/to/content.html /mnt/da/${BRANCH}/page-name.html
+```
+
+**DO NOT:**
+- Use `curl` against `admin.da.live` — it's blocked by the SLICC secret proxy
+- Use `npx da-auth-helper` — it doesn't work in this environment
+- Try to extract tokens from `~/.aem/da-token.json` — it doesn't exist
+- Spend time exploring auth options — the mount is the answer
+
+### Triggering preview — USE admin.hlx.page
+
+`admin.hlx.page` IS in the allowed secret domains. Use it for preview triggers:
+
+```bash
+DA_TOKEN=$(oauth-token adobe)
+curl -s -X POST \
+  -H "Authorization: Bearer ${DA_TOKEN}" \
+  -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
+  "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${CONTENT_PREFIX}/${PAGE_SLUG}"
+```
+
+### Content URL pattern
+
+The of1-demo repo uses per-demo subfolders. Content URLs include the branch as a PATH prefix:
+```
+https://{branch}--of1-demo--aem-growth-adoption.aem.page/{branch}/{page}
+                                                          ^^^^^^^^
+                                                          content prefix (= branch name)
+```
+
+Example: `https://frescopa--of1-demo--aem-growth-adoption.aem.page/frescopa/prototype-home`
+
+### Summary of allowed domains for curl with oauth.adobe.token
+
+| Domain | Allowed | Use for |
+|--------|---------|---------|
+| `admin.hlx.page` | ✅ Yes | Preview/publish triggers |
+| `content.da.live` | ✅ Yes | (read-only content delivery) |
+| `admin.da.live` | ❌ No | Use mount instead |
+| `*.adobelogin.com` | ✅ Yes | (IMS auth, handled by oauth-token) |
