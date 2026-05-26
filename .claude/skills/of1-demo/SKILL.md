@@ -307,8 +307,8 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 6 (Snowflake)** needs: domain, prototypes from step 5, repo-config.json
 - **Step 7 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
 - **Steps 8–11** need: domain, block names from step 6, `stardust/` data
-- **Step 12 (Config review)** needs: all `output/{domain}/` files from steps 8–11 — orchestrator generates review page inline
-- **Step 13 (Deploy)** needs: step 12 approved, domain, all `output/{domain}/` files, repo-config.json
+- **Step 12 (Config review)** needs: all `of1/config/` files from steps 8–11 — orchestrator generates review page inline
+- **Step 13 (Deploy)** needs: step 12 approved, domain, all `of1/config/` files, repo-config.json
 
 When spawning a step scoop, read the relevant prior outputs and include key info in the prompt (or instruct the scoop to read specific files).
 
@@ -338,7 +338,7 @@ REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
 REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
 
 cd "$REPO_DIR"
-# Generate the review page from output/{DOMAIN}/ JSON files
+# Generate the review page from of1/config/ JSON files
 mkdir -p deliverables
 # ... write config-review.html ...
 git add deliverables/config-review.html
@@ -381,9 +381,9 @@ These issues cost time in previous runs. Avoid them:
 
 2. **Python in heredocs** — always quote the delimiter (`python3 << 'EOF'`). Unquoted heredocs mangle indentation and variables.
 
-3. **Large curl payloads fail on Cloudflare Workers (>~50KB)** — split into individual PUT requests per config key. See `of1-deploy` skill for the pattern.
+3. **Config sync uses EDS** — configs are committed to `of1/config/` in git, then synced via `POST /api/tenants/{id}/sync`. The tenant ID is `main--{repo}--{owner}` format.
 
-4. **Step 13 (Deploy) should be done inline by the cone** — it's just a few curl calls and takes <2 minutes. Don't delegate to a scoop; the overhead of spawning + polling exceeds the actual work.
+4. **Step 13 (Deploy)** — just `git push` + one POST to `/api/tenants/{id}/sync`. Can be done inline by the cone (no scoop needed).
 
 5. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else (e.g. "approved", "running", "complete") corrupts the UI state.
 

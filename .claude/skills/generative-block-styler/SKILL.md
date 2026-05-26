@@ -35,7 +35,7 @@ Read the following files to understand the brand:
 - `DESIGN.md` or `DESIGN.json` — design tokens (colors, fonts, spacing, radius)
 - `styles/styles.css` — CSS custom properties (the actual deployed tokens)
 - `blocks/of1/of1.css` — current of1 block styles
-- `output/{domain}/block-guide.json` — which blocks the LLM generates
+- `of1/config/block-guide.json` — which blocks the LLM generates
 
 ### Step 2: Generate brand-appropriate styles
 

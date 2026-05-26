@@ -16,7 +16,7 @@ Generate domain-specific quick suggestion chips, placeholder text, and search UI
 
 ### Step 1: Read context
 
-Check what exists in `output/{domain}/`:
+Check what exists in `of1/config/`:
 - Read `products.json` for product names and categories
 - Read `personas.json` for persona keywords
 - Read `use-cases.json` for use case descriptions
@@ -57,7 +57,7 @@ Look good?
 
 ### Step 4: Write output
 
-Write to `output/{domain}/suggestions.json`:
+Write to `of1/config/suggestions.json`:
 
 ```json
 {

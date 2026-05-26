@@ -92,7 +92,7 @@ Proceed with generating all files?
 
 ### Step 7: Generate JSON files
 
-Determine domain from URL. Write to `output/{domain}/`.
+Determine domain from URL. Write to `of1/config/`.
 
 The worker's pipeline steps consume these files as follows:
 - `rag-products.js` scores products by matching query words against `name`, `category`, `description`, and `keywords`
@@ -200,7 +200,7 @@ Verify all ID references are consistent across files. Fix mismatches.
 
 ### Step 9: Confirm
 
-> Content metadata written to `output/{domain}/`. Files: products.json, personas.json, use-cases.json, features.json, faqs.json.
+> Content metadata written to `of1/config/`. Files: products.json, personas.json, use-cases.json, features.json, faqs.json.
 
 ## Tips
 
