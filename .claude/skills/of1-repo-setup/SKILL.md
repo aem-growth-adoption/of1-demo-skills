@@ -18,7 +18,7 @@ The step is considered **done** when:
 
 ## Inputs
 
-- `DOMAIN`: The target domain for the demo (e.g., `eu.patagonia.com`)
+- `DOMAIN`: The target domain for the demo (e.g., `www.example.com`)
 
 **All other inputs MUST be asked from the user interactively.** Do NOT assume or default any values.
 
@@ -35,9 +35,9 @@ The orchestrator MUST ask the user the following questions before proceeding:
 
 **If Option B (create new):**
 
-**Question 2:** What GitHub account or organization should I create the repo under? (e.g., `QuentinVecchio`, `myorg`)
+**Question 2:** What GitHub account or organization should I create the repo under? (e.g., `my-company`, `myorg`)
 
-**Question 3:** What should the repo be named? (e.g., `patagonia-eu-demo`, `my-demo-site`)
+**Question 3:** What should the repo be named? (e.g., `acme-demo`, `my-demo-site`)
 
 Do NOT proceed until the user has answered all required questions. Never assume a default org or repo name.
 

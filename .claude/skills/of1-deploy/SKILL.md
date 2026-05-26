@@ -35,7 +35,7 @@ The OF1 worker now syncs config from the EDS repo directly:
 3. Calling `POST ${WORKER_URL}/api/tenants/${TENANT_ID}/sync` tells the worker to fetch each config from EDS and store in R2
 4. The worker auto-indexes vectors for products, features, and faqs
 
-**Tenant ID format:** `{branch}--{repo}--{owner}` (e.g., `main--patagonia-eu-demo--quentinvecchio`)
+**Tenant ID format:** `{branch}--{repo}--{owner}` (e.g., `main--acme-demo--myorg`)
 
 ## Process
 
