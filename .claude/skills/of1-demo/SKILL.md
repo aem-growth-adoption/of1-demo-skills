@@ -61,8 +61,19 @@ feed_scoop("of1-demo-step-N", <system prompt with skill instructions + context>)
 ```
 
 The system prompt MUST include:
-- The domain
+- The domain and branch name
 - The repo owner, repo name, and local repo path (from `/shared/of1-demo/repo-config.json`)
+- **DA auth instructions** — ALWAYS include this block in every scoop prompt that touches DA:
+  ```
+  ## DA Auth (CRITICAL — do not deviate)
+  - Write DA content via mount: cp file /mnt/da/{branch}/page.html
+  - Get IMS token: DA_TOKEN=$(oauth-token adobe)
+  - Trigger preview: curl -X POST -H "Authorization: Bearer $DA_TOKEN" -H "x-content-source-authorization: Bearer $DA_TOKEN" https://admin.hlx.page/preview/...
+  - DO NOT use curl against admin.da.live (blocked)
+  - DO NOT use npx/da-auth-helper (doesn't exist)
+  - DO NOT look for ~/.aem/da-token.json (doesn't exist)
+  - Content path: /mnt/da/{branch}/page.html (NOT /mnt/da/{repo}/page.html)
+  ```
 - How to load the skill:
   - For local skills: `read_file /workspace/skills/{skill-name}/SKILL.md`
   - For plugin skills (steps 4 & 5): instruct the scoop to invoke the Skill tool with `stardust:extract` or `stardust:prototype` — these are NOT local files

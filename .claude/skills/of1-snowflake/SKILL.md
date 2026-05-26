@@ -6,17 +6,25 @@ user-invocable: false
 
 # OF1 Snowflake
 
-Thin wrapper around the `snowflake` skill (static-to-EDS overlay). Converts each prototype page, installs the OF1 generative block, and verifies.
+Convert prototype HTML pages into EDS overlay pages using the snowflake methodology. This makes the pages editable in Document Authoring (DA) while preserving the original visual design byte-for-byte.
+
+## ⚡ Speed Priority
+
+This step MUST complete in under 5 minutes. To achieve this:
+- Do NOT spend time reading/exploring skills at runtime — everything you need is in THIS file
+- Do NOT attempt multiple auth strategies — follow the exact commands below
+- Do NOT verify things redundantly — one check per item is enough
+- Generate ALL artifacts in one pass, then push once, upload once, preview once
+
+---
 
 ## Inputs
 
-- `DOMAIN`: Target domain
-- Prototypes in `stardust/prototypes/` (from step 5)
-- Repo config from `/shared/of1-demo/repo-config.json` (from step 2)
+- `DOMAIN`: Target domain (e.g., `frescopa.coffee`)
+- Prototypes in `stardust/prototypes/*.html` (from step 5)
+- Repo config from `/shared/of1-demo/repo-config.json`
 
-## Process
-
-### 0. Read repo config
+## Step 0: Read Config
 
 ```bash
 REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
@@ -29,57 +37,152 @@ CONTENT_PREFIX=$(echo "$REPO_CONFIG" | jq -r '.contentPrefix // .branch')
 DA_CONTENT_PATH=$(echo "$REPO_CONFIG" | jq -r '.daContentPath // "/mnt/da/"+.branch')
 ```
 
-### 1. Load the snowflake skill
+---
 
-```
-read_file /workspace/skills/snowflake/SKILL.md
-read_file /workspace/skills/snowflake/knowledge/methodology.md
-read_file /workspace/skills/snowflake/knowledge/architecture.md
-```
-
-Also load `da-content` (required dependency of snowflake):
-```
-read_file /workspace/skills/da-content/SKILL.md
-```
-
-### 2. Convert each prototype page
-
-For each `*.html` file in `stardust/prototypes/`:
+## Step 1: Read the Snowflake Skill
 
 ```bash
-cd "$REPO_DIR"
-for PROTO in stardust/prototypes/*.html; do
-  PAGE_SLUG=$(basename "$PROTO" .html)
-  echo "Converting: ${PAGE_SLUG}"
-done
+cat /workspace/skills/snowflake/SKILL.md
+cat /workspace/skills/snowflake/knowledge/methodology.md
+cat /workspace/skills/snowflake/knowledge/architecture.md
+cat /workspace/skills/da-content/SKILL.md
 ```
 
-For each page, run the snowflake skill's phases 0–6 with:
-- **Source URL**: `file://${REPO_DIR}/stardust/prototypes/${PAGE_SLUG}.html`
-- **Target repo**: `${OWNER}/${REPO}` on branch `${BRANCH}`
-- **Content prefix**: `${CONTENT_PREFIX}` (pages live under this subfolder in DA)
-- **Page slug**: `${PAGE_SLUG}`
-- **Run number**: sequential (001, 002, ...)
+These explain the overlay approach in detail. The summary:
 
-Phase 0 (substrate install) only runs once — subsequent pages skip it.
+### How Snowflake Overlay Works (Quick Reference)
 
-**Do NOT open the snowflake sprinkle.** Progress is tracked via the of1-demo orchestrator.
+The overlay engine keeps the prototype's exact DOM and CSS. Content (text, images) becomes editable in DA without changing the visual output.
 
-### 3. Install OF1 block
+**Artifacts per page:**
+| File | Location | Purpose |
+|------|----------|---------|
+| Template HTML | `templates/{slug}.html` | The prototype's `<main>` content as static shell |
+| Template CSS | `styles/{slug}.css` | All `<style>` content from the prototype |
+| Header fragment | `fragments/{slug}/header.html` | `<header>` + anything before `<main>` |
+| Footer fragment | `fragments/{slug}/footer.html` | `<footer>` + anything after `</main>` |
+| DA content doc | `.snowflake/projects/{N}-{slug}/da/{slug}.html` | Editable content in DA block format |
 
-After all pages are converted, install the OF1 generative block:
+**DA content doc format** — each section becomes a block with slot name/value rows:
+```html
+<html>
+<body>
+<header></header>
+<main>
+  <div>
+    <div class="section-class-name">
+      <div><div>slot-name</div><div>slot value (text, links, image URLs)</div></div>
+      <div><div>another-slot</div><div>another value</div></div>
+    </div>
+  </div>
+  <!-- more sections... -->
+  <div>
+    <div class="metadata">
+      <div><div>template</div><div>{slug}</div></div>
+    </div>
+  </div>
+</main>
+<footer></footer>
+</body>
+</html>
+```
+
+**How the overlay engine resolves content:**
+1. DA serves the content doc → EDS pipeline decorates each `<div class="block-name">` as a block
+2. `scripts.js` (substrate) reads `<meta name="template">` → fetches `/templates/{slug}.html`
+3. Template HTML is injected into the page as the visual shell
+4. Block JS reads slot values from the DA content and injects them into the template's DOM nodes
+5. `/styles/{slug}.css` is loaded for visual styling
+6. Header/footer fragments are loaded into `<header>`/`<footer>`
+
+---
+
+## Step 2: Generate All Artifacts
+
+For each prototype in `stardust/prototypes/*.html`:
+
+### 2a. Analyze the prototype HTML
+
+Read each prototype. Identify:
+- Everything before `<main>` → header fragment
+- The `<main>` content → template (the visual shell)
+- Everything after `</main>` → footer fragment
+- All `<style>` blocks → template CSS
+- Editable content (text, images, links) → DA content doc with slot names
+
+### 2b. Create template HTML
+
+Extract `<main>` inner content. Replace editable text/images with data attributes or CSS classes that the overlay JS will populate from DA slots.
+
+```bash
+mkdir -p ${REPO_DIR}/templates
+# Write templates/{slug}.html for each page
+```
+
+### 2c. Create template CSS
+
+Extract all `<style>` content from the prototype. Add Google Fonts `@import` if the prototype uses them.
+
+```bash
+mkdir -p ${REPO_DIR}/styles
+# Write styles/{slug}.css for each page
+```
+
+### 2d. Create header/footer fragments
+
+```bash
+mkdir -p ${REPO_DIR}/fragments/{slug}
+# Write fragments/{slug}/header.html
+# Write fragments/{slug}/footer.html
+```
+
+### 2e. Create DA content documents
+
+```bash
+mkdir -p ${REPO_DIR}/.snowflake/projects/{N}-{slug}/da
+# Write .snowflake/projects/{N}-{slug}/da/{slug}.html
+```
+
+The DA content doc MUST include a metadata section at the end with `template` = slug name.
+
+---
+
+## Step 3: Install the Substrate (scripts.js)
+
+The substrate is the overlay engine that loads templates, fragments, and wires up DA content.
+
+Check if already installed:
+```bash
+grep -q "loadTemplate\|snowflake\|overlay" ${REPO_DIR}/scripts/scripts.js 2>/dev/null && echo "SUBSTRATE OK" || echo "NEEDS INSTALL"
+```
+
+If not installed, read and install from:
+```bash
+cat /workspace/skills/snowflake/knowledge/architecture.md
+# Follow substrate installation instructions
+```
+
+The substrate's `scripts.js` must:
+- Export `decorateMain`
+- Load template HTML when `<meta name="template">` is present
+- Load template CSS
+- Load header/footer fragments
+- Decorate blocks (which read DA slot values)
+
+---
+
+## Step 4: Install OF1 Block
 
 ```bash
 cd "$REPO_DIR"
 mkdir -p blocks/of1
 cp /workspace/skills/of1-snowflake/assets/of1.js blocks/of1/of1.js
 cp /workspace/skills/of1-snowflake/assets/of1-base.css blocks/of1/of1.css
-git add blocks/of1/
 ```
 
-The OF1 styling step (Step 8) rewrites `of1.css` for the brand — it depends on both files being present.
+---
 
-### 4. Push code to git
+## Step 5: Push Code to Git (ONE push)
 
 ```bash
 cd "$REPO_DIR"
@@ -88,31 +191,42 @@ git commit -m "feat: snowflake conversion + OF1 block for ${DOMAIN}"
 git push origin ${BRANCH}
 ```
 
-### 5. Upload DA content via mount
+---
 
-**DO NOT use curl against admin.da.live** — the SLICC secret proxy blocks it.
+## Step 6: Upload DA Content via Mount
 
-Instead, use the DA filesystem mount which handles auth automatically:
+### ⚠️ CRITICAL — READ THIS BEFORE DOING ANYTHING WITH DA
+
+| Action | Method | Notes |
+|--------|--------|-------|
+| Write content to DA | `cp file /mnt/da/{branch}/page.html` | Mount handles auth automatically |
+| Get IMS token | `oauth-token adobe` | Instant, no browser flow needed |
+| Trigger preview | `curl -X POST admin.hlx.page/preview/...` | Include both auth headers |
+| ~~Upload via API~~ | ~~`curl admin.da.live`~~ | **BLOCKED — will fail with "forbidden"** |
+| ~~Use da-auth-helper~~ | ~~`npx da-auth-helper`~~ | **DOESN'T EXIST in this env** |
+| ~~Read ~/.aem/da-token.json~~ | ~~`cat ~/.aem/...`~~ | **FILE DOESN'T EXIST** |
+
+### Upload content:
 
 ```bash
-# The DA mount at /mnt/da/ is the root of da://aem-growth-adoption/of1-demo
-# Each demo uses a subfolder named after the branch (e.g., /mnt/da/frescopa/)
-# This matches the URL pattern: /{branch}/{page}
+# The mount at /mnt/da/ = root of da://aem-growth-adoption/of1-demo
+# Content for this demo lives in /mnt/da/{branch}/ subfolder
+# This maps to URL path /{branch}/{page} on the EDS preview
 
 mkdir -p "${DA_CONTENT_PATH}" 2>/dev/null
 
-# Upload all page DA docs
+# Upload all DA docs
 for PROJECT_DIR in ${REPO_DIR}/.snowflake/projects/*/da/; do
   for DOC in ${PROJECT_DIR}*.html; do
+    [ -f "$DOC" ] || continue
     BASENAME=$(basename "$DOC")
     cp "$DOC" "${DA_CONTENT_PATH}/${BASENAME}"
-    echo "Uploaded: ${DA_CONTENT_PATH}/${BASENAME}"
+    echo "✓ ${DA_CONTENT_PATH}/${BASENAME}"
   done
 done
 
-# Also create OF1 page if not already in .snowflake
-if [ ! -f "${DA_CONTENT_PATH}/of1.html" ]; then
-  cat > "${DA_CONTENT_PATH}/of1.html" <<EOF
+# Create OF1 page
+cat > "${DA_CONTENT_PATH}/of1.html" <<EOF
 <html>
 <body>
   <header></header>
@@ -127,19 +241,18 @@ if [ ! -f "${DA_CONTENT_PATH}/of1.html" ]; then
 </body>
 </html>
 EOF
-  echo "Uploaded: ${DA_CONTENT_PATH}/of1.html"
-fi
+echo "✓ ${DA_CONTENT_PATH}/of1.html"
 ```
 
-### 6. Trigger preview
+---
 
-Use `oauth-token adobe` for the IMS token (works in SLICC without browser flow):
+## Step 7: Trigger Preview
 
 ```bash
 DA_TOKEN=$(oauth-token adobe)
 
-# Preview all pages — note the content path includes the branch prefix
 for DOC in ${DA_CONTENT_PATH}/*.html; do
+  [ -f "$DOC" ] || continue
   PAGE_SLUG=$(basename "$DOC" .html)
   RESP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
     -H "Authorization: Bearer ${DA_TOKEN}" \
@@ -149,66 +262,81 @@ for DOC in ${DA_CONTENT_PATH}/*.html; do
 done
 ```
 
-All pages should return 200. If any return 404, verify the DA content was written correctly.
+Expected: all return `200`. If you get `404`:
+- Verify the file exists: `cat ${DA_CONTENT_PATH}/page.html | head -3`
+- Verify the content format is correct (has `<html><body><main>...</main></body></html>`)
+- Wait 2-3 seconds and retry (DA write propagation)
 
-### 7. Verify pages render
+---
+
+## Step 8: Verify Pages Render
 
 ```bash
 for DOC in ${DA_CONTENT_PATH}/*.html; do
+  [ -f "$DOC" ] || continue
   PAGE_SLUG=$(basename "$DOC" .html)
-  CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${CONTENT_PREFIX}/${PAGE_SLUG}")
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${CONTENT_PREFIX}/${PAGE_SLUG}")
   echo "${CONTENT_PREFIX}/${PAGE_SLUG}: ${CODE}"
 done
 ```
 
-### 8. Screenshot diff loop (max 3 iterations per page)
+Expected: all return `200`.
 
-**Mandatory before marking as review.**
+---
 
-For each converted page (not of1), compare the EDS preview against the prototype:
+## Step 9: Screenshot Diff Loop (max 3 iterations per page)
 
-1. Screenshot EDS preview:
+For each content page (skip of1), compare EDS preview against the prototype:
+
+1. **Screenshot both:**
    ```bash
    playwright-cli screenshot "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${CONTENT_PREFIX}/${PAGE_SLUG}" --full-page --output /tmp/preview-${PAGE_SLUG}.png
+   playwright-cli screenshot "file://${REPO_DIR}/stardust/prototypes/${PAGE_SLUG}.html" --full-page --output /tmp/proto-${PAGE_SLUG}.png
    ```
 
-2. Screenshot prototype:
+2. **Compare visually** — open both with `open --view`:
    ```bash
-   playwright-cli screenshot "file://${REPO_DIR}/stardust/prototypes/${PAGE_SLUG}.html" --full-page --output /tmp/prototype-${PAGE_SLUG}.png
+   open --view /tmp/preview-${PAGE_SLUG}.png
+   open --view /tmp/proto-${PAGE_SLUG}.png
    ```
 
-3. Open both screenshots — compare visually. Focus on:
-   - Missing or broken images
-   - Layout differences (grid vs stack, wrong columns)
-   - Missing sections
-   - Wrong colors/backgrounds
-   - Nav/footer not rendering
+3. **Fix or accept:**
+   - Significant diffs (broken layout, missing images, wrong colors) → fix template/CSS, push, re-preview
+   - Minor diffs (font rendering, 1-2px spacing) → accept
+   - After 3 iterations → accept with note
 
-   Ignore: font anti-aliasing, sub-pixel diffs, hover states, cookie banners.
+---
 
-4. **No significant diffs** → PASS, next page.
+## 🚫 Common Mistakes That Waste Time
 
-5. **Diffs found** → fix the specific section (CSS/template tweak), push, re-preview, re-check. Max 3 iterations then accept.
+| Mistake | Time wasted | Correct approach |
+|---------|-------------|------------------|
+| Trying `curl` to `admin.da.live` | 3-5 min | Use `/mnt/da/` mount |
+| Running `npx da-auth-helper` | 2-3 min | Use `oauth-token adobe` |
+| Reading `~/.aem/da-token.json` | 1 min | Doesn't exist. Use `oauth-token adobe` |
+| Writing to `/mnt/da/of1-demo/page.html` | 3 min debugging 404s | Write to `/mnt/da/{branch}/page.html` |
+| Using URL path `/{page}` without prefix | 2 min debugging 404s | URL path is `/{branch}/{page}` |
+| Reading snowflake skill docs at runtime | 3-5 min | All context is in THIS file |
+| Multiple git pushes | 2-3 min | ONE push after all artifacts are created |
+| Checking node/npm availability | 1 min | Node is a shim. Don't use npm/npx |
+| Installing substrate via npm script | 2 min | Copy files directly |
 
-## SLICC Environment Notes
-
-These are CRITICAL for avoiding wasted time:
-
-1. **DA writes go through the mount** at `/mnt/da/` — never use `curl` against `admin.da.live`
-2. **DA mount path structure**: `/mnt/da/{branch}/` — NOT `/mnt/da/{repo}/`. The mount root IS the repo.
-3. **`oauth-token adobe`** gives you the IMS token instantly — no npx, no browser flow, no da-auth-helper needed
-4. **`admin.hlx.page`** IS in the allowed secret domains — use it for preview triggers
-5. **`admin.da.live`** is NOT in the allowed domains — curl will fail with "forbidden"
-6. **Content URL pattern**: `https://{branch}--{repo}--{owner}.aem.page/{branch}/{page}` — the branch appears TWICE (once in the subdomain for code bus, once in the path for content prefix)
-7. **Don't explore/read skills at runtime** — all context you need is in this file. Just generate the artifacts.
+---
 
 ## Deliverables
 
-- Overlay templates + fragments (generated by snowflake skill)
-- `blocks/of1/of1.js` + `blocks/of1/of1.css`
-- OF1 content page uploaded to DA via mount
-- All preview URLs return 200
+- `templates/*.html` — one per page
+- `styles/*.css` — one per page
+- `fragments/{slug}/header.html` + `footer.html` — one pair per page
+- `.snowflake/projects/*/da/*.html` — DA content docs
+- `blocks/of1/of1.js` + `blocks/of1/of1.css` — OF1 generative block
+- `scripts/scripts.js` — substrate (overlay engine)
+- All pages return 200 on EDS preview
 - Code pushed to branch `${BRANCH}`
+- DA content uploaded via mount to `/mnt/da/${CONTENT_PREFIX}/`
+
+---
 
 ## Completion
 
@@ -220,14 +348,14 @@ PREVIEW_BASE="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${CONTENT_PREFIX}"
 DELIVERABLES="["
 FIRST=true
 for DOC in ${DA_CONTENT_PATH}/*.html; do
+  [ -f "$DOC" ] || continue
   PAGE_SLUG=$(basename "$DOC" .html)
   URL="${PREVIEW_BASE}/${PAGE_SLUG}"
-  LABEL="${PAGE_SLUG}"
   if [ "$FIRST" = true ]; then
-    DELIVERABLES="${DELIVERABLES}{\"url\":\"${URL}\",\"label\":\"${LABEL}\"}"
+    DELIVERABLES="${DELIVERABLES}{\"url\":\"${URL}\",\"label\":\"${PAGE_SLUG}\"}"
     FIRST=false
   else
-    DELIVERABLES="${DELIVERABLES},{\"url\":\"${URL}\",\"label\":\"${LABEL}\"}"
+    DELIVERABLES="${DELIVERABLES},{\"url\":\"${URL}\",\"label\":\"${PAGE_SLUG}\"}"
   fi
 done
 DELIVERABLES="${DELIVERABLES}]"
