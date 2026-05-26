@@ -241,7 +241,24 @@ For each block in `blocks/` (excluding header, footer, nav):
 
 Use real product images and text from the prototypes — never use placeholder content.
 
-### 4. Create OF1 content page
+### 4. Install OF1 block JS
+
+The OF1 block JS (`blocks/of1/of1.js`) is shared infrastructure that must be copied from the reference repo. It handles the generative search UI, streaming, section injection, and suggestion chips.
+
+```bash
+mkdir -p blocks/of1
+cp /workspace/of1-demo/blocks/of1/of1.js blocks/of1/of1.js
+```
+
+If `/workspace/of1-demo` is not available, clone it first:
+```bash
+[ -d /workspace/of1-demo ] || git clone https://github.com/aem-growth-adoption/of1-demo.git /workspace/of1-demo
+cp /workspace/of1-demo/blocks/of1/of1.js blocks/of1/of1.js
+```
+
+**This file MUST be committed to git.** The OF1 styling step (Step 7) only writes `of1.css` — it depends on `of1.js` already being present.
+
+### 5. Create OF1 content page
 
 After conversion, create and publish `content/of1.html`:
 
