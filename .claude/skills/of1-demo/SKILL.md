@@ -162,8 +162,8 @@ User reset the pipeline. Clean up any running scoops.
 | 1 | Install dependencies | `of1-setup` | No | No |
 | 2 | Branch setup | `of1-branch-setup` | No | No |
 | 3 | Discovery | `of1-discovery` | Yes | No |
-| 4 | Extraction | `stardust:extract` | Yes | No |
-| 5 | Prototype | `stardust:prototype` | Yes | No |
+| 4 | Extraction | `of1-extraction` | Yes | No |
+| 5 | Prototype | `of1-prototype` | Yes | No |
 | 6 | Snowflake | `of1-snowflake` | Yes | No |
 | 7 | Templates | `of1-template-generation` | Yes | No |
 | 8 | OF1 styling | `generative-block-styler` | Yes | No |
@@ -309,21 +309,8 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 1 (Install dependencies)** needs: nothing (can run without domain)
 - **Step 2 (Branch setup)** needs: domain. Creates branch on `aem-growth-adoption/of1-demo` and outputs `repo-config.json`.
 - **Step 3 (Discovery)** needs: domain
-- **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). The scoop MUST invoke the `stardust:extract` skill (not a local skill — it's from the stardust plugin). If `PRODUCT.md` does not exist at project root, the scoop MUST run `/impeccable:teach` first using the Discovery answers as context to generate it. Then proceed with extraction.
-  
-  **CRITICAL — Deliverable post-processing for Step 4:**
-  The `stardust:extract` skill generates `stardust/current/brand-review.html` with relative image paths (`assets/screenshots/...`) and may produce a truncated brand logo SVG. When copying to `deliverables/brand-review.html`, the scoop MUST:
-  1. Copy `stardust/current/assets/screenshots/` to `deliverables/assets/screenshots/`
-  2. Fix image paths in the HTML to use `/deliverables/assets/screenshots/` (absolute from repo root) so they resolve on the EDS preview URL
-  3. Verify the brand logo SVG is complete — extract the full logo from the live site using `playwright-cli eval` and replace any truncated SVG path data
-  4. Verify all images load by checking the paths exist in the committed repo
-- **Step 5 (Prototype)** needs: domain, extraction outputs from step 4. The scoop MUST invoke the `stardust:prototype` skill (from the stardust plugin). The scoop prompt MUST instruct the scoop to:
-  1. Extract real image URLs from the live site using `playwright-cli eval` before writing any HTML
-  2. Extract real SVG icons from the live DOM (not emoji, not generic icons)
-  3. Use `format=png` or `format=jpg` (not `format=webply`) for any CDN image URLs
-  4. Use the real brand SVG logo (extracted in step 4) in the nav — never substitute with text
-  5. Never use placeholder divs, colored boxes, or gradient shapes in place of real images
-  6. **Run the Screenshot Diff Loop** (max 3 iterations per page) — see below
+- **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). The scoop reads `/workspace/skills/of1-extraction/SKILL.md` which has the complete recipe. It creates PRODUCT.md, extracts design tokens via playwright, takes screenshots, extracts logo, and builds brand-review.html. No external plugin needed.
+- **Step 5 (Prototype)** needs: domain, extraction outputs from step 4 (design-tokens.json, logo.svg, screenshots). The scoop reads `/workspace/skills/of1-prototype/SKILL.md` which has the complete recipe. It batch-extracts real images from all pages, writes pixel-perfect HTML prototypes, runs screenshot diff loop (max 2 iterations), and commits to deliverables/.
 - **Step 6 (Snowflake)** needs: domain, prototypes from step 5, repo-config.json
 - **Step 7 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
 - **Step 7 (Templates)** needs: domain, design tokens from step 4 (`DESIGN.json`), demo narrative from step 3, snowflake output from step 6
