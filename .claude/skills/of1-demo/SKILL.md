@@ -60,7 +60,9 @@ feed_scoop("of1-demo-step-N", <system prompt with skill instructions + context>)
 The system prompt MUST include:
 - The domain
 - The repo owner, repo name, and local repo path (from `/shared/of1-demo/repo-config.json`)
-- Path to the relevant skill file to read: `read_file /workspace/skills/{skill-name}/SKILL.md`
+- How to load the skill:
+  - For local skills: `read_file /workspace/skills/{skill-name}/SKILL.md`
+  - For plugin skills (steps 4 & 5): instruct the scoop to invoke the Skill tool with `stardust:extract` or `stardust:prototype` — these are NOT local files
 - Current working directory context (the project repo)
 - Any outputs from previous steps the skill needs
 - Instruction to write a completion marker on finish (NOT `sprinkle send` — the step scoop must NOT call sprinkle commands):
@@ -141,8 +143,8 @@ User reset the pipeline. Clean up any running scoops.
 | 1 | Install dependencies | `of1-setup` | No | No |
 | 2 | Setup AEM/DA repo | `of1-repo-setup` | Yes | No |
 | 3 | Discovery | `of1-discovery` | Yes | No |
-| 4 | Extraction | `extract` | Yes | No |
-| 5 | Prototype | `prototype` | Yes | No |
+| 4 | Extraction | `stardust:extract` | Yes | No |
+| 5 | Prototype | `stardust:prototype` | Yes | No |
 | 6 | Snowflake | `of1-snowflake` | Yes | No |
 | 7 | OF1 styling | `generative-block-styler` | Yes | No |
 | 8 | Brand & content | `brand-voice-extractor` + `content-metadata` | No | Yes |
@@ -289,15 +291,15 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 1 (Install dependencies)** needs: nothing (can run without domain)
 - **Step 2 (Setup AEM/DA repo)** needs: domain (optional), user input about repo choice. Outputs `repo-config.json`.
 - **Step 3 (Discovery)** needs: domain
-- **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). If `PRODUCT.md` does not exist at project root, the scoop MUST run `/impeccable:teach` first using the Discovery answers as context to generate it. Then proceed with extraction.
+- **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). The scoop MUST invoke the `stardust:extract` skill (not a local skill — it's from the stardust plugin). If `PRODUCT.md` does not exist at project root, the scoop MUST run `/impeccable:teach` first using the Discovery answers as context to generate it. Then proceed with extraction.
   
   **CRITICAL — Deliverable post-processing for Step 4:**
-  The `extract` skill generates `stardust/current/brand-review.html` with relative image paths (`assets/screenshots/...`) and may produce a truncated brand logo SVG. When copying to `deliverables/brand-review.html`, the scoop MUST:
+  The `stardust:extract` skill generates `stardust/current/brand-review.html` with relative image paths (`assets/screenshots/...`) and may produce a truncated brand logo SVG. When copying to `deliverables/brand-review.html`, the scoop MUST:
   1. Copy `stardust/current/assets/screenshots/` to `deliverables/assets/screenshots/`
   2. Fix image paths in the HTML to use `/deliverables/assets/screenshots/` (absolute from repo root) so they resolve on the EDS preview URL
   3. Verify the brand logo SVG is complete — extract the full logo from the live site using `playwright-cli eval` and replace any truncated SVG path data
   4. Verify all images load by checking the paths exist in the committed repo
-- **Step 5 (Prototype)** needs: domain, extraction outputs from step 4. The scoop prompt MUST instruct the scoop to:
+- **Step 5 (Prototype)** needs: domain, extraction outputs from step 4. The scoop MUST invoke the `stardust:prototype` skill (from the stardust plugin). The scoop prompt MUST instruct the scoop to:
   1. Extract real image URLs from the live site using `playwright-cli eval` before writing any HTML
   2. Extract real SVG icons from the live DOM (not emoji, not generic icons)
   3. Use `format=png` or `format=jpg` (not `format=webply`) for any CDN image URLs
