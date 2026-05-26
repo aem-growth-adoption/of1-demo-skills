@@ -231,9 +231,8 @@ curl -sL "{IMAGE_URL}" -o assets/products/{product-id}/1.png
 
 **Verify each download:** must be > 10KB (failed downloads are 0 bytes or tiny error pages).
 
-**Upload to DA (preferred — gives responsive image optimization):**
+**Upload to DA:**
 
-If `DA_TOKEN` is available (from the `da-auth` skill earlier in the pipeline):
 ```bash
 for f in assets/products/${PRODUCT_ID}/*.png; do
   FILENAME=$(basename "$f")
@@ -246,16 +245,6 @@ done
 ```
 
 **CRITICAL:** Do NOT use `--data-binary @filepath` — it sends the literal `@path` string in this environment. Always pipe via stdin: `cat file | curl ... --data-binary @-`
-
-**Fallback (git-commit — works without DA auth):**
-```bash
-cd ${REPO_DIR}
-git add assets/products/
-git commit -m "feat: add product images (5 per product) to local assets"
-git push origin main
-```
-
-Git-committed static files are served immediately by EDS at their exact path.
 
 **Update products.json images array:**
 
