@@ -421,7 +421,16 @@ export default async function decorate(block) {
     config['api-endpoint'] = DEFAULT_WORKER_URL;
   }
   if (!config.domain) {
-    config.domain = document.querySelector('meta[name="domain"]')?.content || window.location.hostname;
+    const host = window.location.hostname;
+    config.domain = document.querySelector('meta[name="domain"]')?.content
+      || (host.endsWith('.aem.page') || host.endsWith('.aem.live') ? host.replace(/\.aem\.(page|live)$/, '') : host);
+  }
+  // If domain doesn't look like a tenant ID (branch--repo--owner), derive from hostname
+  if (config.domain && !config.domain.includes('--')) {
+    const host = window.location.hostname;
+    if (host.endsWith('.aem.page') || host.endsWith('.aem.live')) {
+      config.domain = host.replace(/\.aem\.(page|live)$/, '');
+    }
   }
 
   if (!document.querySelector('meta[name="domain"]')) {

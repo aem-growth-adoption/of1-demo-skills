@@ -110,9 +110,19 @@ The worker's `build-prompt.js` checks `blockGuide.guide` (text format) first, th
 
 The `guide` string must include:
 
-1. **Rules section** — output format (JSON objects separated by `===`), content item types table
+1. **Rules section** — output format (CRITICAL: each block is a separate JSON object, separated by `===` on its own line. NOT wrapped in a `{"blocks":[...]}` array). Include content item types table.
 2. **Block definitions** — each block with name, description, rules, and a complete JSON example using the `rows` format
-3. **Suggestions section** — instructions for the required trailing suggestions object
+3. **Suggestions section** — instructions for the required trailing suggestions object (also separated by `===`)
+
+**CRITICAL OUTPUT FORMAT:** The guide MUST instruct the LLM to output blocks like this:
+```
+{"block":"hero","rows":[...]}
+===
+{"block":"cards","rows":[...]}
+===
+{"suggestions":["query1","query2","query3"]}
+```
+The worker's `json-to-html.js` splits the LLM output on `===` and processes each JSON object individually. If the LLM wraps blocks in `{"blocks":[...]}`, the worker cannot parse them and NO sections will render. This is the #1 cause of blank generation pages.
 
 **Do NOT include `html_template` or `scoped_css`** — these are unnecessary. The worker converts the LLM's JSON output to standard EDS block HTML using `json-to-html.js`, and the site's own block CSS (already deployed) handles all styling. The LLM just needs to know the block names and row/cell structure.
 
