@@ -332,10 +332,18 @@ echo "Gallery: HTTP ${HTTP_CODE} — ${GALLERY_URL}"
 
 ## Design Guidelines
 
+### Template structure (MANDATORY)
+
+Every template MUST:
+- **Start with a hero section** — always the first block (`<section class="of1-{name}-hero of1-hero">`)
+- **Have at least 4-5 sections/blocks** — hero + 3-4 content sections minimum. Never just a hero + one section.
+
+This ensures generated pages feel complete and substantial, not thin landing stubs.
+
 ### Template variety
 
 Each intent's 5 variations must be **structurally distinct**:
-- Different section counts (2 vs 4 sections)
+- Different section counts (4 vs 5 vs 6 sections — never fewer than 4)
 - Different layout patterns (grid vs stack vs split vs single-column)
 - Different content density (headline-only vs rich detail)
 - Different interaction metaphors (table vs cards vs timeline vs accordion)
