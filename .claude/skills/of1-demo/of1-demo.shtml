@@ -547,9 +547,9 @@
   /* ─── Parallel Tracks ─────────────────────────────────────── */
 
   .of1-tracks {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
     margin: 6px 0;
   }
 
