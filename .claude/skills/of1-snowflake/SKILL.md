@@ -241,22 +241,23 @@ For each block in `blocks/` (excluding header, footer, nav):
 
 Use real product images and text from the prototypes — never use placeholder content.
 
-### 4. Install OF1 block JS
+### 4. Install OF1 block (JS + base CSS)
 
-The OF1 block JS (`blocks/of1/of1.js`) is shared infrastructure that must be copied from the reference repo. It handles the generative search UI, streaming, section injection, and suggestion chips.
+The OF1 block JS (`blocks/of1/of1.js`) is shared infrastructure. The base CSS (`of1-base.css`) provides a brand-neutral starting point that the styling step customizes.
+
+Both files are bundled with this skill:
 
 ```bash
 mkdir -p blocks/of1
-cp /workspace/of1-demo/blocks/of1/of1.js blocks/of1/of1.js
+cp /workspace/skills/of1-snowflake/assets/of1.js blocks/of1/of1.js
+cp /workspace/skills/of1-snowflake/assets/of1-base.css blocks/of1/of1.css
 ```
 
-If `/workspace/of1-demo` is not available, clone it first:
+**Both files MUST be committed to git.** The OF1 styling step (Step 7) rewrites `of1.css` for the brand — it depends on both `of1.js` and `of1.css` already being present and committed.
+
 ```bash
-[ -d /workspace/of1-demo ] || git clone https://github.com/aem-growth-adoption/of1-demo.git /workspace/of1-demo
-cp /workspace/of1-demo/blocks/of1/of1.js blocks/of1/of1.js
+git add blocks/of1/
 ```
-
-**This file MUST be committed to git.** The OF1 styling step (Step 7) only writes `of1.css` — it depends on `of1.js` already being present.
 
 ### 5. Create OF1 content page
 

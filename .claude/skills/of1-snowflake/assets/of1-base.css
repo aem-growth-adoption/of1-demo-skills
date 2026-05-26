@@ -1,0 +1,310 @@
+/* ============================================================
+   OF1 Generative Block — Base Template
+   
+   This is the BASE CSS template. The generative-block-styler skill
+   customizes the --brand-* variables and visual treatment per brand.
+   
+   DO NOT USE THIS FILE DIRECTLY — it's a starting point.
+   The styler replaces the token values and adjusts the aesthetic.
+   ============================================================ */
+
+/* ─── Brand Token Mapping (customize these per brand) ──────── */
+
+.of1,
+.generated-section,
+.generative-suggestions,
+.generative-breadcrumb {
+  --primary:        #000000;
+  --primary-hover:  #333333;
+  --text:           #000000;
+  --text-secondary: #555555;
+  --surface:        #FFFFFF;
+  --surface-muted:  #F5F5F5;
+  --surface-dark:   #1a1a1a;
+  --accent:         #0066cc;
+  --border:         #e0e0e0;
+  --radius:         0px;
+  --radius-card:    8px;
+  --radius-pill:    30px;
+  --font-heading:   system-ui, sans-serif;
+  --font-body:      system-ui, sans-serif;
+  --font-mono:      'SF Mono', 'Fira Code', monospace;
+  --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lift:    0 8px 24px rgba(0, 0, 0, 0.12);
+  --transition:     0.2s ease-out;
+}
+
+/* ─── Container & Layout ──────────────────────────────────── */
+
+.section.of1-container {
+  padding: 0;
+}
+
+.of1-wrapper {
+  max-width: 100% !important;
+  margin: 0;
+  padding: 0 !important;
+}
+
+/* ─── Search Landing UI ────────────────────────────────────── */
+
+.of1-search-ui {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - var(--nav-height, 60px));
+  padding: 96px 24px 72px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.of1-title {
+  font-family: var(--font-heading);
+  font-size: clamp(2.25rem, 5vw, 3.5rem);
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.of1-subtitle {
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  color: var(--text-secondary);
+  margin-bottom: 40px;
+  max-width: 520px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+/* ─── Input & Submit ──────────────────────────────────────── */
+
+.of1-input-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.of1-input {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 16px 60px 16px 20px;
+  line-height: 1.4;
+  transition: border-color var(--transition);
+}
+
+.of1-input::placeholder {
+  color: #999;
+}
+
+.of1-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.of1-submit {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--text);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-pill);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.of1-submit:hover {
+  background: var(--primary);
+}
+
+/* ─── Quick Suggestion Chips ──────────────────────────────── */
+
+.of1-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 28px;
+  max-width: 700px;
+}
+
+.of1-chip {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.of1-chip:hover {
+  background: var(--surface-muted);
+  border-color: var(--primary);
+}
+
+/* ─── Loading Skeleton ────────────────────────────────────── */
+
+.of1-skeleton {
+  padding: 48px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.of1-skeleton-bar {
+  height: 16px;
+  background: var(--surface-muted);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  animation: of1-shimmer 1.5s infinite;
+}
+
+@keyframes of1-shimmer {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+/* ─── Generated Sections ──────────────────────────────────── */
+
+.generated-section {
+  padding: 64px 48px;
+  animation: of1-fade-in 0.4s ease-out both;
+}
+
+.generated-section:nth-child(even) {
+  background: var(--surface-muted);
+}
+
+@keyframes of1-fade-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Generated Hero ──────────────────────────────────────── */
+
+.generated-section .hero-wrapper {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+.generated-section .hero {
+  position: relative;
+  min-height: 480px;
+  display: flex;
+  align-items: flex-end;
+  padding: 64px;
+  overflow: hidden;
+}
+
+.generated-section .hero img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.generated-section .hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.7), transparent 60%);
+}
+
+.generated-section .hero > div {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+}
+
+/* ─── Generated Cards ─────────────────────────────────────── */
+
+.generated-section .cards > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+  padding: 0 48px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.generated-section .cards > div > div {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  transition: box-shadow var(--transition);
+}
+
+.generated-section .cards > div > div:hover {
+  box-shadow: var(--shadow-lift);
+}
+
+.generated-section .cards img {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+}
+
+/* ─── Generated Columns ───────────────────────────────────── */
+
+.generated-section .columns > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 48px;
+}
+
+/* ─── Follow-up Suggestions ───────────────────────────────── */
+
+.generative-suggestions {
+  padding: 32px 24px 48px;
+  text-align: center;
+}
+
+.generative-suggestions .of1-chips {
+  margin-top: 0;
+}
+
+/* ─── Responsive ──────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .of1-search-ui {
+    padding: 64px 16px 48px;
+  }
+
+  .of1-title {
+    font-size: 2rem;
+  }
+
+  .generated-section {
+    padding: 40px 16px;
+  }
+
+  .generated-section .cards > div {
+    grid-template-columns: 1fr;
+    padding: 0 16px;
+  }
+}
