@@ -99,7 +99,7 @@ Use badges to distinguish link types:
 
 ```bash
 git add of1/config/ deliverables/
-git commit -m "feat: deploy config and demo hub for {DOMAIN}"
+git commit -m "feat: deploy config and demo hub for ${DOMAIN}"
 git push origin ${BRANCH}
 ```
 
