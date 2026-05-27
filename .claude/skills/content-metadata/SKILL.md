@@ -202,62 +202,59 @@ Verify all ID references are consistent across files. Fix mismatches.
 
 Download 5 images per product from the source site and store them locally so the OF1 generation has reliable, self-hosted image URLs (no external CDN dependency, no encoding issues, no CORS/referrer problems).
 
-**Prerequisite:** `DA_TOKEN` must be available (from the `da-auth` skill earlier in the pipeline). If DA auth is not available, stop and inform the user — DA upload is required for image hosting.
-
 **Target:** Up to 5 images per product (use fewer if the source page has less) — prioritize:
-1. Main product shot (flat lay, front view)
-2. Alternate colorway(s)
-3. Lifestyle/on-model shot(s)
-4. Detail shots (pockets, zips, cuffs, materials)
+1. Main product shot (hero/front view)
+2. Alternate angle or colorway
+3. Lifestyle/in-use shot
+4. Detail/close-up shot
+5. Package or accessory shot
 
 **How to find images on a product page:**
-```bash
-curl -s "{PDP_URL}" | grep -oP 'https://[^"?&\s]+\.(jpg|png|webp)' | sort -u
-```
-Pick up to 5 unique, high-quality product images per product. If fewer are available, use what exists.
 
-**Where to store:**
+Use playwright-cli to visit each product detail page and extract ALL product images:
+
+```bash
+playwright-cli eval --tab <TAB_ID> "
+Array.from(document.querySelectorAll('img'))
+  .filter(i => i.naturalWidth > 200 && !i.src.includes('icon') && !i.src.includes('logo'))
+  .map(i => ({ src: i.src, alt: i.alt, w: i.naturalWidth, h: i.naturalHeight }))
+"
+```
+
+Pick up to 5 unique, high-quality product images per product. If fewer are available on the page, use what exists. Prefer images from carousels/galleries (they usually have multiple angles).
+
+**For sites using AEM Assets delivery (delivery-p*.adobeaemcloud.com URLs):**
+These URLs are stable and directly usable — store them as-is in the images array. No need to download and re-host.
+
+**For external CDN images that might have CORS/referrer issues:**
+
+Store locally in the git repo:
 ```
 {REPO_DIR}/assets/products/{product-id}/1.png
 {REPO_DIR}/assets/products/{product-id}/2.png
-{REPO_DIR}/assets/products/{product-id}/3.png
-{REPO_DIR}/assets/products/{product-id}/4.png
-{REPO_DIR}/assets/products/{product-id}/5.png
+...
 ```
 
-**How to download:**
+Download:
 ```bash
 mkdir -p assets/products/{product-id}
 curl -sL "{IMAGE_URL}" -o assets/products/{product-id}/1.png
 ```
 
-**Verify each download:** must be > 10KB (failed downloads are 0 bytes or tiny error pages).
-
-**Upload to DA:**
-
-```bash
-for f in assets/products/${PRODUCT_ID}/*.png; do
-  FILENAME=$(basename "$f")
-  cat "$f" | curl -s -X PUT "https://admin.da.live/source/${OWNER}/${REPO}/assets/products/${PRODUCT_ID}/${FILENAME}" \
-    -H "Authorization: ${DA_TOKEN}" \
-    -H "x-content-source-authorization: ${DA_TOKEN}" \
-    -H "Content-Type: image/png" \
-    --data-binary @-
-done
-```
-
-**CRITICAL:** Do NOT use `--data-binary @filepath` — it sends the literal `@path` string in this environment. Always pipe via stdin: `cat file | curl ... --data-binary @-`
+Verify each download: must be > 10KB (failed downloads are 0 bytes or tiny error pages).
 
 **Update products.json images array:**
 
-After uploading, update each product's `images` field with local EDS URLs (include only the images that were successfully downloaded):
-```
+Each product's `images` field should contain all available image URLs (up to 5):
+```json
 "images": [
-  "${PREVIEW_BASE}/assets/products/{product-id}/1.png",
-  "${PREVIEW_BASE}/assets/products/{product-id}/2.png",
-  ...
+  "https://delivery-p149891-e1546481.adobeaemcloud.com/adobe/assets/urn:aaid:aem:...",
+  "https://delivery-p149891-e1546481.adobeaemcloud.com/adobe/assets/urn:aaid:aem:...",
+  "${PREVIEW_BASE}/assets/products/{product-id}/3.png"
 ]
 ```
+
+**IMPORTANT:** Never use invented/fabricated image URLs. Only use URLs extracted from the live site that return 200. Verify at least the first image per product loads.
 
 Where `PREVIEW_BASE` is `https://main--{repo}--{owner}.aem.page` (from repo-config.json).
 
