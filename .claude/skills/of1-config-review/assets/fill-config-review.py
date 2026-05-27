@@ -143,7 +143,7 @@ def main():
         template_path = sys.argv[3]
     else:
         script_dir = Path(__file__).resolve().parent
-        template_path = script_dir / 'templates' / 'config-review.html'
+        template_path = script_dir / 'config-review.html'
 
     # NOTE: Always invoke this script from within the repo dir (cd $REPO_DIR first).
     # The VFS cannot os.chdir() across mount boundaries.

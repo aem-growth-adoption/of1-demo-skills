@@ -19,14 +19,14 @@ Generate the config-review.html deliverable for an OF1 demo using the proper tem
 ### Step 1: Run the fill script
 
 ```bash
-cd /workspace/of1-demo && python3 /workspace/of1-demo-skills/.claude/skills/of1-demo/fill-config-review.py . <DOMAIN>
+cd /workspace/of1-demo && python3 /workspace/of1-demo-skills/.claude/skills/of1-config-review/assets/fill-config-review.py . <DOMAIN>
 ```
 
 Replace `<DOMAIN>` with the demo domain (e.g., `frescopa.coffee`, `rankingshub.app`, `bmwusa.com`).
 
 The script:
 - Reads: `of1/config/{products,brand-voice,personas,suggestions,use-cases,features,cta-template}.json`
-- Uses template: `/workspace/of1-demo-skills/.claude/skills/of1-demo/templates/config-review.html`
+- Uses template: `/workspace/of1-demo-skills/.claude/skills/of1-config-review/assets/config-review.html`
 - Writes: `deliverables/config-review.html`
 
 ### Step 2: Commit and push

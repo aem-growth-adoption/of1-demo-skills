@@ -392,7 +392,7 @@ DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 cd "$REPO_DIR"
 
 # Run the fill script — reads of1/config/*.json, writes deliverables/config-review.html
-python3 /workspace/of1-demo-skills/.claude/skills/of1-demo/fill-config-review.py . "$DOMAIN"
+python3 /workspace/of1-demo-skills/.claude/skills/of1-config-review/assets/fill-config-review.py . "$DOMAIN"
 
 # Commit and push
 git add deliverables/config-review.html
