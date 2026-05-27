@@ -1,5 +1,5 @@
 ---
-name: content-metadata
+name: of1-content-metadata
 description: Scrape product data, personas, use cases, features, and FAQs from a website for the tenant config
 user-invocable: true
 ---
@@ -8,15 +8,42 @@ user-invocable: true
 
 Crawl a website to extract product data, user personas, use cases, features, and FAQs, producing JSON files for the of1-gen-web-service tenant config.
 
+## ⚡ Speed Priority — Target: 5 minutes
+
+- In pipeline mode, skip user confirmation — just write the files
+- Cap at 10-20 products (focused on the demo category from discovery)
+- Use discovery output to focus on the right product line
+
+---
+
 ## Inputs
 
-- `DOMAIN`: Target domain (e.g., `nvidia.com`). If provided in your prompt context (pipeline mode), use it directly and default to full catalog. Only ask the user if not provided.
+- `DOMAIN`: Target domain (e.g., `nvidia.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
 
 ## Process
 
+### Step 0: Read context (pipeline mode)
+
+```bash
+REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
+REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
+BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
+REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
+DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
+
+cd "$REPO_DIR"
+mkdir -p of1/config
+```
+
+If discovery output exists, read it to focus on the right product category:
+```bash
+cat /shared/of1-demo/step-3-output.md 2>/dev/null
+```
+
 ### Step 1: Understand scope
 
-If `DOMAIN` was provided in your prompt (pipeline mode), use `https://{DOMAIN}` and default to **full catalog**. Skip asking.
+If `DOMAIN` was provided in your prompt (pipeline mode), use `https://{DOMAIN}` and focus on the **demo category** from discovery (10-20 products). Skip asking.
 
 Otherwise, ask the user:
 > What should I index? Options:
@@ -60,7 +87,7 @@ Extract all product information:
 - Tags/labels
 ```
 
-For large catalogs (20+), batch in groups of 5 and check in with the user.
+For large catalogs (20+) in standalone mode, batch in groups of 5 and check in with the user. In pipeline mode, cap at 20 products from the demo focus category.
 
 ### Step 4: Infer personas and use cases
 
@@ -76,7 +103,11 @@ From product data, infer:
 
 **FAQs:** From FAQ sections or inferred from comparison points and feature explanations.
 
-### Step 6: Present summary
+### Step 6: Present summary (standalone mode only)
+
+**Skip this step in pipeline mode** — go directly to Step 7.
+
+In standalone mode, present and wait for confirmation:
 
 ```
 ## Content Metadata Summary
@@ -262,18 +293,6 @@ https://content.da.live/{OWNER}/{REPO}/${BRANCH}/media/product-${PRODUCT_ID}-1.p
 - **DO NOT** skip this step thinking "the URLs work fine" — they break in production
 - **DO NOT** use the git repo `/assets/` folder for images — use the DA mount at `/mnt/da/`
 
-**Write a manifest:**
-```json
-// assets/products/manifest.json
-{
-  "products": {
-    "{product-id}": {
-      "images": ["1.png", "2.png", "3.png", "4.png", "5.png"],
-      "source": "{original-pdp-url}"
-    }
-  }
-}
-```
 
 ### Step 10: Confirm
 
