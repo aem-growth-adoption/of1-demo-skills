@@ -1,0 +1,23 @@
+# Secrets
+.token
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Dependencies
+node_modules/
+
+# Build output
+build/
+dist/
+.next/
+.turbo/
+.cache/
+.wrangler/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
