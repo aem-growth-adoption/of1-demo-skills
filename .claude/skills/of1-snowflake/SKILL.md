@@ -10,8 +10,7 @@ Convert prototype HTML pages into EDS overlay pages using the snowflake methodol
 
 ## ⚡ Speed Priority — Target: 5 minutes
 
-- Environment is fully documented below — DO NOT trial-and-error auth methods or file paths
-- Read the snowflake skill files (Step 1) for overlay methodology — that IS required
+- Everything you need is in THIS file — DO NOT trial-and-error auth methods or file paths
 - DO NOT attempt multiple auth strategies — follow the exact commands below
 - DO NOT verify things redundantly — one check per item is enough
 - Generate ALL artifacts in one pass, then push once, upload once, preview once
@@ -21,7 +20,8 @@ Convert prototype HTML pages into EDS overlay pages using the snowflake methodol
 ## Inputs
 
 - `DOMAIN`: Target domain (e.g., `frescopa.coffee`)
-- Prototypes in `stardust/prototypes/*.html` (from step 5)
+- Prototypes in `stardust/prototypes/*.html` or `deliverables/prototype-*.html` (from step 5)
+- Design tokens in `stardust/current/DESIGN.json` (from step 4)
 - Repo config from `/shared/of1-demo/repo-config.json`
 
 ## Step 0: Read Config
@@ -39,16 +39,9 @@ DA_CONTENT_PATH=$(echo "$REPO_CONFIG" | jq -r '.daContentPath // "/mnt/da/"+.bra
 
 ---
 
-## Step 1: Read the Snowflake Skill
+## Step 1: Understand the Snowflake Overlay
 
-```bash
-cat /workspace/skills/snowflake/SKILL.md
-cat /workspace/skills/snowflake/knowledge/methodology.md
-cat /workspace/skills/snowflake/knowledge/architecture.md
-cat /workspace/skills/da-content/SKILL.md
-```
-
-These explain the overlay approach in detail. The summary:
+The overlay methodology is summarized below. If you need deeper reference, read `/workspace/skills/snowflake/SKILL.md` and its `knowledge/` subfolder — but this summary should be sufficient:
 
 ### How Snowflake Overlay Works (Quick Reference)
 
@@ -186,7 +179,7 @@ cp /workspace/skills/of1-snowflake/assets/of1-base.css blocks/of1/of1.css
 
 ```bash
 cd "$REPO_DIR"
-git add -A
+git add templates/ styles/ fragments/ .snowflake/ blocks/of1/ scripts/
 git commit -m "feat: snowflake conversion + OF1 block for ${DOMAIN}"
 git push origin ${BRANCH}
 ```
