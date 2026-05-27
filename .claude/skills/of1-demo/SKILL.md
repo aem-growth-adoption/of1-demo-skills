@@ -75,8 +75,7 @@ The system prompt MUST include:
   - Content path: /mnt/da/{branch}/page.html (NOT /mnt/da/{repo}/page.html)
   ```
 - How to load the skill:
-  - For local skills: `read_file /workspace/skills/{skill-name}/SKILL.md`
-  - For plugin skills (steps 4 & 5): instruct the scoop to invoke the Skill tool with `stardust:extract` or `stardust:prototype` — these are NOT local files
+  - `read_file /workspace/skills/{skill-name}/SKILL.md` — the local skill will instruct the scoop on what to do, including invoking stardust plugins where needed (e.g., steps 4 & 5 call `stardust:extract` and `stardust:prototype` respectively)
 - Current working directory context (the project repo)
 - Any outputs from previous steps the skill needs
 - Instruction to write a completion marker on finish (NOT `sprinkle send` — the step scoop must NOT call sprinkle commands):
@@ -349,8 +348,8 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 1 (Install dependencies)** needs: nothing (can run without domain)
 - **Step 2 (Branch setup)** needs: domain. Creates branch on `aem-growth-adoption/of1-demo` and outputs `repo-config.json`.
 - **Step 3 (Discovery)** needs: domain
-- **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). The scoop reads `/workspace/skills/of1-extraction/SKILL.md` which has the complete recipe. It creates PRODUCT.md, extracts design tokens via playwright, takes screenshots, extracts logo, and builds brand-review.html. No external plugin needed.
-- **Step 5 (Prototype)** needs: domain, extraction outputs from step 4 (design-tokens.json, logo.svg, screenshots). The scoop reads `/workspace/skills/of1-prototype/SKILL.md` which has the complete recipe. It batch-extracts real images from all pages, writes pixel-perfect HTML prototypes, runs screenshot diff loop (max 2 iterations), and commits to deliverables/.
+- **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). The scoop reads `/workspace/skills/of1-extraction/SKILL.md` which instructs it to invoke `stardust:extract`. Produces PRODUCT.md, DESIGN.json, screenshots, logo, and brand-review.html under `stardust/current/`.
+- **Step 5 (Prototype)** needs: domain, extraction outputs from step 4 (`stardust/current/`). The scoop reads `/workspace/skills/of1-prototype/SKILL.md` which instructs it to invoke `stardust:prototype`. Produces pixel-perfect HTML prototypes under `stardust/prototypes/` and commits to `deliverables/`.
 - **Step 6 (Snowflake)** needs: domain, prototypes from step 5, repo-config.json
 - **Step 7 (Templates)** needs: domain, design tokens from step 4 (`design-tokens.json`), demo narrative from step 3, snowflake output from step 6
 - **Step 8 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
