@@ -225,12 +225,17 @@
 /* ─── Generated Sections ──────────────────────────────────── */
 
 .generated-section {
-  padding: 64px 48px;
+  padding: 0;
+  margin: 0;
+  max-width: none;
+  width: 100%;
   animation: of1-fade-in 0.4s ease-out both;
 }
 
-.generated-section:nth-child(even) {
-  background: var(--surface-muted);
+.generated-section > .section,
+.generated-section > section {
+  max-width: none;
+  width: 100%;
 }
 
 @keyframes of1-fade-in {
@@ -575,10 +580,6 @@
 
   .of1-title {
     font-size: 2rem;
-  }
-
-  .generated-section {
-    padding: 40px 16px;
   }
 
   .generated-section .hero {
