@@ -13,6 +13,10 @@ Create the domain branch on the shared `aem-growth-adoption/of1-demo` repo for t
 - `DOMAIN`: The target domain (e.g., `bmwusa.com`)
 - `BRANCH`: Domain without TLD (e.g., `bmwusa`)
 
+## Schema Reference
+
+Read `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` § `of1-endpoint.json` for the exact output format expected by the worker.
+
 ## Process
 
 ### 1. Ensure repo is cloned
