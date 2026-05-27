@@ -365,38 +365,46 @@ When spawning a step scoop, read the relevant prior outputs and include key info
 
 Once all parallel steps (9–11) are done, the orchestrator runs step 12 **inline** (no scoop needed). This is a review gate where the user validates all the config that will be deployed.
 
-### What to generate
+### What it shows
 
-Build `deliverables/config-review.html` in the repo — a self-contained HTML page (OF1 dark theme, inline styles) showing:
+The config-review.html page displays:
 
-1. **Products** — grid of products with thumbnail images, names, categories, and keyword counts (from `products.json`). Flag any products with missing images.
-3. **Brand Voice** — personality, tone, vocabulary, avoid words (from `brand-voice.json`)
-4. **Personas** — cards for each persona with keywords (from `personas.json`)
-5. **Suggestions** — all suggestion chips with their query text (from `suggestions.json`)
-6. **Use Cases** — list with keywords (from `use-cases.json`)
-7. **CTA Template** — rendered preview of the CTA template with fallback content filled in (from `cta-template.json`)
+1. **Products** — expandable cards with thumbnail images, names, categories, prices, image gallery, features, keywords
+2. **Brand Voice** — personality, tone, vocabulary, avoid words
+3. **Personas** — cards for each persona with keywords
+4. **Use Cases** — list with descriptions and keywords
+5. **Features** — chip list of all features
+6. **Suggestions** — title/subtitle/placeholder + all suggestion chips with query text
+7. **CTA Template** — JSON preview of the template
 
 ### How to run
+
+Uses a **pre-built HTML template** + Python fill script. No LLM generation needed — just run the script:
 
 ```bash
 # Read repo-config.json to get owner/repo
 REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
 OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
 REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
+BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
 REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
+DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 
+# IMPORTANT: Must cd into repo dir first (VFS constraint)
 cd "$REPO_DIR"
-# Generate the review page from of1/config/ JSON files
-mkdir -p deliverables
-# ... write config-review.html ...
+
+# Run the fill script — reads of1/config/*.json, writes deliverables/config-review.html
+python3 /workspace/of1-demo-skills/.claude/skills/of1-demo/fill-config-review.py . "$DOMAIN"
+
+# Commit and push
 git add deliverables/config-review.html
-git commit -m "docs: config review page for {DOMAIN}"
-git push origin main
+git commit -m "docs: config review page for ${DOMAIN}"
+git push origin "$BRANCH"
 ```
 
 Then push to sprinkle:
 ```bash
-sprinkle send of1-demo '{"step":12,"status":"review","deliverable":"https://main--'${REPO}'--'${OWNER}'.aem.page/deliverables/config-review.html","summary":"Review all config before deploy: products, brand voice, personas, CTA, suggestions."}'
+sprinkle send of1-demo '{"step":12,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/deliverables/config-review.html","summary":"Review all config before deploy: products, brand voice, personas, CTA, suggestions."}'
 ```
 
 ### What the user reviews
