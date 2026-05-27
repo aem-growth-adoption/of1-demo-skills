@@ -1,13 +1,84 @@
 import { decorateMain } from '../../scripts/scripts.js';
 import { loadSections, readBlockConfig } from '../../scripts/aem.js';
 
-const DEFAULT_WORKER_URL = 'https://of1-gen-web-service.franklin-prod.workers.dev';
+const DEFAULT_WORKER_URL = 'https://feat-template-routing-of1-gen-web-service.franklin-prod.workers.dev';
 
 const ARROW_SVG = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const RESTART_SVG = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 8A6 6 0 1 1 8 2c1.5 0 2.9.6 4 1.5M12 2v3h-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 let isGenerating = false;
 const conversationHistory = [];
+let productImages = null;
+
+async function loadProductImages(workerUrl, domain) {
+  if (productImages) return productImages;
+  try {
+    const res = await fetch(`${workerUrl}/api/products?domain=${encodeURIComponent(domain)}`);
+    if (res.ok) {
+      const data = await res.json();
+      const products = data.products || data || [];
+      productImages = {};
+      products.forEach((p) => {
+        const name = (p.name || '').toLowerCase();
+        const img = p.thumbnail || (p.images && p.images[0]) || '';
+        if (name && img) productImages[name] = img;
+      });
+    }
+  } catch (e) { /* ignore */ }
+  if (!productImages) {
+    // Fallback: load from EDS config path
+    try {
+      const base = window.location.origin;
+      const res = await fetch(`${base}/of1/config/products.json`);
+      if (res.ok) {
+        const products = await res.json();
+        productImages = {};
+        (Array.isArray(products) ? products : []).forEach((p) => {
+          const name = (p.name || '').toLowerCase();
+          const img = p.thumbnail || (p.images && p.images[0]) || '';
+          if (name && img) productImages[name] = img;
+        });
+      }
+    } catch (e) { /* ignore */ }
+  }
+  return productImages || {};
+}
+
+function fixBrokenImages(container) {
+  if (!productImages) return;
+  container.querySelectorAll('img').forEach((img) => {
+    img.addEventListener('error', () => {
+      const alt = (img.alt || '').toLowerCase();
+      // Try to match alt text to a product name
+      let matched = null;
+      const entries = Object.entries(productImages);
+      for (const [name, url] of entries) {
+        if (alt.includes(name) || name.includes(alt)) {
+          matched = url;
+          break;
+        }
+      }
+      // Fuzzy match: check if any word overlap
+      if (!matched) {
+        const altWords = alt.split(/[\s\-–—]+/).filter((w) => w.length > 3);
+        for (const [name, url] of entries) {
+          const nameWords = name.split(/[\s\-–—]+/);
+          const overlap = altWords.filter((w) => nameWords.some((nw) => nw.includes(w) || w.includes(nw)));
+          if (overlap.length >= 2) {
+            matched = url;
+            break;
+          }
+        }
+      }
+      if (matched && img.src !== matched) {
+        img.src = matched;
+      } else {
+        // Hide broken image gracefully
+        img.style.display = 'none';
+      }
+    }, { once: true });
+  });
+}
 
 function escHtml(unsafe) {
   return unsafe
@@ -67,6 +138,27 @@ function rewriteLinks(container, domain) {
       a.setAttribute('href', `${origin}/${href}`);
     }
   });
+}
+
+async function handleStreamEvent(parsed, block, config, domain) {
+  if (parsed.type === 'section' && parsed.html) {
+    // Legacy flow: individual section events
+    await injectSection(parsed.html, block, domain);
+  } else if (parsed.type === 'page' && parsed.html) {
+    // Template-routing flow: single page event with full HTML
+    await injectSection(parsed.html, block, domain);
+    if (parsed.stylesheet) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = parsed.stylesheet;
+      document.head.appendChild(link);
+    }
+  } else if (parsed.type === 'suggestions') {
+    renderSuggestions(parsed.suggestions, config, block);
+  } else if (parsed.type === 'error') {
+    throw new Error(parsed.message || 'Generation failed');
+  }
+  // 'debug' and 'done' events are informational — ignore
 }
 
 async function injectSection(sectionHtml, block, domain) {
@@ -206,14 +298,8 @@ async function generateWithContext(config, block, context) {
         if (!line.trim()) continue; // eslint-disable-line no-continue
         try {
           const parsed = JSON.parse(line);
-          if (parsed.type === 'section' && parsed.html) {
-            // eslint-disable-next-line no-await-in-loop
-            await injectSection(parsed.html, block, domain);
-          } else if (parsed.type === 'suggestions') {
-            renderSuggestions(parsed.suggestions, config, block);
-          } else if (parsed.type === 'error') {
-            throw new Error(parsed.message || 'Generation failed');
-          }
+          // eslint-disable-next-line no-await-in-loop
+          await handleStreamEvent(parsed, block, config, domain);
         } catch (err) {
           if (err.message && !err.message.includes('JSON')) throw err;
         }
@@ -304,14 +390,8 @@ async function generate(query, config, block, followUp = false) {
         if (!line.trim()) continue; // eslint-disable-line no-continue
         try {
           const parsed = JSON.parse(line);
-          if (parsed.type === 'section' && parsed.html) {
-            // eslint-disable-next-line no-await-in-loop
-            await injectSection(parsed.html, block, domain);
-          } else if (parsed.type === 'suggestions') {
-            renderSuggestions(parsed.suggestions, config, block);
-          } else if (parsed.type === 'error') {
-            throw new Error(parsed.message || 'Generation failed');
-          }
+          // eslint-disable-next-line no-await-in-loop
+          await handleStreamEvent(parsed, block, config, domain);
         } catch (err) {
           if (err.message && !err.message.includes('JSON')) throw err;
         }
