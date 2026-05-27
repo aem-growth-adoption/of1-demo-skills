@@ -27,14 +27,39 @@ The EDS blocks have CSS designed for statically-authored pages. When the LLM gen
 
 This skill bridges that gap by generating a `generative.css` (or enhancing `blocks/of1/of1.css`) that styles the generated output specifically.
 
+## IMPORTANT: Always Start from the Canonical Base Files
+
+The OF1 block base files live in the **skills repo**, NOT in the demo repo:
+
+- **Base CSS**: `/workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1-base.css`
+- **Base JS**: `/workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1.js`
+
+**Step 8 MUST:**
+1. Copy `of1.js` from skills to `blocks/of1/of1.js` AS-IS (never modify it)
+2. Use `of1-base.css` as the starting template for generating `blocks/of1/of1.css`
+3. Replace the generic token values in the base CSS with brand-specific values
+4. Add any brand-specific visual enhancements on top
+
+**DO NOT** use whatever `of1.css` or `of1.js` already exists in the demo repo — always start fresh from the skills assets. The demo repo files may be stale or from a previous run.
+
 ## Process
+
+### Step 0: Install base files from skills
+
+```bash
+# Always copy the canonical of1.js — never modify it
+cp /workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1.js blocks/of1/of1.js
+
+# Read the base CSS as your starting template
+cat /workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1-base.css
+```
 
 ### Step 1: Read design context
 
 Read the following files to understand the brand:
 - `DESIGN.md` or `DESIGN.json` — design tokens (colors, fonts, spacing, radius)
 - `styles/styles.css` — CSS custom properties (the actual deployed tokens)
-- `blocks/of1/of1.css` — current of1 block styles
+- `/workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1-base.css` — the base template to customize
 - `of1/config/templates/` — template catalog defining what the LLM generates
 
 ### Step 2: Generate brand-appropriate styles
@@ -166,3 +191,13 @@ The user will:
 1. Open the OF1 page via the deliverable link
 2. Try suggestion chips to see generated content with the new styling
 3. Approve or request revisions via the sprinkle UI
+
+## Common Mistakes That Waste Time
+
+| Mistake | Time Cost | Fix |
+|---------|-----------|-----|
+| Using existing `of1.js` from the demo repo | 10+ min debugging | Always copy from `/workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1.js` |
+| Using existing `of1.css` from the demo repo as base | 5+ min  stale/wrong version | Always start from `/workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1-base.css` |
+| Modifying `of1.js` to add brand logic | breaks block | JS is shared infrastructure  NEVER touch it, only customize CSS |
+| Forgetting to commit `of1.js` alongside `of1.css` | blank page on deploy | Always `git add blocks/of1/` to include both files |
+| Using Node.js for scripting | instant failure | Node is a shim in SLICC  use Python |
