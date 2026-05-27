@@ -1,45 +1,62 @@
-# of1-config-review
+---
+name: of1-config-review
+description: Generate the config-review.html deliverable showing all OF1 config data for user approval
+user-invocable: true
+---
+
+# OF1 Config Review
 
 Generate the config-review.html deliverable for an OF1 demo using the proper template and fill script.
 
 ## When to Use
 
 - After ANY change to `of1/config/*.json` files (products, suggestions, brand-voice, personas, use-cases, features, cta-template)
-- As the final step of config assembly (Step 12 in the pipeline)
+- As step 12 in the pipeline (after steps 9-11 complete)
 - Whenever the user asks to regenerate or update the config review page
 
 ## Prerequisites
 
-- The `of1-demo` repo must be cloned at `/workspace/of1-demo` and on the correct demo branch
 - Config JSON files must already exist under `of1/config/` in the repo
-- The skills repo must be available at `/workspace/of1-demo-skills`
+- The skills must be installed (fill script at `/workspace/skills/of1-config-review/assets/`)
 
 ## Execution — EXACT Recipe
 
-### Step 1: Run the fill script
+### Step 1: Read repo config
 
 ```bash
-cd /workspace/of1-demo && python3 /workspace/of1-demo-skills/.claude/skills/of1-config-review/assets/fill-config-review.py . <DOMAIN>
+REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
+REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
+BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
+REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
+DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 ```
 
-Replace `<DOMAIN>` with the demo domain (e.g., `frescopa.coffee`, `rankingshub.app`, `bmwusa.com`).
+### Step 2: Run the fill script
+
+```bash
+cd "$REPO_DIR" && python3 /workspace/skills/of1-config-review/assets/fill-config-review.py . "$DOMAIN"
+```
 
 The script:
 - Reads: `of1/config/{products,brand-voice,personas,suggestions,use-cases,features,cta-template}.json`
-- Uses template: `/workspace/of1-demo-skills/.claude/skills/of1-config-review/assets/config-review.html`
+- Uses template: `/workspace/skills/of1-config-review/assets/config-review.html`
 - Writes: `deliverables/config-review.html`
 
-### Step 2: Commit and push
+### Step 3: Commit and push
 
 ```bash
-cd /workspace/of1-demo && git add deliverables/config-review.html && git commit -m "regen: config-review.html" && git push origin <BRANCH>
+cd "$REPO_DIR"
+git add deliverables/config-review.html
+git commit -m "docs: config review page for ${DOMAIN}"
+git push origin "$BRANCH"
 ```
 
-### Step 3: Verify (optional)
+### Step 4: Verify
 
 The review page is available at:
 ```
-https://<BRANCH>--of1-demo--aem-growth-adoption.aem.page/deliverables/config-review.html
+https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/config-review.html
 ```
 
 ## What the Script Produces
@@ -54,14 +71,25 @@ The config-review.html is a self-contained dark-themed dashboard showing:
 - **Suggestions section**: Title/subtitle/placeholder + suggestion chips with label and query
 - **CTA Template section**: JSON preview of the CTA configuration
 
+## Completion (pipeline mode)
+
+When running as step 12 in the pipeline:
+
+```bash
+mkdir -p /shared/of1-demo
+echo '{"step":12,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/deliverables/config-review.html","summary":"Review all config before deploy: products, brand voice, personas, CTA, suggestions."}' > /shared/of1-demo/step-12-status.json
+```
+
+Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.
+
 ## Common Mistakes That Waste Time
 
 | Mistake | Time Cost | Fix |
 |---------|-----------|-----|
-| Writing inline Python to generate config-review HTML | 5-10 min | Always use `fill-config-review.py` — it uses the proper template with all CSS, sections, and interactivity |
-| Forgetting to `cd` into the repo before running the script | 2 min | The script expects `repo-dir` as first arg — use `.` after `cd /workspace/of1-demo` |
+| Writing inline Python to generate config-review HTML | 5-10 min | Always use `fill-config-review.py` — it uses the proper template |
+| Forgetting to `cd` into the repo before running the script | 2 min | Use `cd "$REPO_DIR"` first |
 | Not passing the domain argument | 1 min | Second arg is required: `python3 fill-config-review.py . frescopa.coffee` |
-| Trying to use Node.js to run a template tool | 3 min | Node is a shim in SLICC — always use `python3` |
+| Trying to use Node.js | 3 min | Node is a shim in SLICC — always use `python3` |
 | Manually editing deliverables/config-review.html | 5+ min | Never hand-edit — always regenerate with the script |
 
 ## DO NOT
