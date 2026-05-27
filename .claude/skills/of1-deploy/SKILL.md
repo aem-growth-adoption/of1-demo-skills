@@ -94,7 +94,7 @@ Upload each config file individually to avoid 500s on large payloads:
 
 ```bash
 WORKER_URL="https://of1-gen-web-service.franklin-prod.workers.dev"
-for key_file in "brandVoice:brand-voice" "blockGuide:block-guide" "products:products" "personas:personas" "useCases:use-cases" "features:features" "faqs:faqs" "suggestions:suggestions"; do
+for key_file in "brandVoice:brand-voice" "blockGuide:block-guide" "products:products" "personas:personas" "useCases:use-cases" "features:features" "faqs:faqs" "suggestions:suggestions" "brandGovernance:brand-governance"; do
   KEY="${key_file%%:*}"
   FILE="${key_file##*:}"
   FILEPATH="output/${DOMAIN}/${FILE}.json"
