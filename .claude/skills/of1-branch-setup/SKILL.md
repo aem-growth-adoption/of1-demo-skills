@@ -25,25 +25,58 @@ cd /workspace/of1-demo || {
 }
 ```
 
-### 2. Fetch and create domain branch
+### 2. Fetch and check if branch already exists
 
 ```bash
 cd /workspace/of1-demo
 git fetch origin
-git checkout -b ${BRANCH} origin/main 2>/dev/null || git checkout -b ${BRANCH} origin/${BRANCH} 2>/dev/null || git checkout ${BRANCH}
+
+BRANCH_EXISTS_REMOTE=$(git ls-remote --heads origin ${BRANCH} | wc -l | tr -d ' ')
+BRANCH_EXISTS_LOCAL=$(git branch --list ${BRANCH} | wc -l | tr -d ' ')
 ```
 
-### 3. Verify DA mount
+**If the branch already exists (remote or local):**
+
+Tell the user:
+> Branch `{BRANCH}` already exists — there's a previous demo for this domain.
+>
+> Options:
+> 1. **Continue** — reuse the existing branch (picks up where the last run left off)
+> 2. **Fresh start** — create a new branch `{BRANCH}-2` (or `-3`, etc.) for a clean demo
+>
+> Which would you prefer?
+
+- If **continue**: `git checkout ${BRANCH}` (or `git checkout -b ${BRANCH} origin/${BRANCH}` if only remote)
+- If **fresh start**: increment the suffix (`${BRANCH}-2`, `${BRANCH}-3`, etc.) until finding one that doesn't exist, then `git checkout -b ${NEW_BRANCH} origin/main`. Update `BRANCH` to the new name for the rest of the pipeline.
+
+**If the branch does NOT exist:**
 
 ```bash
-if [ -d /mnt/da ] && ls /mnt/da/ >/dev/null 2>&1; then
-  echo "DA mount OK"
-else
-  echo "DA NOT MOUNTED"
+git checkout -b ${BRANCH} origin/main
+```
+
+### 3. Check for existing DA content
+
+```bash
+if [ -d /mnt/da ] && ls /mnt/da/${BRANCH}/ >/dev/null 2>&1; then
+  echo "DA content already exists at /mnt/da/${BRANCH}/"
 fi
 ```
 
-If not mounted, inform the user:
+**If DA content exists and user chose "fresh start" in step 2:**
+
+```bash
+rm -rf /mnt/da/${BRANCH}/
+mkdir -p /mnt/da/${BRANCH}/
+```
+
+**If DA content exists and user chose "continue":**
+
+Leave it in place — the pipeline will overwrite individual pages as it progresses.
+
+**If DA is not mounted:**
+
+Inform the user:
 > DA.live is not mounted. Run:
 > ```
 > mount --source da://aem-growth-adoption/of1-demo /mnt/da
