@@ -15,6 +15,12 @@ Generate a complete template library for the OF1 worker. Each template is a slot
 - Design tokens from `${REPO_DIR}/stardust/current/DESIGN.json` (from step 4)
 - Demo narrative from `/shared/of1-demo/step-3-output.md` (from step 3 — discovery)
 
+## Schema Reference
+
+Read `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` for the exact format of:
+- § `templates.json` — routing config, catalog shape, slot definitions, intent taxonomy
+- § `products.json` — image allowlist (templates must only reference product images)
+
 ## Worker Contract
 
 The OF1 worker uses a template routing system. After `POST /api/tenants/<id>/sync`, the worker materializes templates from EDS into R2. The skill must produce these files:

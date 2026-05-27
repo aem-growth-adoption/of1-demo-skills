@@ -20,6 +20,15 @@ Crawl a website to extract product data, user personas, use cases, features, and
 
 - `DOMAIN`: Target domain (e.g., `nvidia.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
 
+## Schema Reference
+
+Read `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` for the exact output format of each file:
+- § `products.json` — field requirements, vectorized fields, image allowlist
+- § `personas.json` — keyword matching behaviour
+- § `use-cases.json` — same shape as personas
+- § `features.json` — vectorized, needs id/name/description
+- § `faqs.json` — vectorized, needs id/question/answer
+
 ## Process
 
 ### Step 0: Read context (pipeline mode)

@@ -20,6 +20,10 @@ Analyze a website to extract its brand voice, tone, and personality, then genera
 
 - `DOMAIN`: Target domain (e.g., `nvidia.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
 
+## Schema Reference
+
+Read `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` § `brand-voice.json` for the exact output format expected by the worker.
+
 ## Process
 
 ### Step 1: Read context (pipeline mode)

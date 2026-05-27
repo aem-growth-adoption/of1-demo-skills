@@ -20,6 +20,10 @@ Generate domain-specific quick suggestion chips, placeholder text, and search UI
 
 - `DOMAIN`: Target domain (e.g., `nvidia.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
 
+## Schema Reference
+
+Read `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` § `suggestions.json` for the exact output format expected by the worker.
+
 ## Process
 
 ### Step 1: Read context

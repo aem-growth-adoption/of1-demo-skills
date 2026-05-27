@@ -20,6 +20,10 @@ Analyze a website's visual design system (fonts, colors, button styles, spacing)
 
 - `DOMAIN`: Target domain (e.g., `bmwusa.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
 
+## Schema Reference
+
+Read `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` § `cta-template.json` for the exact output format expected by the worker.
+
 ## Process preamble (pipeline mode)
 
 ```bash
