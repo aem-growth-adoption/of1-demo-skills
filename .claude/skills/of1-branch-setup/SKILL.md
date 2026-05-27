@@ -6,7 +6,7 @@ user-invocable: false
 
 # OF1 Branch Setup
 
-Create the domain branch on the shared `aem-growth-adoption/of1-demo` repo and output directory for the demo.
+Create the domain branch on the shared `aem-growth-adoption/of1-demo` repo for the demo.
 
 ## Inputs
 
@@ -30,19 +30,17 @@ cd /workspace/of1-demo || {
 ```bash
 cd /workspace/of1-demo
 git fetch origin
-git checkout -b ${BRANCH} origin/main 2>/dev/null || git checkout ${BRANCH}
+git checkout -b ${BRANCH} origin/main 2>/dev/null || git checkout -b ${BRANCH} origin/${BRANCH} 2>/dev/null || git checkout ${BRANCH}
 ```
 
-### 3. Create output directory
+### 3. Verify DA mount
 
 ```bash
-mkdir -p output/${DOMAIN}
-```
-
-### 4. Verify DA mount
-
-```bash
-ls /mnt/da >/dev/null 2>&1 || echo "DA NOT MOUNTED"
+if [ -d /mnt/da ] && ls /mnt/da/ >/dev/null 2>&1; then
+  echo "DA mount OK"
+else
+  echo "DA NOT MOUNTED"
+fi
 ```
 
 If not mounted, inform the user:
@@ -51,7 +49,7 @@ If not mounted, inform the user:
 > mount --source da://aem-growth-adoption/of1-demo /mnt/da
 > ```
 
-### 5. Write repo-config.json
+### 4. Write repo-config.json
 
 ```bash
 mkdir -p /shared/of1-demo
@@ -77,12 +75,6 @@ EOF
 - `daMount`: The VFS mount point for the DA repo
 - `daContentPath`: Full path to write DA content files (= `daMount` + `/` + `contentPrefix`)
 - Content URLs follow: `https://{branch}--of1-demo--aem-growth-adoption.aem.page/{contentPrefix}/{page}`
-
-## Deliverables
-
-- On branch `{BRANCH}`
-- `output/{DOMAIN}/` directory exists
-- `/shared/of1-demo/repo-config.json` written
 
 ## Completion
 
