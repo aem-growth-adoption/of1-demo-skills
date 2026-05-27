@@ -205,10 +205,10 @@ User reset the pipeline. Clean up any running scoops.
 | 5 | Prototype | `of1-prototype` | Yes | — | step 4 |
 | 6 | Snowflake | `of1-snowflake` | Yes | A | step 5 |
 | 7 | Templates | `of1-template-generation` | Yes | A | step 6 |
-| 8 | OF1 styling | `generative-block-styler` | Yes | A | step 6 |
-| 9 | Brand & content | `brand-voice-extractor` + `content-metadata` | No | B | step 5 |
-| 10 | Suggestions | `quick-suggestions` | No | B | step 5 |
-| 11 | CTA template | `cta-template-builder` | No | B | step 5 |
+| 8 | OF1 styling | `of1-generative-block-styler` | Yes | A | step 6 |
+| 9 | Brand & content | `of1-brand-voice-extractor` + `of1-content-metadata` | No | B | step 5 |
+| 10 | Suggestions | `of1-quick-suggestions` | No | B | step 5 |
+| 11 | CTA template | `of1-cta-template-builder` | No | B | step 5 |
 | 12 | Config review | (orchestrator-inline) | Yes | B | steps 9+10+11 |
 | 13 | Deploy | `of1-deploy` | Yes | — | steps 7+8+12 |
 
