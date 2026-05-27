@@ -233,7 +233,7 @@ cat > "${DA_CONTENT_PATH}/of1.html" <<EOF
   <main>
     <div>
       <div class="of1">
-        <div><div>domain</div><div>${DOMAIN}</div></div>
+        <div><div>domain</div><div>${BRANCH}--${REPO}--${OWNER}</div></div>
       </div>
     </div>
   </main>
@@ -321,6 +321,7 @@ For each content page (skip of1), compare EDS preview against the prototype:
 | Multiple git pushes | 2-3 min | ONE push after all artifacts are created |
 | Checking node/npm availability | 1 min | Node is a shim. Don't use npm/npx |
 | Installing substrate via npm script | 2 min | Copy files directly |
+| Setting OF1 block domain to `frescopa.coffee` | 5+ min debugging missing suggestions | Use tenant ID: `${BRANCH}--${REPO}--${OWNER}` |
 
 ---
 
