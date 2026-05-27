@@ -352,8 +352,7 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). The scoop reads `/workspace/skills/of1-extraction/SKILL.md` which has the complete recipe. It creates PRODUCT.md, extracts design tokens via playwright, takes screenshots, extracts logo, and builds brand-review.html. No external plugin needed.
 - **Step 5 (Prototype)** needs: domain, extraction outputs from step 4 (design-tokens.json, logo.svg, screenshots). The scoop reads `/workspace/skills/of1-prototype/SKILL.md` which has the complete recipe. It batch-extracts real images from all pages, writes pixel-perfect HTML prototypes, runs screenshot diff loop (max 2 iterations), and commits to deliverables/.
 - **Step 6 (Snowflake)** needs: domain, prototypes from step 5, repo-config.json
-- **Step 7 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
-- **Step 7 (Templates)** needs: domain, design tokens from step 4 (`DESIGN.json`), demo narrative from step 3, snowflake output from step 6
+- **Step 7 (Templates)** needs: domain, design tokens from step 4 (`design-tokens.json`), demo narrative from step 3, snowflake output from step 6
 - **Step 8 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
 - **Steps 9–12 (Track B)** need: domain, `stardust/` data from step 4. They do NOT depend on the snowflake — they can start immediately after step 5.
 - **Step 12 (Config review)** needs: all `of1/config/` files from steps 9-11 — orchestrator generates review page inline
