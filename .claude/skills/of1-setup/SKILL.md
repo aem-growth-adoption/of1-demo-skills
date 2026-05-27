@@ -8,62 +8,67 @@ user-invocable: false
 
 Verify that all required skills, tools, and prerequisites for the demo pipeline are in place.
 
-## Checks
-
-### 1. Install skills from sources
-
-Install all required skill packages:
+## Step 1: Install skill packages
 
 ```bash
 upskill aem-growth-adoption/of1-demo-skills --all --branch skills-v3 --force 2>/dev/null && echo "of1-demo-skills OK" || echo "WARN: could not install of1-demo-skills"
 upskill adobe/skills@feat/eds-snowflake-da-content --path plugins/aem/edge-delivery-services --all 2>/dev/null && echo "adobe/skills (EDS + snowflake) OK" || echo "WARN: could not install adobe/skills"
 ```
 
-### 2. Verify required skills
+## Step 2: Verify local skills installed
 
 ```bash
-ls /workspace/skills/of1-discovery/SKILL.md && echo "of1-discovery OK"
-ls /workspace/skills/of1-branch-setup/SKILL.md && echo "of1-branch-setup OK"
-ls /workspace/skills/extract/SKILL.md && echo "extract OK"
-ls /workspace/skills/prototype/SKILL.md && echo "prototype OK"
-ls /workspace/skills/snowflake/SKILL.md && echo "snowflake OK"
-ls /workspace/skills/da-content/SKILL.md && echo "da-content OK"
-ls /workspace/skills/of1-snowflake/SKILL.md && echo "of1-snowflake OK"
-ls /workspace/skills/of1-template-generation/SKILL.md && echo "of1-template-generation OK"
-ls /workspace/skills/of1-brand-voice-extractor/SKILL.md && echo "of1-brand-voice-extractor OK"
-ls /workspace/skills/of1-content-metadata/SKILL.md && echo "of1-content-metadata OK"
-ls /workspace/skills/of1-generative-block-styler/SKILL.md && echo "of1-generative-block-styler OK"
-ls /workspace/skills/of1-quick-suggestions/SKILL.md && echo "of1-quick-suggestions OK"
-ls /workspace/skills/of1-cta-template-builder/SKILL.md && echo "of1-cta-template-builder OK"
-ls /workspace/skills/of1-deploy/SKILL.md && echo "of1-deploy OK"
+SKILLS_OK=true
+for SKILL in of1-discovery of1-branch-setup of1-snowflake of1-template-generation of1-brand-voice-extractor of1-content-metadata of1-generative-block-styler of1-quick-suggestions of1-cta-template-builder of1-deploy; do
+  if [ -f "/workspace/skills/${SKILL}/SKILL.md" ]; then
+    echo "  ✓ ${SKILL}"
+  else
+    echo "  ✗ ${SKILL} MISSING"
+    SKILLS_OK=false
+  fi
+done
 ```
 
-### 3. Playwright
+## Step 3: Verify stardust plugins available
+
+The stardust plugins (`stardust:extract`, `stardust:prototype`) are invoked via the Skill tool — they don't exist as local files. Verify the snowflake/da-content skills installed (these come from the same package):
 
 ```bash
-which playwright-cli >/dev/null 2>&1 && echo "Playwright OK" || echo "FAIL: playwright-cli not found"
+for SKILL in snowflake da-content; do
+  if [ -f "/workspace/skills/${SKILL}/SKILL.md" ]; then
+    echo "  ✓ ${SKILL} (EDS plugin)"
+  else
+    echo "  ✗ ${SKILL} MISSING — stardust plugins may not work"
+    SKILLS_OK=false
+  fi
+done
 ```
 
-### 4. Node.js
+## Step 4: Verify tools
 
 ```bash
-which node >/dev/null 2>&1 && echo "Node OK" || echo "FAIL: node not found"
+TOOLS_OK=true
+
+which playwright-cli >/dev/null 2>&1 && echo "  ✓ playwright-cli" || { echo "  ✗ playwright-cli NOT FOUND"; TOOLS_OK=false; }
+which python3 >/dev/null 2>&1 && echo "  ✓ python3" || { echo "  ✗ python3 NOT FOUND"; TOOLS_OK=false; }
+which jq >/dev/null 2>&1 && echo "  ✓ jq" || { echo "  ✗ jq NOT FOUND"; TOOLS_OK=false; }
+which git >/dev/null 2>&1 && echo "  ✓ git" || { echo "  ✗ git NOT FOUND"; TOOLS_OK=false; }
 ```
 
-### 5. Git credentials
-
-```bash
-[ -f ~/.git-credentials ] && echo "Git credentials OK" || echo "FAIL: no git credentials"
-```
-
-### 6. Clone of1-demo repo
+## Step 5: Clone of1-demo repo
 
 ```bash
 if [ -d /workspace/of1-demo ]; then
-  echo "of1-demo repo already cloned"
+  echo "  ✓ of1-demo repo already cloned"
 else
-  cd /workspace && git clone https://github.com/aem-growth-adoption/of1-demo.git && echo "of1-demo cloned OK"
+  cd /workspace && git clone https://github.com/aem-growth-adoption/of1-demo.git && echo "  ✓ of1-demo cloned" || { echo "  ✗ clone failed"; TOOLS_OK=false; }
 fi
+```
+
+## Step 6: Verify git credentials
+
+```bash
+[ -f ~/.git-credentials ] && echo "  ✓ git credentials" || echo "  ⚠ no git credentials file (push may require auth)"
 ```
 
 ## Completion
@@ -71,17 +76,15 @@ fi
 Report results as a summary:
 
 ```
-## Install Dependencies — Check
+## Setup Complete
 
-- Skills: [N/N] installed
-- Snowflake (overlay): OK / FAIL
-- Playwright: OK / FAIL
-- Node: OK / FAIL
-- Git: OK / FAIL
-- of1-demo repo: OK / FAIL
+- Skills: [N/N] local + stardust plugins
+- Tools: playwright-cli, python3, jq, git
+- Repo: of1-demo cloned
+- Git: credentials OK
 ```
 
-If all critical checks pass (skills, playwright, node, git, repo), write:
+If all critical checks pass, write:
 ```bash
 mkdir -p /shared/of1-demo
 echo '{"step":1,"status":"done"}' > /shared/of1-demo/step-1-status.json
@@ -94,4 +97,3 @@ echo '{"step":1,"status":"failed","error":"Missing: [list what failed]"}' > /sha
 ```
 
 Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.
-The orchestrator reads this file and pushes the status to the sprinkle.
