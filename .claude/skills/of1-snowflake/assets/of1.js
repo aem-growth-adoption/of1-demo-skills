@@ -155,10 +155,33 @@ async function handleStreamEvent(parsed, block, config, domain) {
     }
   } else if (parsed.type === 'suggestions') {
     renderSuggestions(parsed.suggestions, config, block);
+  } else if (parsed.type === 'done') {
+    // After generation completes, show follow-up suggestions if none were emitted
+    const main = document.querySelector('main');
+    if (!main.querySelector('.generative-suggestions:not(.dimmed)')) {
+      // Fetch suggestions from the API for follow-up
+      const workerUrl = config['api-endpoint'] || DEFAULT_WORKER_URL;
+      const domainVal = config.domain || '';
+      try {
+        const res = await fetch(`${workerUrl}/api/suggest`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain: domainVal, query: conversationHistory[conversationHistory.length - 1] || '', context: {} }),
+        });
+        const data = await res.json();
+        const followUps = (data.suggestions || []).map((s) => ({
+          label: s.label || s.query,
+          query: s.query || s.label,
+        }));
+        if (followUps.length) {
+          renderSuggestions(followUps, config, block);
+        }
+      } catch (e) { /* ignore suggestion fetch failure */ }
+    }
   } else if (parsed.type === 'error') {
     throw new Error(parsed.message || 'Generation failed');
   }
-  // 'debug' and 'done' events are informational — ignore
+  // 'debug' events are informational — ignore
 }
 
 async function injectSection(sectionHtml, block, domain) {
