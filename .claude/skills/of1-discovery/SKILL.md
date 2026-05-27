@@ -8,6 +8,14 @@ user-invocable: false
 
 Crawl the target site to understand what it offers, then propose a demo focus and narrative.
 
+## ⚡ Speed Priority — Target: 3 minutes
+
+- Homepage + 3-5 nav pages is enough — don't over-crawl
+- Take screenshots as you go (reused by extraction)
+- Write structured output for downstream steps
+
+---
+
 ## Inputs
 
 You will be given a `DOMAIN` (e.g., `bmwusa.com`).
@@ -17,6 +25,7 @@ Read the repo config from step 2:
 REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
 OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
 REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
+BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
 REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
 ```
 
@@ -28,6 +37,7 @@ Use Playwright (headed Chrome) to visit `https://{DOMAIN}`:
 
 ```bash
 playwright-cli visit "https://{DOMAIN}" --headed
+playwright-cli screenshot --full-page --output /tmp/discovery-home.png
 ```
 
 Analyze:
@@ -37,9 +47,16 @@ Analyze:
 - Target audience
 - Key CTAs and conversion paths
 
-### 2. Crawl 5-10 navigation pages
+### 2. Crawl 3-5 navigation pages
 
-Follow top navigation links. For each page note:
+Follow top navigation links to the most visual/product-rich pages. For each page:
+
+```bash
+playwright-cli visit "https://{DOMAIN}/{path}" --headed
+playwright-cli screenshot --full-page --output /tmp/discovery-{slug}.png
+```
+
+Note:
 - Page type (product listing / detail / category / about / blog)
 - What products/services are featured
 - Page structure (hero, grid, features, FAQ, etc.)
@@ -50,17 +67,50 @@ Follow top navigation links. For each page note:
 Based on what you found, propose:
 - **Demo focus**: Which product line or category to feature (pick the richest/most visual one)
 - **Demo narrative**: A user persona and their journey (e.g., "a gamer researching GPUs for a new build")
-- **Key pages to reproduce**: Which 2-3 pages best represent the site
+- **Key pages to reproduce**: Which 2-3 pages best represent the site (include full URLs)
 - **Rationale**: Why this focus works for a compelling demo
 
-## Deliverable
+## Deliverables
 
-### 4. Generate discovery report HTML
+### 4. Write structured output for downstream steps
 
-Generate a self-contained HTML report at `deliverables/discovery.html` using the OF1 dark theme (same aesthetic as the sprinkle UI):
+Write `/shared/of1-demo/step-3-output.md` — this is consumed by steps 4, 5, and 7:
+
+```markdown
+# Discovery: {DOMAIN}
+
+## Demo Focus
+{product line or category}
+
+## Narrative
+{persona name, description, their journey}
+
+## Key Pages
+- https://{DOMAIN}/ (homepage)
+- https://{DOMAIN}/{page2} ({description})
+- https://{DOMAIN}/{page3} ({description})
+
+## Site Overview
+- **Purpose:** {what the site does}
+- **Product lines:** {list}
+- **Audience:** {who}
+- **Tone:** {brand voice first impression}
+
+## Page Structure
+### Homepage
+- Hero: {description}
+- Section 2: {description}
+- ...
+
+### {Page 2}
+- ...
+```
+
+### 5. Generate discovery report HTML
+
+Generate a self-contained HTML report at `deliverables/discovery.html` using the OF1 dark theme:
 
 ```css
-/* Use these design tokens inline in the HTML */
 --bg: #1C1917;
 --fg: #F5F0E8;
 --accent: #FF3D00;
@@ -71,16 +121,13 @@ Generate a self-contained HTML report at `deliverables/discovery.html` using the
 --heading-font: 'Cormorant Garamond', serif;
 ```
 
-The report must include:
-- **Header** — "Site Discovery: {DOMAIN}" with of1 branding
-- **Site Overview** — purpose, product lines, audience, navigation structure
-- **Proposed Demo** — focus, narrative, persona, rationale
-- **Key Pages** — 2-3 URLs to reproduce, with screenshots if captured during crawl
-- **Page Structure Analysis** — what blocks/sections were observed on each page
+Include:
+- Site overview, proposed demo, key pages, page structure analysis
+- Screenshots taken during crawl (embed as base64 or reference from `/tmp/`)
 
-Use cards, pills, and visual hierarchy similar to the sprinkle panel. Load Google Fonts (JetBrains Mono + Cormorant Garamond) from CDN.
+Load Google Fonts (JetBrains Mono + Cormorant Garamond) from CDN.
 
-Commit and push to make it available via EDS static hosting:
+Commit and push:
 ```bash
 cd "$REPO_DIR"
 mkdir -p deliverables
@@ -90,12 +137,7 @@ git commit -m "docs: discovery report for {DOMAIN}"
 git push origin ${BRANCH}
 ```
 
-The report is then available at:
-`https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/discovery.html`
-
-### 5. Present in chat
-
-Also present the proposal in chat as a structured summary:
+### 6. Present in chat
 
 ```
 ## Site Discovery: {domain}
@@ -123,7 +165,6 @@ Then ask the user:
 
 Write a status file — do NOT call `sprinkle send` directly (only the of1-demo orchestrator scoop may do that):
 
-After presenting findings, write:
 ```bash
 mkdir -p /shared/of1-demo
 echo '{"step":3,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/deliverables/discovery.html","summary":"Demo focus: [focus]. Persona: [persona]. Pages: [N] key pages identified."}' > /shared/of1-demo/step-3-status.json
