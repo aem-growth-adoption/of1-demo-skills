@@ -1,5 +1,5 @@
 ---
-name: cta-template-builder
+name: of1-cta-template-builder
 description: Extract a site's visual design system and generate a branded CTA template (cta-template.json) for the OF1 extension's personalized CTA injection
 user-invocable: true
 ---
@@ -8,9 +8,35 @@ user-invocable: true
 
 Analyze a website's visual design system (fonts, colors, button styles, spacing) and generate a branded HTML CTA template with slot placeholders. The template is used by the OF1 extension to inject a personalized call-to-action that looks native to the site.
 
+## ⚡ Speed Priority — Target: 2 minutes
+
+- Read DESIGN.json first for colors/fonts/button styles — avoid re-crawling what's already extracted
+- Only WebFetch if DESIGN.json is missing or lacks button-specific detail
+- ONE file to write
+
+---
+
 ## Inputs
 
 - `DOMAIN`: Target domain (e.g., `bmwusa.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
+
+## Process preamble (pipeline mode)
+
+```bash
+REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
+DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
+
+cd "$REPO_DIR"
+mkdir -p of1/config
+```
+
+Read existing design tokens (from step 4 extraction):
+```bash
+cat stardust/current/DESIGN.json 2>/dev/null
+```
+
+If DESIGN.json exists, use it for colors, fonts, button styles, and border-radius. Only WebFetch the site if you need CTA-specific details not in the tokens.
 
 ## Output
 
