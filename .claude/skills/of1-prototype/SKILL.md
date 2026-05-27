@@ -88,6 +88,26 @@ The `stardust:prototype` plugin already enforces this, but for clarity:
 
 ---
 
+## Lessons Learned (pass to stardust if issues arise)
+
+These issues have occurred in previous runs:
+
+1. **No placeholder images ever** — Never use colored boxes, gradient divs, CSS-drawn shapes, emoji, or generic SVGs. Only real URLs extracted from the live DOM.
+
+2. **Image URL format** — If URLs contain `format=webply`, change to `format=png`. Never invent image URLs — only use what was extracted.
+
+3. **Heroes are NOT full-viewport** — Heroes are typically half-height banners (200-400px). Check the screenshot before assuming full-viewport.
+
+4. **Cards are usually flat** — Don't add box-shadows unless the live site clearly has them.
+
+5. **Brand logo in nav** — Prototypes MUST use the real brand SVG logo (from `stardust/current/assets/logo.svg`). Inline it directly in the nav HTML — never substitute with text or a placeholder.
+
+6. **Grid column count** — Match the exact column count from the live site. Don't guess — count from the screenshot.
+
+7. **Screenshot diff — max 2 iterations** — After 2 fix iterations per page, accept minor remaining diffs and move on.
+
+---
+
 ## Expected Output Structure
 
 ```
