@@ -1,5 +1,5 @@
 ---
-name: generative-block-styler
+name: of1-generative-block-styler
 description: Generate polished CSS for the of1 generative block that makes dynamically-rendered sections look impressive in the demo
 user-invocable: true
 ---
@@ -12,7 +12,7 @@ Generate a polished, brand-aligned CSS file for the of1 generative block. This m
 
 1. **NEVER modify `blocks/of1/of1.js`** — the OF1 block JavaScript is shared infrastructure and must not be changed. Only the CSS (`blocks/of1/of1.css`) is customized per brand.
 2. **Verify `blocks/of1/of1.js` EXISTS before starting** — if it's missing, the block won't render at all. The snowflake step (Step 6) should have installed it. If missing, copy it from the skill assets: `cp /workspace/skills/of1-snowflake/assets/of1.js blocks/of1/of1.js` and commit it.
-3. **Style using the brand guidelines from stardust** — read `stardust/current/_brand-extraction.json`, `DESIGN.json`, and the `:root` tokens in `styles/styles.css`. The OF1 block must feel native to the brand, not like a generic overlay.
+3. **Style using the brand guidelines from stardust** — read `stardust/current/DESIGN.json`, `DESIGN.md`, and the `:root` tokens in `styles/styles.css`. The OF1 block must feel native to the brand, not like a generic overlay.
 4. **Commit BOTH of1.js and of1.css** — of1.js must be deployed as-is (unmodified) alongside your styled of1.css. Always `git add blocks/of1/` to include both files. A missing JS = blank page.
 
 ## Why This Exists
@@ -29,10 +29,10 @@ This skill bridges that gap by generating a `generative.css` (or enhancing `bloc
 
 ## IMPORTANT: Always Start from the Canonical Base Files
 
-The OF1 block base files live in the **skills repo**, NOT in the demo repo:
+The OF1 block base files live in the **skills directory**, NOT in the demo repo:
 
-- **Base CSS**: `/workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1-base.css`
-- **Base JS**: `/workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1.js`
+- **Base CSS**: `/workspace/skills/of1-snowflake/assets/of1-base.css`
+- **Base JS**: `/workspace/skills/of1-snowflake/assets/of1.js`
 
 **Step 8 MUST:**
 1. Copy `of1.js` from skills to `blocks/of1/of1.js` AS-IS (never modify it)
@@ -48,19 +48,19 @@ The OF1 block base files live in the **skills repo**, NOT in the demo repo:
 
 ```bash
 # Always copy the canonical of1.js — never modify it
-cp /workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1.js blocks/of1/of1.js
+cp /workspace/skills/of1-snowflake/assets/of1.js blocks/of1/of1.js
 
 # Read the base CSS as your starting template
-cat /workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1-base.css
+cat /workspace/skills/of1-snowflake/assets/of1-base.css
 ```
 
 ### Step 1: Read design context
 
 Read the following files to understand the brand:
-- `DESIGN.md` or `DESIGN.json` — design tokens (colors, fonts, spacing, radius)
+- `stardust/current/DESIGN.json` — design tokens (colors, fonts, spacing, radius)
 - `styles/styles.css` — CSS custom properties (the actual deployed tokens)
-- `/workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1-base.css` — the base template to customize
-- `of1/config/templates/` — template catalog defining what the LLM generates
+- `/workspace/skills/of1-snowflake/assets/of1-base.css` — the base template to customize
+- `templates/templates-catalog.json` — template catalog defining what the LLM generates
 
 ### Step 2: Generate brand-appropriate styles
 
@@ -80,7 +80,7 @@ Adapt these patterns to the current brand:
 - Match the site's aesthetic (light/dark theme, border-radius, typography)
 - Ensure generated sections look cohesive with the site's existing pages
 
-### Step 4: Write the CSS
+### Step 3: Write the CSS
 
 Write the complete CSS to `blocks/of1/of1.css`, organized into these sections:
 
@@ -103,7 +103,7 @@ Write the complete CSS to `blocks/of1/of1.css`, organized into these sections:
 /* ─── Responsive ─── */
 ```
 
-### Step 5: Verify block class names
+### Step 4: Verify block class names
 
 The generated sections use EDS class conventions. After `decorateMain` + `loadSections`, the DOM structure is:
 
@@ -141,7 +141,7 @@ Target selectors for generated content use the `.generated-section` class added 
 .generated-section .table                  /* generated table */
 ```
 
-### Step 6: Test
+### Step 5: Test
 
 Start the dev server and test:
 1. Open the of1 page
@@ -152,11 +152,11 @@ Start the dev server and test:
 6. Verify: sections animate in smoothly
 7. Verify: suggestions UI is polished with hover states
 
-### Step 7: Commit and push
+### Step 6: Commit and push
 
 Push so the preview updates:
 ```bash
-git add blocks/of1/of1.css
+git add blocks/of1/
 git commit -m "feat: brand-aligned OF1 generative block styling for {DOMAIN}"
 git push origin ${BRANCH}
 ```
@@ -197,8 +197,8 @@ The user will:
 
 | Mistake | Time Cost | Fix |
 |---------|-----------|-----|
-| Using existing `of1.js` from the demo repo | 10+ min debugging | Always copy from `/workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1.js` |
-| Using existing `of1.css` from the demo repo as base | 5+ min  stale/wrong version | Always start from `/workspace/of1-demo-skills/.claude/skills/of1-snowflake/assets/of1-base.css` |
+| Using existing `of1.js` from the demo repo | 10+ min debugging | Always copy from `/workspace/skills/of1-snowflake/assets/of1.js` |
+| Using existing `of1.css` from the demo repo as base | 5+ min  stale/wrong version | Always start from `/workspace/skills/of1-snowflake/assets/of1-base.css` |
 | Modifying `of1.js` to add brand logic | breaks block | JS is shared infrastructure  NEVER touch it, only customize CSS |
 | Forgetting to commit `of1.js` alongside `of1.css` | blank page on deploy | Always `git add blocks/of1/` to include both files |
 | Using Node.js for scripting | instant failure | Node is a shim in SLICC  use Python |
