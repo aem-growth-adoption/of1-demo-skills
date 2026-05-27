@@ -302,13 +302,13 @@ https://content.da.live/{OWNER}/{REPO}/${BRANCH}/media/product-${PRODUCT_ID}-1.p
 
 ## Completion (pipeline mode)
 
-When running as part of the OF1 pipeline (step 8), this skill runs alongside `brand-voice-extractor`. Both must complete before step 8 is marked done. After writing all JSON files, write your half of the status:
+When running as part of the OF1 pipeline (step 9), this skill runs alongside `brand-voice-extractor`. Both must complete before step 9 is marked done. After writing all JSON files, write your half of the status:
 
 ```bash
 mkdir -p /shared/of1-demo
-echo '{"step":8,"status":"done","summary":"Content metadata: [N] products, [M] personas, [P] use cases, [Q] features, [R] FAQs."}' > /shared/of1-demo/step-8-content-status.json
+echo '{"step":9,"status":"done","summary":"Content metadata: [N] products, [M] personas, [P] use cases, [Q] features, [R] FAQs."}' > /shared/of1-demo/step-9-content-status.json
 ```
 
-The orchestrator waits for both `step-8-content-status.json` and `step-8-brand-status.json` before marking step 8 complete.
+The orchestrator waits for both `step-9-content-status.json` and `step-9-brand-status.json` before marking step 9 complete.
 
 Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.

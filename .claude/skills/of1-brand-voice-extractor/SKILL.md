@@ -124,13 +124,13 @@ Create the output directory if needed: `mkdir -p of1/config`
 
 ## Completion (pipeline mode)
 
-When running as part of the OF1 pipeline (step 8), this skill runs alongside `content-metadata`. Both must complete before step 8 is marked done. After writing `brand-voice.json`, write your half of the status:
+When running as part of the OF1 pipeline (step 9), this skill runs alongside `content-metadata`. Both must complete before step 9 is marked done. After writing `brand-voice.json`, write your half of the status:
 
 ```bash
 mkdir -p /shared/of1-demo
-echo '{"step":8,"status":"done","summary":"Brand voice extracted: [personality adjectives]. [N] vocabulary terms, [M] avoid words."}' > /shared/of1-demo/step-8-brand-status.json
+echo '{"step":9,"status":"done","summary":"Brand voice extracted: [personality adjectives]. [N] vocabulary terms, [M] avoid words."}' > /shared/of1-demo/step-9-brand-status.json
 ```
 
-The orchestrator waits for both `step-8-brand-status.json` and `step-8-content-status.json` before marking step 8 complete.
+The orchestrator waits for both `step-9-brand-status.json` and `step-9-content-status.json` before marking step 9 complete.
 
 Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.

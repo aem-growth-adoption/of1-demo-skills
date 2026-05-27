@@ -158,7 +158,7 @@ Push so the preview updates:
 ```bash
 git add blocks/of1/of1.css
 git commit -m "feat: brand-aligned OF1 generative block styling for {DOMAIN}"
-git push origin main
+git push origin ${BRANCH}
 ```
 
 ## Key Principles
@@ -175,7 +175,7 @@ git push origin main
 
 After pushing, mark the step as `review` and **STOP**. Do NOT proceed to any further steps. The user must open the OF1 page, test the search UI, click suggestion chips, and visually approve the styling before continuing.
 
-This is a gate — the parallel steps (8–10) cannot start until the user approves step 7.
+This is a gate — step 13 (Deploy) cannot start until both step 7 (Templates) and step 8 (this step) are approved.
 
 Write a status file — do NOT call `sprinkle send` directly (only the of1-demo orchestrator scoop may do that):
 
@@ -184,7 +184,8 @@ mkdir -p /shared/of1-demo
 REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
 OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
 REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
-echo '{"step":7,"status":"review","deliverable":"https://main--'${REPO}'--'${OWNER}'.aem.page/of1","summary":"OF1 generative block CSS styled to match brand. Please open the OF1 page, test search chips, and review the design."}' > /shared/of1-demo/step-7-status.json
+BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
+echo '{"step":8,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/of1","summary":"OF1 generative block CSS styled to match brand. Please open the OF1 page, test search chips, and review the design."}' > /shared/of1-demo/step-8-status.json
 ```
 
 The user will:

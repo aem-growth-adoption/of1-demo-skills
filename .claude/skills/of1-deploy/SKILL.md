@@ -179,5 +179,5 @@ Write a status file — do NOT call `sprinkle send` directly (only the of1-demo 
 
 ```bash
 mkdir -p /shared/of1-demo
-echo '{"step":14,"status":"done","deliverable":"'${PREVIEW_BASE}'/deliverables/index.html"}' > /shared/of1-demo/step-14-status.json
+echo '{"step":13,"status":"done","deliverable":"'${PREVIEW_BASE}'/deliverables/index.html"}' > /shared/of1-demo/step-13-status.json
 ```

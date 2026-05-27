@@ -87,11 +87,11 @@ mkdir -p deliverables
 # ... write discovery.html ...
 git add deliverables/discovery.html
 git commit -m "docs: discovery report for {DOMAIN}"
-git push origin main
+git push origin ${BRANCH}
 ```
 
 The report is then available at:
-`https://main--${REPO}--${OWNER}.aem.page/deliverables/discovery.html`
+`https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/discovery.html`
 
 ### 5. Present in chat
 
@@ -111,7 +111,7 @@ Also present the proposal in chat as a structured summary:
 **Key pages:** [2-3 URLs to reproduce]
 **Why:** [rationale]
 
-**Full report:** https://main--{REPO}--{OWNER}.aem.page/deliverables/discovery.html
+**Full report:** https://{BRANCH}--{REPO}--{OWNER}.aem.page/deliverables/discovery.html
 ```
 
 Then ask the user:
@@ -126,7 +126,7 @@ Write a status file — do NOT call `sprinkle send` directly (only the of1-demo 
 After presenting findings, write:
 ```bash
 mkdir -p /shared/of1-demo
-echo '{"step":3,"status":"review","deliverable":"https://main--'${REPO}'--'${OWNER}'.aem.page/deliverables/discovery.html","summary":"Demo focus: [focus]. Persona: [persona]. Pages: [N] key pages identified."}' > /shared/of1-demo/step-3-status.json
+echo '{"step":3,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/deliverables/discovery.html","summary":"Demo focus: [focus]. Persona: [persona]. Pages: [N] key pages identified."}' > /shared/of1-demo/step-3-status.json
 ```
 
 On approval (user confirms via sprinkle), the orchestrator will handle the `done` update. If you receive explicit approval in chat, write:
