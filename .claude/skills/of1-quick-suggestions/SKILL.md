@@ -1,5 +1,5 @@
 ---
-name: quick-suggestions
+name: of1-quick-suggestions
 description: Generate domain-specific quick suggestion chips and search UI copy for the demo
 user-invocable: true
 ---
@@ -7,6 +7,14 @@ user-invocable: true
 # Quick Suggestions Generator
 
 Generate domain-specific quick suggestion chips, placeholder text, and search UI copy based on the site's products and content.
+
+## ⚡ Speed Priority — Target: 2 minutes
+
+- Use discovery output + site knowledge — do NOT wait for products.json or brand-voice.json (they run in parallel)
+- If config files happen to exist already, read them for better suggestions
+- ONE file to write — this is the fastest step
+
+---
 
 ## Inputs
 
@@ -16,20 +24,32 @@ Generate domain-specific quick suggestion chips, placeholder text, and search UI
 
 ### Step 1: Read context
 
-Check what exists in `of1/config/`:
-- Read `products.json` for product names and categories
-- Read `personas.json` for persona keywords
-- Read `use-cases.json` for use case descriptions
-- Read `brand-voice.json` for tone
+```bash
+REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
+DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 
-If `DOMAIN` was provided in your prompt (pipeline mode), use it directly. Otherwise ask:
-> Which domain should I generate suggestions for?
+cd "$REPO_DIR"
+mkdir -p of1/config
+```
+
+Read discovery output for product/category knowledge:
+```bash
+cat /shared/of1-demo/step-3-output.md 2>/dev/null
+```
+
+If config files already exist (from a previous run or if step 9 finished first), read them for richer suggestions:
+```bash
+cat of1/config/products.json 2>/dev/null | jq '.[].name' | head -20
+cat of1/config/personas.json 2>/dev/null | jq '.[].name'
+cat of1/config/brand-voice.json 2>/dev/null | jq '.tone'
+```
 
 ### Step 2: Generate suggestions
 
-Based on products, personas, and use cases, generate 8-12 quick suggestion chips that:
+Based on discovery context (and products/personas if available), generate 8-12 quick suggestion chips that:
 - Cover different personas
-- Cover different intents (compare, recommend, explore, deep-dive)
+- Cover different intents (compare, recommend, explore, deep-dive, budget)
 - Use natural language a real user would type
 - Are concise (under 40 characters each)
 
@@ -38,24 +58,7 @@ Also generate:
 - Page title
 - Page subtitle
 
-### Step 3: Present
-
-```
-## Quick Suggestions: {domain}
-
-**Placeholder:** "[text]"
-**Title:** "[text]"
-**Subtitle:** "[text]"
-
-**Chips:**
-1. [suggestion]
-2. [suggestion]
-...
-
-Look good?
-```
-
-### Step 4: Write output
+### Step 3: Write output
 
 Write to `of1/config/suggestions.json`:
 
@@ -79,7 +82,7 @@ The worker's `suggest.js` serves `tenant.suggestions.suggestions` via `POST /api
 - `title` → the `<h1>` heading on the /of1 page (e.g. "Find Your Next Adventure")
 - `subtitle` → supporting text below the heading
 - `placeholder` → input field placeholder text
-- `suggestions[].type` → must be `"explore"` (used by the OF1 block for chip styling)
+- `suggestions[].type` → always `"explore"` (used by the OF1 block for chip styling)
 - `suggestions[].label` → short text shown on the chip (under 40 chars)
 - `suggestions[].query` → the full query string sent to `/api/generate` when clicked
 
