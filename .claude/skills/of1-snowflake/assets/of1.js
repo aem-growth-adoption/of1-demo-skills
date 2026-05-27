@@ -255,12 +255,12 @@ async function generate(query, config, block, followUp = false) {
     main.querySelectorAll('.generative-suggestions').forEach((s) => s.classList.add('dimmed'));
     // Show breadcrumb
     renderBreadcrumb(main, conversationHistory.concat(query));
+  } else {
+    // Only show skeleton for the initial query, not follow-ups
+    const of1Section = block.closest('.section');
+    if (of1Section) of1Section.style.display = '';
+    showSkeleton(block);
   }
-
-  // Always show skeleton while loading
-  const of1Section = block.closest('.section');
-  if (of1Section) of1Section.style.display = '';
-  showSkeleton(block);
 
   conversationHistory.push(query);
   const workerUrl = config['api-endpoint'] || DEFAULT_WORKER_URL;
