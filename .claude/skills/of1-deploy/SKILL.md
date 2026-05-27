@@ -12,7 +12,7 @@ Commit config files, trigger sync to the OF1 worker, generate the demo hub, and 
 
 - `DOMAIN`: Target domain
 - Repo config from `/shared/of1-demo/repo-config.json`
-- All config files in `of1/config/` (products.json, personas.json, use-cases.json, features.json, faqs.json, brand-voice.json, block-guide.json, suggestions.json, cta-template.json)
+- All config files in `of1/config/` (products.json, personas.json, use-cases.json, features.json, faqs.json, brand-voice.json, suggestions.json, cta-template.json)
 
 ## Read repo config
 
@@ -45,7 +45,7 @@ The OF1 worker now syncs config from the EDS repo directly:
 ```bash
 cd "$REPO_DIR"
 echo "Config files:"
-for f in brand-voice block-guide products personas use-cases features faqs suggestions cta-template of1-endpoint; do
+for f in brand-voice products personas use-cases features faqs suggestions cta-template of1-endpoint; do
   if [ -f "of1/config/${f}.json" ]; then
     echo "  ✓ ${f}.json ($(wc -c < "of1/config/${f}.json") bytes)"
   else
