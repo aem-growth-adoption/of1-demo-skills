@@ -12,7 +12,7 @@ Generate a complete template library for the OF1 worker. Each template is a slot
 
 - `DOMAIN`: Target domain
 - Repo config from `/shared/of1-demo/repo-config.json`
-- Design tokens from `stardust/current/DESIGN.json` (from step 4)
+- Design tokens from `${REPO_DIR}/stardust/current/DESIGN.json` (from step 4)
 - Demo narrative from `/shared/of1-demo/step-3-output.md` (from step 3 — discovery)
 
 ## Worker Contract
@@ -156,31 +156,11 @@ The `description` field is critical — the LLM uses it to pick between variants
 
 `discovery` is the fallback intent when classification is uncertain.
 
-## ⚡ Parallelization Strategy
+## ⚡ Parallelization Note
 
-This step is parallelized across 5 scoops — one per intent. The **orchestrator (cone)** handles coordination:
+The orchestrator MAY parallelize this across 5 scoops (one per intent). If running as a single scoop, generate all 25 templates sequentially. Either way, the artifacts are the same.
 
-### Orchestrator responsibilities:
-1. Generate `styles/of1-base.css` FIRST (shared dependency)
-2. Copy `fill-template.py` to `tools/` in the repo
-3. Spawn 5 scoops simultaneously (one per intent)
-4. Wait for all 5 to complete
-5. Generate `templates/templates-catalog.json` from all metadata files
-6. Generate `of1/config/templates.json` routing config
-7. Copy gallery HTML
-8. Single git commit + push
-
-### Per-intent scoop responsibilities:
-Each scoop receives ONE intent and generates its 5 variations:
-- 5 × `templates/of1-{intent}-{variation}.html`
-- 5 × `templates/of1-{intent}-{variation}.metadata.json`
-- 5 × `styles/of1-{intent}-{variation}.css`
-- 5 × `templates/of1-{intent}-{variation}.sample.json`
-- 5 × `drafts/of1-{intent}-{variation}-sample.html` (via fill-template.py)
-
-The scoop writes directly to the repo dir and signals completion via `/shared/of1-demo/step-7-{intent}-done`.
-
-### SLICC Environment Note:
+### Environment constraints:
 - **Node.js is a SHIM** — do NOT use `node` or `npm` or `.mjs` files
 - Use `python3 tools/fill-template.py` for generating filled previews
 - Use ASCII-safe text in sample data (no accented characters like é — use plain 'e')
@@ -203,13 +183,13 @@ cd "$REPO_DIR"
 ```
 
 Read the design tokens:
-```
-read_file ${REPO_DIR}/stardust/current/design-tokens.json
+```bash
+cat ${REPO_DIR}/stardust/current/DESIGN.json
 ```
 
 Read the discovery output for demo narrative:
-```
-read_file /shared/of1-demo/step-3-output.md
+```bash
+cat /shared/of1-demo/step-3-output.md
 ```
 
 ### 1. Generate `styles/of1-base.css`
@@ -355,7 +335,7 @@ cp /workspace/skills/of1-template-generation/assets/gallery.html gallery/index.h
 
 ```bash
 cd "$REPO_DIR"
-git add styles/of1-base.css styles/of1-*.css templates/ drafts/ tools/ gallery/ of1/config/templates.json
+git add styles/of1-base.css styles/of1-*.css templates/*.html templates/*.json drafts/ tools/fill-template.py gallery/ of1/config/templates.json
 git commit -m "feat: generate 25 OF1 templates (5 intents × 5 variations) for ${DOMAIN}"
 git push origin ${BRANCH}
 ```
@@ -429,7 +409,7 @@ Slot instructions guide the LLM's content generation. Make them:
 - 25 × `drafts/of1-*-sample.html` — filled previews
 - `templates/templates-catalog.json` — template index
 - `gallery/index.html` — browsable review UI
-- `tools/fill-template.mjs` — fill script
+- `tools/fill-template.py` — fill script
 
 ## Completion
 
