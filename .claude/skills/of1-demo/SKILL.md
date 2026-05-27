@@ -17,8 +17,8 @@ Lightweight orchestrator that opens the demo pipeline sprinkle and dispatches st
 5. Steps with review gates pause for user approval (Approve/Revise buttons in sprinkle)
 6. After step 5 (Prototype), two tracks run in parallel:
    - **Track A (EDS Site):** Step 6 (Snowflake) → Steps 7 + 8 (Templates + OF1 styling) in parallel
-   - **Track B (Config):** Steps 9–12 (Brand, Block guide, Suggestions, CTA) in parallel → Step 13 (Config review)
-7. Step 14 (Deploy) requires Track A steps 7 + 8 done AND Track B step 13 approved
+   - **Track B (Config):** Steps 9–11 (Brand & content, Suggestions, CTA) in parallel → Step 12 (Config review)
+7. Step 13 (Deploy) requires Track A steps 7 + 8 done AND Track B step 12 approved
 
 ## Setup
 
@@ -109,10 +109,10 @@ The pipeline has TWO parallel tracks that MUST run concurrently. **Do NOT serial
 
 | Trigger | Spawn immediately |
 |---------|-------------------|
-| Step 5 (Prototype) approved | **Track A:** Step 6 (Snowflake) AND **Track B:** Steps 9, 10, 11, 12 (all four at once) |
+| Step 5 (Prototype) approved | **Track A:** Step 6 (Snowflake) AND **Track B:** Steps 9, 10, 11 (all three at once) |
 | Step 6 (Snowflake) approved | Steps 7 AND 8 in parallel (both depend on step 6 only) |
-| Steps 9-12 ALL complete | Step 13 (Config review) — run inline by the cone |
-| Steps 7 + 8 done AND Step 13 approved | Step 14 (Deploy) |
+| Steps 9-11 ALL complete | Step 12 (Config review) — run inline by the cone |
+| Steps 7 + 8 done AND Step 12 approved | Step 13 (Deploy) |
 
 ### Dependency graph:
 ```
@@ -122,21 +122,21 @@ Steps 1→2→3→4→5 (sequential)
          ↓               ↓
     Track A          Track B
          ↓               ↓
-    Step 6          Steps 9,10,11,12
+    Step 6          Steps 9,10,11
     (Snowflake)     (all parallel)
          ↓               ↓
-    Steps 7+8       Step 13
+    Steps 7+8       Step 12
     (parallel)      (config review)
          ↓               ↓
          └───────┬───────┘
                  ↓
-            Step 14 (Deploy)
+            Step 13 (Deploy)
 ```
 
 ### Key rules:
 1. **Track B does NOT wait for Step 6** — it starts immediately after Step 5 is approved
 2. **Steps 7 and 8 run in parallel** — don't wait for one to finish before starting the other
-3. **Steps 9, 10, 11, 12 ALL run at once** — spawn all 4 scoops simultaneously
+3. **Steps 9, 10, 11 ALL run at once** — spawn all 3 scoops simultaneously
 4. **Push each status as it arrives** — don't wait for all parallel steps to finish before updating the sprinkle
 
 ### Polling pattern for parallel steps:
@@ -145,7 +145,7 @@ Steps 1→2→3→4→5 (sequential)
 # Poll for all active step status files and push each as it arrives
 while true; do
   ALL_DONE=true
-  for STEP in 6 7 8 9 10 11 12; do
+  for STEP in 6 7 8 9 10 11; do
     STATUS_FILE="/shared/of1-demo/step-${STEP}-status.json"
     PUSHED_FILE="/shared/of1-demo/step-${STEP}-pushed"
     if [ -f "$STATUS_FILE" ] && [ ! -f "$PUSHED_FILE" ]; then
@@ -207,21 +207,20 @@ User reset the pipeline. Clean up any running scoops.
 | 7 | Templates | `of1-template-generation` | Yes | A | step 6 |
 | 8 | OF1 styling | `generative-block-styler` | Yes | A | step 6 |
 | 9 | Brand & content | `brand-voice-extractor` + `content-metadata` | No | B | step 5 |
-| 10 | Block guide | `block-guide-builder` | No | B | step 5 |
-| 11 | Suggestions | `quick-suggestions` | No | B | step 5 |
-| 12 | CTA template | `cta-template-builder` | No | B | step 5 |
-| 13 | Config review | (orchestrator-inline) | Yes | B | steps 9+10+11+12 |
-| 14 | Deploy | `of1-deploy` | Yes | — | steps 7+8+13 |
+| 10 | Suggestions | `quick-suggestions` | No | B | step 5 |
+| 11 | CTA template | `cta-template-builder` | No | B | step 5 |
+| 12 | Config review | (orchestrator-inline) | Yes | B | steps 9+10+11 |
+| 13 | Deploy | `of1-deploy` | Yes | — | steps 7+8+12 |
 
 ### Track Summary
 
 **Track A (EDS Site):** Step 6 → Steps 7 + 8 (parallel after step 6 approved)
 
-**Track B (Config):** Steps 9 + 10 + 11 + 12 (ALL parallel, start immediately after step 5) → Step 13
+**Track B (Config):** Steps 9 + 10 + 11 (ALL parallel, start immediately after step 5) → Step 12 (Config review)
 
 **Both tracks start after Step 5 is approved.** Track B does NOT wait for Step 6.
 
-**Step 14 (Deploy)** requires Track A (steps 7+8 done) AND Track B (step 13 approved).
+**Step 13 (Deploy)** requires Track A (steps 7+8 done) AND Track B (step 12 approved).
 
 ## Step 2 — Branch Setup
 
@@ -357,21 +356,20 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 7 (Templates)** needs: domain, design tokens from step 4 (`DESIGN.json`), demo narrative from step 3, snowflake output from step 6
 - **Step 8 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
 - **Steps 9–12 (Track B)** need: domain, `stardust/` data from step 4. They do NOT depend on the snowflake — they can start immediately after step 5.
-- **Step 13 (Config review)** needs: all `of1/config/` files from steps 9–12 — orchestrator generates review page inline
-- **Step 14 (Deploy)** needs: steps 7 + 8 done (Track A) AND step 13 approved (Track B), plus domain, all config files, repo-config.json
+- **Step 12 (Config review)** needs: all `of1/config/` files from steps 9-11 — orchestrator generates review page inline
+- **Step 13 (Deploy)** needs: steps 7 + 8 done (Track A) AND step 12 approved (Track B), plus domain, all config files, repo-config.json
 
 When spawning a step scoop, read the relevant prior outputs and include key info in the prompt (or instruct the scoop to read specific files).
 
-## Step 13 — Config Review (orchestrator-inline)
+## Step 12 — Config Review (orchestrator-inline)
 
-Once all parallel steps (9–12) are done, the orchestrator runs step 13 **inline** (no scoop needed). This is a review gate where the user validates all the config that will be deployed.
+Once all parallel steps (9–11) are done, the orchestrator runs step 12 **inline** (no scoop needed). This is a review gate where the user validates all the config that will be deployed.
 
 ### What to generate
 
 Build `deliverables/config-review.html` in the repo — a self-contained HTML page (OF1 dark theme, inline styles) showing:
 
-1. **Block Guide vs Block Catalog** — list the blocks selected for generation (from `block-guide.json`) and highlight that they are a subset of the full block catalog. Link to the block catalog preview URL for comparison.
-2. **Products** — grid of products with thumbnail images, names, categories, and keyword counts (from `products.json`). Flag any products with missing images.
+1. **Products** — grid of products with thumbnail images, names, categories, and keyword counts (from `products.json`). Flag any products with missing images.
 3. **Brand Voice** — personality, tone, vocabulary, avoid words (from `brand-voice.json`)
 4. **Personas** — cards for each persona with keywords (from `personas.json`)
 5. **Suggestions** — all suggestion chips with their query text (from `suggestions.json`)
@@ -398,7 +396,7 @@ git push origin main
 
 Then push to sprinkle:
 ```bash
-sprinkle send of1-demo '{"step":12,"status":"review","deliverable":"https://main--'${REPO}'--'${OWNER}'.aem.page/deliverables/config-review.html","summary":"Review all config before deploy: block guide (subset of catalog), products, brand voice, CTA, suggestions."}'
+sprinkle send of1-demo '{"step":12,"status":"review","deliverable":"https://main--'${REPO}'--'${OWNER}'.aem.page/deliverables/config-review.html","summary":"Review all config before deploy: products, brand voice, personas, CTA, suggestions."}'
 ```
 
 ### What the user reviews
@@ -421,7 +419,7 @@ If a step fails or the user requests revisions:
 
 ## Completion
 
-After step 14 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.
+After step 13 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.
 
 ## Shell Environment Pitfalls (SLICC-specific)
 
@@ -433,7 +431,7 @@ These issues cost time in previous runs. Avoid them:
 
 3. **Config sync uses EDS** — configs are committed to `of1/config/` in git, then synced via `POST /api/tenants/{id}/sync`. The tenant ID is `{branch}--{repo}--{owner}` format.
 
-4. **Step 14 (Deploy)** — just `git push` + one POST to `/api/tenants/{id}/sync`. Can be done inline by the cone (no scoop needed).
+4. **Step 13 (Deploy)** — just `git push` + one POST to `/api/tenants/{id}/sync`. Can be done inline by the cone (no scoop needed).
 
 5. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else (e.g. "approved", "running", "complete") corrupts the UI state.
 

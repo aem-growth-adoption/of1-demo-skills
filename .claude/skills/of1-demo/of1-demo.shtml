@@ -763,11 +763,10 @@
     { name: 'Templates', skill: 'of1-template-generation', review: true, desc: 'Generate 25 branded templates (5 intents × 5 variations)', reviewNote: 'Template gallery', track: 'A', requires: [5] },
     { name: 'OF1 styling', skill: 'generative-block-styler', review: true, desc: 'Style the generative search UI to match the brand', reviewNote: 'OF1 page', track: 'A', requires: [5] },
     { name: 'Brand & content', skill: 'brand-voice-extractor,content-metadata', review: false, desc: 'Extract brand voice, products, personas, and assets', track: 'B', requires: [4] },
-    { name: 'Block guide', skill: 'block-guide-builder', review: false, desc: 'Build block catalog, select blocks for generation', track: 'B', requires: [4] },
     { name: 'Suggestions', skill: 'quick-suggestions', review: false, desc: 'Generate search chips and UI copy for the demo', track: 'B', requires: [4] },
     { name: 'CTA template', skill: 'cta-template-builder', review: false, desc: 'Extract design system, build branded CTA template', track: 'B', requires: [4] },
-    { name: 'Config review', skill: 'config-review', review: true, desc: 'Review all config before deploy', reviewNote: 'Config review page', track: 'B', requires: [8, 9, 10, 11] },
-    { name: 'Deploy', skill: 'of1-deploy', review: true, desc: 'Deploy to worker, publish demo hub', reviewNote: 'Demo Hub', track: null, requires: [6, 7, 12] }
+    { name: 'Config review', skill: 'config-review', review: true, desc: 'Review all config before deploy', reviewNote: 'Config review page', track: 'B', requires: [8, 9, 10] },
+    { name: 'Deploy', skill: 'of1-deploy', review: true, desc: 'Deploy to worker, publish demo hub', reviewNote: 'Demo Hub', track: null, requires: [6, 7, 11] }
   ];
 
   var ICONS = {
