@@ -198,9 +198,9 @@ Without `persona`, `useCase`, and `keywords`, the worker cannot match user queri
 
 Verify all ID references are consistent across files. Fix mismatches.
 
-### Step 9: Pull Product Assets
+### Step 9: Pull Product Assets — MUST SELF-HOST ON DA
 
-Download 5 images per product from the source site and store them locally so the OF1 generation has reliable, self-hosted image URLs (no external CDN dependency, no encoding issues, no CORS/referrer problems).
+**CRITICAL RULE: ALL product images MUST be downloaded and uploaded to DA.** Never leave external CDN URLs in products.json — not AEM delivery URLs, not the customer's site URLs, not any third-party CDN. External URLs break due to CORS, referrer policies, encoding issues, CDN token expiration, and EDS image optimization rewriting.
 
 **Target:** Up to 5 images per product (use fewer if the source page has less) — prioritize:
 1. Main product shot (hero/front view)
@@ -221,42 +221,46 @@ Array.from(document.querySelectorAll('img'))
 "
 ```
 
-Pick up to 5 unique, high-quality product images per product. If fewer are available on the page, use what exists. Prefer images from carousels/galleries (they usually have multiple angles).
+Pick up to 5 unique, high-quality product images per product.
 
-**For sites using AEM Assets delivery (delivery-p*.adobeaemcloud.com URLs):**
-These URLs are stable and directly usable — store them as-is in the images array. No need to download and re-host.
+**Download ALL images to DA:**
 
-**For external CDN images that might have CORS/referrer issues:**
-
-Store locally in the git repo:
-```
-{REPO_DIR}/assets/products/{product-id}/1.png
-{REPO_DIR}/assets/products/{product-id}/2.png
-...
-```
-
-Download:
 ```bash
-mkdir -p assets/products/{product-id}
-curl -sL "{IMAGE_URL}" -o assets/products/{product-id}/1.png
+# Create the media folder in DA
+mkdir -p /mnt/da/${BRANCH}/media
+
+# Download each image — use a clean filename based on product ID
+curl -sL "${IMAGE_URL}" -o "/mnt/da/${BRANCH}/media/product-${PRODUCT_ID}-1.png"
+curl -sL "${IMAGE_URL_2}" -o "/mnt/da/${BRANCH}/media/product-${PRODUCT_ID}-2.png"
 ```
 
 Verify each download: must be > 10KB (failed downloads are 0 bytes or tiny error pages).
 
-**Update products.json images array:**
+**The DA content URL for products.json:**
 
-Each product's `images` field should contain all available image URLs (up to 5):
+After downloading to DA, the image is accessible at:
+```
+https://content.da.live/{OWNER}/{REPO}/${BRANCH}/media/product-${PRODUCT_ID}-1.png
+```
+
+**Update products.json images array with DA URLs:**
+
 ```json
 "images": [
-  "https://delivery-p149891-e1546481.adobeaemcloud.com/adobe/assets/urn:aaid:aem:...",
-  "https://delivery-p149891-e1546481.adobeaemcloud.com/adobe/assets/urn:aaid:aem:...",
-  "${PREVIEW_BASE}/assets/products/{product-id}/3.png"
+  "https://content.da.live/aem-growth-adoption/of1-demo/${BRANCH}/media/product-house-blend-1.png",
+  "https://content.da.live/aem-growth-adoption/of1-demo/${BRANCH}/media/product-house-blend-2.png"
 ]
 ```
 
-**IMPORTANT:** Never use invented/fabricated image URLs. Only use URLs extracted from the live site that return 200. Verify at least the first image per product loads.
+**IMPORTANT:** Never use invented/fabricated image URLs. Only use URLs extracted from the live site that actually downloaded successfully (> 10KB). Verify at least the first image per product loads from the DA URL.
 
-Where `PREVIEW_BASE` is `https://main--{repo}--{owner}.aem.page` (from repo-config.json).
+## DO NOT — Image Hosting
+
+- **DO NOT** leave `delivery-p*.adobeaemcloud.com` URLs in products.json — download to DA
+- **DO NOT** leave `{customer-domain}/...` URLs in products.json — download to DA
+- **DO NOT** leave any external CDN URL in products.json — ALWAYS download to DA
+- **DO NOT** skip this step thinking "the URLs work fine" — they break in production
+- **DO NOT** use the git repo `/assets/` folder for images — use the DA mount at `/mnt/da/`
 
 **Write a manifest:**
 ```json
@@ -276,13 +280,25 @@ Where `PREVIEW_BASE` is `https://main--{repo}--{owner}.aem.page` (from repo-conf
 > Content metadata written to `of1/config/`. Files: products.json, personas.json, use-cases.json, features.json, faqs.json.
 > Product images: [N] products, [total] assets at /assets/products/.
 
+## Common Mistakes That Waste Time
+
+| Mistake | Time Cost | Fix |
+|---------|-----------|-----|
+| Leaving customer CDN image URLs in products.json | 10+ min debugging broken images later | ALWAYS download to DA and use `content.da.live` URLs |
+| Leaving `delivery-p*.adobeaemcloud.com` URLs as-is | 10+ min — breaks in OF1 generation | Download to `/mnt/da/{branch}/media/` and use DA URLs |
+| Using `frescopa.coffee/products/...` URLs directly | breaks when customer site changes | Download to DA — self-host everything |
+| Inventing/hallucinating image URLs | broken images, user frustration | Only use URLs extracted via playwright that return 200 |
+| Not verifying downloads (0 byte files) | silent failures | Check each file is > 10KB after download |
+| Using git `/assets/` folder for images | large repo, slow clones | Use DA mount at `/mnt/da/{branch}/media/` |
+| Forgetting to verify DA URLs are accessible | 5 min debugging | `curl -s -o /dev/null -w "%{http_code}" "https://content.da.live/..."` must return 200 |
+
 ## Tips
 
 - IDs must be URL-friendly slugs (lowercase, hyphens)
 - Don't fabricate data — if not on the page, omit it
 - Persona keywords should be words users would type, not marketing terms
 - 10-30 well-described products work better than 200 sparse entries
-- Product images MUST be self-hosted (git or DA) — external CDN URLs break due to encoding, CORS, or image optimization rewriting
+- Product images MUST be self-hosted on DA — external CDN URLs ALWAYS break eventually
 
 ## Completion (pipeline mode)
 
