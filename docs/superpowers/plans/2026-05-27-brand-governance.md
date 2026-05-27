@@ -2,332 +2,293 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Enrich the OF1 worker's LLM prompt with live brand governance rules (brand voice, compliance) fetched from the Adobe Experience Governance API, cached per tenant in Cloudflare KV.
+**Goal:** Enrich the OF1 worker's LLM prompt with live brand governance rules fetched from the Adobe Experience Governance API, cached per tenant in the existing Cloudflare KV namespace.
 
-**Architecture:** A new `brand-governance.js` module handles all API communication and KV caching. `build-prompt.js` calls it and conditionally appends governance sections to the system prompt. On any API error or missing brand, the module returns `null` and the prompt is unchanged from today's behavior.
+**Architecture:** A new `brand-governance.js` module handles all API calls and KV caching (reusing the existing `env.CACHE` KV with `gov:` key prefix and 1h TTL). `tenant.js` calls it inside `loadTenant()` so governance data is transparently available on `tenant.governance`. Two new Nunjucks macros in `macros.njk` inject the governance sections into the generated prompt. On any API error or missing brand the module returns `null` and no governance sections appear in the prompt.
 
-**Tech Stack:** Cloudflare Workers (ES modules), Cloudflare KV, Adobe Experience Governance REST API, vitest (or the project's existing test framework)
+**Tech Stack:** Cloudflare Workers (ES modules), Cloudflare KV, Nunjucks (precompiled via `scripts/build-prompts.mjs`), Node.js `node:test`
 
-**Spec:** `docs/superpowers/specs/2026-05-27-brand-governance-design.md`
+**Spec:** `docs/superpowers/specs/2026-05-27-brand-governance-design.md` (in `of1-demo-skills` repo)
 
-**Target repo:** `https://github.com/aem-growth-adoption/of1-demo` (the worker repo — clone to `~/of1-demo` if not present)
+**Target repo:** `../of1-preview-service` (the actual worker repo — all changes are made there)
 
 ---
 
 ## File Map
 
-| Action | Path (in `of1-demo` worker repo) |
-|--------|----------------------------------|
-| Create | `src/brand-governance.js` *(verify `src/` exists; if not, use project root)* |
-| Create | `test/brand-governance.test.js` *(or wherever existing tests live)* |
-| Modify | `src/build-prompt.js` *(the file that reads `ctx.tenant.brandVoice`)* |
-| Modify | `wrangler.jsonc` |
-
-> **Before starting:** Run the discovery step in Task 0 to confirm exact paths.
-
----
-
-## Task 0: Setup & Discovery
-
-**Files:** none changed
-
-- [ ] **Step 1: Clone the worker repo (if not already present)**
-
-```bash
-cd ~
-git clone https://github.com/aem-growth-adoption/of1-demo.git of1-demo
-cd of1-demo
-```
-
-- [ ] **Step 2: Find the build-prompt file and source layout**
-
-```bash
-find . -name "build-prompt*" -not -path "*/node_modules/*"
-find . -name "wrangler*" -not -path "*/node_modules/*"
-find . -maxdepth 3 -name "*.js" -not -path "*/node_modules/*" | sort
-```
-
-Note the location of `build-prompt.js`. If it is at `src/build-prompt.js`, use `src/brand-governance.js` for the new module. If it is at the project root, use `brand-governance.js` at the root.
-
-- [ ] **Step 3: Find the test setup**
-
-```bash
-cat package.json | grep -E '"test"|"vitest"|"jest"'
-ls test/ src/__tests__/ __tests__/ 2>/dev/null | head -20
-```
-
-Note which test directory and runner the project uses.
-
-- [ ] **Step 4: Install dependencies (if needed)**
-
-```bash
-npm install
-```
+| Action | Path (relative to `of1-preview-service/`) |
+|--------|-------------------------------------------|
+| Create | `worker/src/brand-governance.js` |
+| Create | `worker/src/brand-governance.test.mjs` |
+| Modify | `worker/src/tenant.js` |
+| Modify | `prompts/shared/macros.njk` |
+| Modify | `prompts/generate/template.njk` |
+| Modify | `worker/wrangler.jsonc` |
 
 ---
 
 ## Task 1: Create `brand-governance.js` — write failing tests first
 
 **Files:**
-- Create: `src/brand-governance.js` *(adjust path per Task 0 findings)*
-- Create: `test/brand-governance.test.js` *(adjust path per Task 0 findings)*
+- Create: `worker/src/brand-governance.js`
+- Create: `worker/src/brand-governance.test.mjs`
 
 - [ ] **Step 1: Create the test file**
 
-```bash
-mkdir -p test
-```
-
 ```javascript
-// test/brand-governance.test.js
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchGovernanceRules } from '../src/brand-governance.js';
+// worker/src/brand-governance.test.mjs
+import { strict as assert } from 'node:assert';
+import test from 'node:test';
+import { fetchGovernanceRules } from './brand-governance.js';
 
-// Minimal KV mock
 function makeKV(initial = {}) {
-  const store = { ...initial };
+  const store = Object.fromEntries(
+    Object.entries(initial).map(([k, v]) => [k, JSON.stringify(v)])
+  );
   return {
-    get: vi.fn(async (key, type) => {
+    get(key, type) {
       const val = store[key];
-      if (val === undefined) return null;
-      return type === 'json' ? JSON.parse(val) : val;
-    }),
-    put: vi.fn(async (key, value) => { store[key] = value; }),
+      if (val === undefined) return Promise.resolve(null);
+      return Promise.resolve(type === 'json' ? JSON.parse(val) : val);
+    },
+    put(key, value, _opts) {
+      store[key] = value;
+      return Promise.resolve();
+    },
   };
 }
 
 function makeEnv(overrides = {}) {
   return {
     BRAND_GOVERNANCE_TOKEN: 'test-token',
-    BRAND_GOVERNANCE_BASE_URL: 'https://governance.example.com',
-    BRAND_GOVERNANCE_CACHE: makeKV(),
+    BRAND_GOVERNANCE_BASE_URL: 'https://gov.example.com',
+    CACHE: makeKV(),
     ...overrides,
   };
 }
 
-const BRAND_RESPONSE = { id: 'brand-123', name: 'Acme Corp', status: 'ACTIVE' };
-const CHECKS_RESPONSE = {
+const BRAND = { id: 'brand-123', name: 'Acme Corp', status: 'ACTIVE' };
+const CHECKS = {
   items: [
-    { name: 'Tone check', type: 'BRAND', rule: 'Always be friendly', criticality: 'HIGH' },
-    { name: 'Legal check', type: 'COMPLIANCE', rule: 'Never make medical claims', criticality: 'HIGH' },
-    { name: 'Data check', type: 'DLP', rule: 'Do not expose PII', criticality: 'MEDIUM' },
-    { name: 'Meta check', type: 'META_INFORMATION', rule: 'Always include product SKU', criticality: 'LOW' },
+    { name: 'Tone', type: 'BRAND', rule: 'Always be friendly and direct', criticality: 'HIGH' },
+    { name: 'Legal', type: 'COMPLIANCE', rule: 'Never make medical claims', criticality: 'HIGH' },
+    { name: 'DLP', type: 'DLP', rule: 'Do not expose PII', criticality: 'MEDIUM' },
+    { name: 'Meta', type: 'META_INFORMATION', rule: 'Include product SKU', criticality: 'LOW' },
   ],
 };
 
-describe('fetchGovernanceRules', () => {
-  beforeEach(() => { vi.restoreAllMocks(); });
+// Mock global fetch — replaced per test
+let fetchCalls = [];
+function mockFetch(...responses) {
+  fetchCalls = [];
+  let i = 0;
+  global.fetch = async (url, opts) => {
+    fetchCalls.push({ url, opts });
+    return responses[i++];
+  };
+}
 
-  it('returns null when token is missing', async () => {
-    const result = await fetchGovernanceRules('example.com', makeEnv({ BRAND_GOVERNANCE_TOKEN: '' }));
-    expect(result).toBeNull();
-  });
+test('returns null when token is missing', async () => {
+  const result = await fetchGovernanceRules('example.com', makeEnv({ BRAND_GOVERNANCE_TOKEN: '' }));
+  assert.equal(result, null);
+});
 
-  it('returns null when token is undefined', async () => {
-    const result = await fetchGovernanceRules('example.com', makeEnv({ BRAND_GOVERNANCE_TOKEN: undefined }));
-    expect(result).toBeNull();
-  });
+test('returns null when token is undefined', async () => {
+  const result = await fetchGovernanceRules('example.com', makeEnv({ BRAND_GOVERNANCE_TOKEN: undefined }));
+  assert.equal(result, null);
+});
 
-  it('returns cached data without fetching when KV hit', async () => {
-    const cached = { brandName: 'Cached Corp', checks: { brand: [], compliance: [], other: [] } };
-    const kv = makeKV({ 'gov:example.com': JSON.stringify(cached) });
-    const env = makeEnv({ BRAND_GOVERNANCE_CACHE: kv });
-    global.fetch = vi.fn();
+test('returns cached data without fetching on KV hit', async () => {
+  const cached = { brandName: 'Cached', checks: { brand: [], compliance: [], other: [] } };
+  const env = makeEnv({ CACHE: makeKV({ 'gov:cached.com': cached }) });
+  mockFetch(); // should not be called
 
-    const result = await fetchGovernanceRules('example.com', env);
-    expect(result).toEqual(cached);
-    expect(global.fetch).not.toHaveBeenCalled();
-  });
+  const result = await fetchGovernanceRules('cached.com', env);
+  assert.deepEqual(result, cached);
+  assert.equal(fetchCalls.length, 0);
+});
 
-  it('returns null and caches miss when brand returns 404', async () => {
-    const env = makeEnv();
-    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false, status: 404 });
+test('returns null and caches miss on 404', async () => {
+  const env = makeEnv();
+  let putCalled = false;
+  env.CACHE.put = (key, val) => { putCalled = { key, val }; return Promise.resolve(); };
+  mockFetch({ ok: false, status: 404 });
 
-    const result = await fetchGovernanceRules('notfound.com', env);
-    expect(result).toBeNull();
-    expect(env.BRAND_GOVERNANCE_CACHE.put).toHaveBeenCalledWith(
-      'gov:notfound.com',
-      JSON.stringify(null),
-      { expirationTtl: 3600 }
-    );
-  });
+  const result = await fetchGovernanceRules('notfound.com', env);
+  assert.equal(result, null);
+  assert.equal(putCalled.key, 'gov:notfound.com');
+  assert.equal(putCalled.val, JSON.stringify(null));
+});
 
-  it('returns null without caching on 5xx', async () => {
-    const env = makeEnv();
-    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false, status: 503 });
+test('returns null without caching on 5xx', async () => {
+  const env = makeEnv();
+  let putCalled = false;
+  env.CACHE.put = () => { putCalled = true; return Promise.resolve(); };
+  mockFetch({ ok: false, status: 503 });
 
-    const result = await fetchGovernanceRules('error.com', env);
-    expect(result).toBeNull();
-    expect(env.BRAND_GOVERNANCE_CACHE.put).not.toHaveBeenCalled();
-  });
+  const result = await fetchGovernanceRules('error.com', env);
+  assert.equal(result, null);
+  assert.equal(putCalled, false);
+});
 
-  it('returns null on network error', async () => {
-    const env = makeEnv();
-    global.fetch = vi.fn().mockRejectedValueOnce(new Error('Network failure'));
+test('returns null without caching on non-404 4xx', async () => {
+  const env = makeEnv();
+  let putCalled = false;
+  env.CACHE.put = () => { putCalled = true; return Promise.resolve(); };
+  mockFetch({ ok: false, status: 401 });
 
-    const result = await fetchGovernanceRules('network-error.com', env);
-    expect(result).toBeNull();
-  });
+  const result = await fetchGovernanceRules('unauth.com', env);
+  assert.equal(result, null);
+  assert.equal(putCalled, false);
+});
 
-  it('returns null and caches miss when brand status is not ACTIVE', async () => {
-    const env = makeEnv();
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ id: 'b1', name: 'Draft Brand', status: 'DRAFT' }),
-    });
+test('returns null on network error', async () => {
+  const env = makeEnv();
+  global.fetch = async () => { throw new Error('Network failure'); };
 
-    const result = await fetchGovernanceRules('draft.com', env);
-    expect(result).toBeNull();
-    expect(env.BRAND_GOVERNANCE_CACHE.put).toHaveBeenCalledWith(
-      'gov:draft.com',
-      JSON.stringify(null),
-      { expirationTtl: 3600 }
-    );
-  });
+  const result = await fetchGovernanceRules('netfail.com', env);
+  assert.equal(result, null);
+});
 
-  it('returns null without caching on 4xx (non-404)', async () => {
-    const env = makeEnv();
-    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false, status: 401 });
+test('returns null and caches miss when brand not ACTIVE', async () => {
+  const env = makeEnv();
+  let putCalled = false;
+  env.CACHE.put = (key, val) => { putCalled = { key, val }; return Promise.resolve(); };
+  mockFetch({ ok: true, json: async () => ({ id: 'b1', name: 'Draft', status: 'DRAFT' }) });
 
-    const result = await fetchGovernanceRules('unauthorized.com', env);
-    expect(result).toBeNull();
-    expect(env.BRAND_GOVERNANCE_CACHE.put).not.toHaveBeenCalled();
-  });
+  const result = await fetchGovernanceRules('draft.com', env);
+  assert.equal(result, null);
+  assert.equal(putCalled.key, 'gov:draft.com');
+});
 
-  it('returns null on malformed JSON response', async () => {
-    const env = makeEnv();
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => { throw new SyntaxError('Unexpected token'); },
-    });
+test('returns null on malformed JSON', async () => {
+  const env = makeEnv();
+  mockFetch({ ok: true, json: async () => { throw new SyntaxError('bad json'); } });
 
-    const result = await fetchGovernanceRules('badjson.com', env);
-    expect(result).toBeNull();
-  });
+  const result = await fetchGovernanceRules('badjson.com', env);
+  assert.equal(result, null);
+});
 
-  it('returns empty checks object (not null) when no checks exist', async () => {
-    const env = makeEnv();
-    global.fetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => BRAND_RESPONSE })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ items: [] }) });
+test('groups checks by type', async () => {
+  const env = makeEnv();
+  mockFetch(
+    { ok: true, json: async () => BRAND },
+    { ok: true, json: async () => CHECKS },
+  );
 
-    const result = await fetchGovernanceRules('nochecks.com', env);
-    expect(result).not.toBeNull();
-    expect(result.checks.brand).toEqual([]);
-    expect(result.checks.compliance).toEqual([]);
-    expect(result.checks.other).toEqual([]);
-  });
+  const result = await fetchGovernanceRules('acme.com', env);
+  assert.equal(result.brandName, 'Acme Corp');
+  assert.equal(result.checks.brand.length, 1);
+  assert.equal(result.checks.brand[0].rule, 'Always be friendly and direct');
+  assert.equal(result.checks.compliance.length, 2); // COMPLIANCE + DLP both here
+  assert.equal(result.checks.other.length, 1);      // META_INFORMATION
+});
 
-  it('groups checks by type', async () => {
-    const env = makeEnv();
-    global.fetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => BRAND_RESPONSE })
-      .mockResolvedValueOnce({ ok: true, json: async () => CHECKS_RESPONSE });
+test('caches successful result with 1h TTL', async () => {
+  const env = makeEnv();
+  let putOpts;
+  env.CACHE.put = (_k, _v, opts) => { putOpts = opts; return Promise.resolve(); };
+  mockFetch(
+    { ok: true, json: async () => BRAND },
+    { ok: true, json: async () => CHECKS },
+  );
 
-    const result = await fetchGovernanceRules('acme.com', env);
+  await fetchGovernanceRules('acme.com', env);
+  assert.deepEqual(putOpts, { expirationTtl: 3600 });
+});
 
-    expect(result.brandName).toBe('Acme Corp');
-    expect(result.checks.brand).toHaveLength(1);
-    expect(result.checks.brand[0]).toEqual({ name: 'Tone check', rule: 'Always be friendly', criticality: 'HIGH' });
-    expect(result.checks.compliance).toHaveLength(2); // COMPLIANCE + DLP both go here
-    expect(result.checks.other).toHaveLength(1);      // META_INFORMATION
-  });
+test('paginates until items.length < pageSize', async () => {
+  const env = makeEnv();
+  const page1 = { items: Array.from({ length: 100 }, (_, i) => ({ name: `c${i}`, type: 'BRAND', rule: `r${i}`, criticality: 'HIGH' })) };
+  const page2 = { items: [{ name: 'last', type: 'BRAND', rule: 'final', criticality: 'LOW' }] };
+  mockFetch(
+    { ok: true, json: async () => BRAND },
+    { ok: true, json: async () => page1 },
+    { ok: true, json: async () => page2 },
+  );
 
-  it('caches successful result with 1h TTL', async () => {
-    const env = makeEnv();
-    global.fetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => BRAND_RESPONSE })
-      .mockResolvedValueOnce({ ok: true, json: async () => CHECKS_RESPONSE });
+  const result = await fetchGovernanceRules('big.com', env);
+  assert.equal(result.checks.brand.length, 101);
+  assert.equal(fetchCalls.length, 3);
+});
 
-    const result = await fetchGovernanceRules('acme.com', env);
-    expect(env.BRAND_GOVERNANCE_CACHE.put).toHaveBeenCalledWith(
-      'gov:acme.com',
-      JSON.stringify(result),
-      { expirationTtl: 3600 }
-    );
-  });
+test('handles flat array checks response (no items wrapper)', async () => {
+  const env = makeEnv();
+  mockFetch(
+    { ok: true, json: async () => BRAND },
+    { ok: true, json: async () => CHECKS.items }, // flat array, no { items: [...] }
+  );
 
-  it('paginates until items < pageSize', async () => {
-    const page1 = { items: Array.from({ length: 100 }, (_, i) => ({ name: `c${i}`, type: 'BRAND', rule: `rule${i}`, criticality: 'HIGH' })) };
-    const page2 = { items: [{ name: 'last', type: 'BRAND', rule: 'final rule', criticality: 'LOW' }] };
-    const env = makeEnv();
-    global.fetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => BRAND_RESPONSE })
-      .mockResolvedValueOnce({ ok: true, json: async () => page1 })
-      .mockResolvedValueOnce({ ok: true, json: async () => page2 });
+  const result = await fetchGovernanceRules('acme.com', env);
+  assert.equal(result.checks.brand.length, 1);
+});
 
-    const result = await fetchGovernanceRules('big.com', env);
-    expect(result.checks.brand).toHaveLength(101);
-    expect(global.fetch).toHaveBeenCalledTimes(3);
-  });
+test('returns empty checks object (not null) when no checks exist', async () => {
+  const env = makeEnv();
+  mockFetch(
+    { ok: true, json: async () => BRAND },
+    { ok: true, json: async () => ({ items: [] }) },
+  );
 
-  it('does not throw when KV put fails', async () => {
-    const kv = makeKV();
-    kv.put = vi.fn().mockRejectedValue(new Error('KV write error'));
-    const env = makeEnv({ BRAND_GOVERNANCE_CACHE: kv });
-    global.fetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => BRAND_RESPONSE })
-      .mockResolvedValueOnce({ ok: true, json: async () => CHECKS_RESPONSE });
+  const result = await fetchGovernanceRules('nochecks.com', env);
+  assert.notEqual(result, null);
+  assert.deepEqual(result.checks, { brand: [], compliance: [], other: [] });
+});
 
-    await expect(fetchGovernanceRules('acme.com', env)).resolves.not.toBeNull();
-  });
+test('does not throw when KV put fails', async () => {
+  const env = makeEnv();
+  env.CACHE.put = async () => { throw new Error('KV write error'); };
+  mockFetch(
+    { ok: true, json: async () => BRAND },
+    { ok: true, json: async () => CHECKS },
+  );
 
-  it('uses BRAND_GOVERNANCE_BASE_URL env var', async () => {
-    const env = makeEnv({ BRAND_GOVERNANCE_BASE_URL: 'https://custom-gov.example.com' });
-    global.fetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => BRAND_RESPONSE })
-      .mockResolvedValueOnce({ ok: true, json: async () => CHECKS_RESPONSE });
+  const result = await fetchGovernanceRules('acme.com', env);
+  assert.notEqual(result, null);
+});
 
-    await fetchGovernanceRules('acme.com', env);
-    expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('https://custom-gov.example.com'),
-      expect.any(Object)
-    );
-  });
+test('uses BRAND_GOVERNANCE_BASE_URL env var', async () => {
+  const env = makeEnv({ BRAND_GOVERNANCE_BASE_URL: 'https://custom.gov.example.com' });
+  mockFetch(
+    { ok: true, json: async () => BRAND },
+    { ok: true, json: async () => CHECKS },
+  );
 
-  it('handles checks response as flat array (no items wrapper)', async () => {
-    const env = makeEnv();
-    global.fetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => BRAND_RESPONSE })
-      .mockResolvedValueOnce({ ok: true, json: async () => CHECKS_RESPONSE.items }); // flat array
-
-    const result = await fetchGovernanceRules('acme.com', env);
-    expect(result.checks.brand).toHaveLength(1);
-  });
+  await fetchGovernanceRules('acme.com', env);
+  assert.ok(fetchCalls[0].url.startsWith('https://custom.gov.example.com'));
 });
 ```
 
 - [ ] **Step 2: Run tests to confirm they all fail**
 
 ```bash
-npx vitest run test/brand-governance.test.js
+cd /Users/ffroese/git/of1-preview-service
+node --test worker/src/brand-governance.test.mjs
 ```
 
-Expected: All 16 tests fail with `Cannot find module '../src/brand-governance.js'` or similar. If the project uses Jest replace `vitest` with `jest`.
+Expected: All 16 tests fail with `Error [ERR_MODULE_NOT_FOUND]: Cannot find module '.../brand-governance.js'`.
 
-- [ ] **Step 3: Create `src/brand-governance.js` with the implementation**
+- [ ] **Step 3: Create `worker/src/brand-governance.js`**
 
 ```javascript
-// src/brand-governance.js
+// worker/src/brand-governance.js
 const DEFAULT_BASE_URL = 'https://adobe-aem-foundation-brand-governance-agent-deploy-9950ff.cloud.adobe.io';
-const CACHE_KEY_PREFIX = 'gov:';
-const CACHE_TTL_SECONDS = 3600;
+const CACHE_TTL = 3600;
 const PAGE_SIZE = 100;
 
-// Sentinel: brand not found or not active — cache the miss
+// Sentinel: brand not found or not active — caller should cache the miss
 const MISS = Symbol('MISS');
 
 export async function fetchGovernanceRules(domain, env) {
   if (!env.BRAND_GOVERNANCE_TOKEN) return null;
 
-  const cacheKey = `${CACHE_KEY_PREFIX}${domain}`;
+  const cacheKey = `gov:${domain}`;
 
-  // Check KV cache
   try {
-    const cached = await env.BRAND_GOVERNANCE_CACHE.get(cacheKey, 'json');
+    const cached = await env.CACHE.get(cacheKey, 'json');
     if (cached !== null) return cached;
   } catch (e) {
-    console.warn('[brand-governance] KV read error:', e.message);
+    console.warn('[governance] KV read:', e.message);
   }
 
   const baseUrl = env.BRAND_GOVERNANCE_BASE_URL || DEFAULT_BASE_URL;
@@ -337,43 +298,38 @@ export async function fetchGovernanceRules(domain, env) {
     const brandResult = await resolveBrand(domain, baseUrl, headers);
 
     if (brandResult === MISS) {
-      // 404 or non-ACTIVE: cache the miss so we don't hammer the API
-      await writeCacheSafe(env.BRAND_GOVERNANCE_CACHE, cacheKey, null, CACHE_TTL_SECONDS);
+      await writeCacheSafe(env.CACHE, cacheKey, null, CACHE_TTL);
       return null;
     }
-    if (brandResult === null) {
-      // API error (4xx other, 5xx): don't cache, let the next request retry
-      return null;
-    }
+    if (brandResult === null) return null; // API error — don't cache, let next request retry
 
     const allChecks = await fetchAllChecks(brandResult.id, baseUrl, headers);
     const result = { brandName: brandResult.name, checks: groupChecks(allChecks) };
-
-    await writeCacheSafe(env.BRAND_GOVERNANCE_CACHE, cacheKey, result, CACHE_TTL_SECONDS);
+    await writeCacheSafe(env.CACHE, cacheKey, result, CACHE_TTL);
     return result;
   } catch (e) {
-    console.warn('[brand-governance] Unexpected error:', e.message);
+    console.warn('[governance] Unexpected error:', e.message);
     return null;
   }
 }
 
-// Returns the brand object, MISS sentinel (404 / not active), or null (API error)
+// Returns brand object, MISS (404/inactive), or null (API error)
 async function resolveBrand(domain, baseUrl, headers) {
   const url = `${baseUrl}/api/v1/brands/from-url?url=${encodeURIComponent(`https://${domain}`)}`;
   const res = await fetch(url, { headers });
 
   if (res.status === 404) {
-    console.info(`[brand-governance] No brand found for ${domain}`);
+    console.info(`[governance] No brand for ${domain}`);
     return MISS;
   }
   if (!res.ok) {
-    console.warn(`[brand-governance] Brand lookup HTTP ${res.status}`);
-    return null; // API error — don't cache
+    console.warn(`[governance] Brand lookup HTTP ${res.status}`);
+    return null;
   }
 
   const brand = await res.json();
   if (brand.status !== 'ACTIVE') {
-    console.info(`[brand-governance] Brand not ACTIVE: ${brand.status}`);
+    console.info(`[governance] Brand not ACTIVE: ${brand.status}`);
     return MISS;
   }
   return brand;
@@ -386,16 +342,13 @@ async function fetchAllChecks(brandId, baseUrl, headers) {
   while (true) {
     const url = `${baseUrl}/api/v1/brands/${brandId}/checks?status=ACTIVE&pageSize=${PAGE_SIZE}&page=${page}`;
     const res = await fetch(url, { headers });
-
     if (!res.ok) {
-      console.warn(`[brand-governance] Checks HTTP ${res.status} on page ${page}`);
+      console.warn(`[governance] Checks HTTP ${res.status} page ${page}`);
       break;
     }
-
     const data = await res.json();
     const items = Array.isArray(data) ? data : (data.items ?? []);
     checks.push(...items);
-
     if (items.length < PAGE_SIZE) break;
     page++;
   }
@@ -405,18 +358,14 @@ async function fetchAllChecks(brandId, baseUrl, headers) {
 
 function groupChecks(checks) {
   return checks.reduce(
-    (acc, check) => {
-      const entry = { name: check.name, rule: check.rule, criticality: check.criticality };
-      if (check.type === 'BRAND') {
-        acc.brand.push(entry);
-      } else if (check.type === 'COMPLIANCE' || check.type === 'DLP') {
-        acc.compliance.push(entry);
-      } else {
-        acc.other.push(entry);
-      }
+    (acc, c) => {
+      const entry = { name: c.name, rule: c.rule, criticality: c.criticality };
+      if (c.type === 'BRAND') acc.brand.push(entry);
+      else if (c.type === 'COMPLIANCE' || c.type === 'DLP') acc.compliance.push(entry);
+      else acc.other.push(entry);
       return acc;
     },
-    { brand: [], compliance: [], other: [] }
+    { brand: [], compliance: [], other: [] },
   );
 }
 
@@ -424,304 +373,481 @@ async function writeCacheSafe(kv, key, value, ttl) {
   try {
     await kv.put(key, JSON.stringify(value), { expirationTtl: ttl });
   } catch (e) {
-    console.warn('[brand-governance] KV write error:', e.message);
+    console.warn('[governance] KV write:', e.message);
   }
 }
 ```
 
-- [ ] **Step 4: Run tests — all should pass**
+- [ ] **Step 4: Run tests — all 16 should pass**
 
 ```bash
-npx vitest run test/brand-governance.test.js
+node --test worker/src/brand-governance.test.mjs
 ```
 
-Expected: All 16 tests pass. If `groupChecks` test for compliance count fails, verify that COMPLIANCE + DLP items both land in `acc.compliance` — see the `groupChecks` function.
+Expected output:
+```
+✔ returns null when token is missing
+✔ returns null when token is undefined
+✔ returns cached data without fetching on KV hit
+... (16 tests total, all passing)
+```
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/brand-governance.js test/brand-governance.test.js
+cd /Users/ffroese/git/of1-preview-service
+git add worker/src/brand-governance.js worker/src/brand-governance.test.mjs
 git commit -m "feat: add brand-governance module with KV caching"
 ```
 
 ---
 
-## Task 2: Modify `build-prompt.js` to inject governance rules
+## Task 2: Integrate governance into `tenant.js`
 
 **Files:**
-- Modify: `src/build-prompt.js` *(exact path from Task 0)*
+- Modify: `worker/src/tenant.js`
 
-- [ ] **Step 1: Read the current build-prompt.js to understand the prompt assembly pattern**
+Current `loadTenant` loads config files from R2 into a tenant object and caches it for 300s. We add a governance fetch after R2 loading — using the same `env.CACHE` KV but with a separate `gov:` key and 1h TTL.
 
-```bash
-cat src/build-prompt.js   # adjust path from Task 0
-```
+- [ ] **Step 1: Add the import to `tenant.js`**
 
-Look for:
-- How `ctx.tenant.brandVoice` is read
-- Where `personality`, `tone`, `vocabulary`, `avoidWords` are appended to the system prompt
-- What the function signature is (likely `buildPrompt(ctx, env)` or similar)
-- Whether it is `async` already
-
-- [ ] **Step 2: Add the import at the top of build-prompt.js**
-
-Add this import alongside the existing imports at the top of the file:
+At the top of `worker/src/tenant.js`, add the import alongside the existing code:
 
 ```javascript
 import { fetchGovernanceRules } from './brand-governance.js';
 ```
 
-*(Adjust the relative path if `build-prompt.js` is not in `src/`.)*
+- [ ] **Step 2: Add governance fetch inside `loadTenant`**
 
-- [ ] **Step 3: Make the prompt-building function async if it isn't already**
+The current `loadTenant` function ends with caching the tenant and returning it. Add the governance fetch **before** the cache write so governance is included in the cached tenant:
 
-If the function is currently `function buildPrompt(ctx, env)` (synchronous), change its signature to `async function buildPrompt(ctx, env)`. If it already is async, skip this step.
-
-- [ ] **Step 4: Add the governance injection block after the existing brandVoice section**
-
-Find the block in `build-prompt.js` that reads `ctx.tenant.brandVoice`. It looks approximately like:
+Find this block (near end of `loadTenant`):
 
 ```javascript
-const brandVoice = ctx.tenant.brandVoice;
-if (brandVoice) {
-  if (brandVoice.personality) lines.push(`Personality: ${brandVoice.personality}`);
-  if (brandVoice.tone) lines.push(`Tone: ${brandVoice.tone}`);
-  if (brandVoice.vocabulary?.length) lines.push(`Use terms like: ${brandVoice.vocabulary.join(', ')}`);
-  if (brandVoice.avoidWords?.length) lines.push(`Avoid: ${brandVoice.avoidWords.join(', ')}`);
+  await Promise.all(loads);
+
+  if (env.CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(tenant), { expirationTtl: CACHE_TTL });
+  }
+
+  return tenant;
+```
+
+Replace it with:
+
+```javascript
+  await Promise.all(loads);
+
+  tenant.governance = await fetchGovernanceRules(id, env);
+
+  if (env.CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(tenant), { expirationTtl: CACHE_TTL });
+  }
+
+  return tenant;
+```
+
+The full updated `loadTenant` function should now look like:
+
+```javascript
+export async function loadTenant(id, env) {
+  if (!id) return null;
+
+  const cacheKey = `tenant:${id}`;
+
+  if (env.CACHE) {
+    const cached = await env.CACHE.get(cacheKey, 'json');
+    if (cached) return cached;
+  }
+
+  if (!env.TENANTS) return null;
+
+  const tenant = { id };
+
+  const loads = CONFIG_FILES.map(async (file) => {
+    const obj = await env.TENANTS.get(`tenants/${id}/${file}.json`);
+    if (obj) {
+      tenant[toCamelCase(file)] = await obj.json();
+    } else {
+      tenant[toCamelCase(file)] = null;
+    }
+  });
+
+  await Promise.all(loads);
+
+  tenant.governance = await fetchGovernanceRules(id, env);
+
+  if (env.CACHE) {
+    await env.CACHE.put(cacheKey, JSON.stringify(tenant), { expirationTtl: CACHE_TTL });
+  }
+
+  return tenant;
 }
 ```
 
-Immediately after that block (still inside the same function), add:
+- [ ] **Step 3: Write a test for the governance integration in `tenant.js`**
+
+The existing test pattern for this repo is `.test.mjs` with `node:test`. Create `worker/src/tenant.governance.test.mjs`:
 
 ```javascript
-// Augment with live brand governance rules
-const governance = await fetchGovernanceRules(ctx.domain, env);
-if (governance) {
-  if (governance.checks.brand.length > 0) {
-    lines.push('\n## Brand Guidelines (from governance)');
-    for (const check of governance.checks.brand) {
-      lines.push(`- ${check.rule}`);
-    }
-  }
-  if (governance.checks.compliance.length > 0) {
-    lines.push('\n## Compliance Rules (from governance)');
-    for (const check of governance.checks.compliance) {
-      lines.push(`- ${check.rule}`);
-    }
-  }
-  if (governance.checks.other.length > 0) {
-    lines.push('\n## Additional Governance Rules');
-    for (const check of governance.checks.other) {
-      lines.push(`- ${check.rule}`);
-    }
-  }
+// worker/src/tenant.governance.test.mjs
+import { strict as assert } from 'node:assert';
+import test from 'node:test';
+import { loadTenant } from './tenant.js';
+
+function makeR2Object(json) {
+  return { json: async () => json };
 }
-```
 
-> **Note on `ctx.domain`:** If the domain is on a different property (e.g. `ctx.tenant.domain`, `ctx.hostname`, `ctx.site`), adjust accordingly — grep for where `ctx.domain` (or the domain) is set in the codebase.
+function makeTenants(files = {}) {
+  return {
+    get: async (key) => files[key] ?? null,
+  };
+}
 
-- [ ] **Step 5: Write an integration test for build-prompt.js**
+function makeCache() {
+  const store = {};
+  return {
+    get: async (key, type) => {
+      const val = store[key];
+      if (val === undefined) return null;
+      return type === 'json' ? JSON.parse(val) : val;
+    },
+    put: async (key, val) => { store[key] = val; },
+  };
+}
 
-Add a test to the existing `build-prompt` test file (or create `test/build-prompt-governance.test.js`):
+test('tenant.governance is null when token is missing', async () => {
+  const env = {
+    CACHE: makeCache(),
+    TENANTS: makeTenants({ 'tenants/example.com/brand-voice.json': makeR2Object({ personality: 'Bold' }) }),
+    // no BRAND_GOVERNANCE_TOKEN
+  };
+  global.fetch = async () => { throw new Error('should not be called'); };
 
-```javascript
-// Append to existing build-prompt test file, or add to test/build-prompt-governance.test.js
-import { vi } from 'vitest';
-import * as governance from '../src/brand-governance.js';
+  const tenant = await loadTenant('example.com', env);
+  assert.equal(tenant.governance, null);
+  assert.equal(tenant.brandVoice.personality, 'Bold');
+});
 
-describe('buildPrompt — governance enrichment', () => {
-  it('appends brand guidelines when governance returns data', async () => {
-    vi.spyOn(governance, 'fetchGovernanceRules').mockResolvedValue({
-      brandName: 'Acme',
-      checks: {
-        brand: [{ name: 'Tone', rule: 'Always be concise and direct', criticality: 'HIGH' }],
-        compliance: [{ name: 'Legal', rule: 'Never promise guaranteed results', criticality: 'HIGH' }],
-        other: [],
-      },
-    });
+test('tenant.governance is populated when API works', async () => {
+  const env = {
+    CACHE: makeCache(),
+    TENANTS: makeTenants(),
+    BRAND_GOVERNANCE_TOKEN: 'test-token',
+    BRAND_GOVERNANCE_BASE_URL: 'https://gov.example.com',
+  };
+  let callCount = 0;
+  global.fetch = async () => {
+    callCount++;
+    if (callCount === 1) return { ok: true, json: async () => ({ id: 'b1', name: 'Acme', status: 'ACTIVE' }) };
+    return { ok: true, json: async () => ({ items: [{ name: 'Tone', type: 'BRAND', rule: 'Be direct', criticality: 'HIGH' }] }) };
+  };
 
-    const ctx = {
-      domain: 'acme.com',
-      tenant: {
-        brandVoice: { personality: 'Bold, direct', tone: 'Professional' },
-      },
-    };
-    const env = {};
+  const tenant = await loadTenant('acme.com', env);
+  assert.notEqual(tenant.governance, null);
+  assert.equal(tenant.governance.checks.brand.length, 1);
+});
 
-    // Replace buildPrompt with the actual function name from the file
-    const { buildPrompt } = await import('../src/build-prompt.js');
-    const prompt = await buildPrompt(ctx, env);
+test('tenant.governance is included in the tenant cache', async () => {
+  const cache = makeCache();
+  const env = {
+    CACHE: cache,
+    TENANTS: makeTenants(),
+    BRAND_GOVERNANCE_TOKEN: 'test-token',
+    BRAND_GOVERNANCE_BASE_URL: 'https://gov.example.com',
+  };
+  let callCount = 0;
+  global.fetch = async () => {
+    callCount++;
+    if (callCount === 1) return { ok: true, json: async () => ({ id: 'b1', name: 'Acme', status: 'ACTIVE' }) };
+    return { ok: true, json: async () => ({ items: [] }) };
+  };
 
-    expect(prompt).toContain('Bold, direct');          // existing brandVoice still present
-    expect(prompt).toContain('Brand Guidelines');
-    expect(prompt).toContain('Always be concise and direct');
-    expect(prompt).toContain('Compliance Rules');
-    expect(prompt).toContain('Never promise guaranteed results');
-    vi.restoreAllMocks();
-  });
+  await loadTenant('cached.com', env);
 
-  it('does not modify prompt when governance returns null', async () => {
-    vi.spyOn(governance, 'fetchGovernanceRules').mockResolvedValue(null);
-
-    const ctx = {
-      domain: 'example.com',
-      tenant: { brandVoice: { personality: 'Friendly' } },
-    };
-
-    const { buildPrompt } = await import('../src/build-prompt.js');
-    const prompt = await buildPrompt(ctx, {});
-
-    expect(prompt).toContain('Friendly');
-    expect(prompt).not.toContain('governance');
-    vi.restoreAllMocks();
-  });
+  // Second call: should use cache, no fetch
+  global.fetch = async () => { throw new Error('should not call API again'); };
+  const tenant2 = await loadTenant('cached.com', env);
+  assert.notEqual(tenant2.governance, undefined); // was included in cache
 });
 ```
 
-- [ ] **Step 6: Run all tests**
+- [ ] **Step 4: Run all tests**
 
 ```bash
-npx vitest run
+cd /Users/ffroese/git/of1-preview-service
+node --test worker/src/brand-governance.test.mjs worker/src/tenant.governance.test.mjs
 ```
 
-Expected: All tests pass including the new governance enrichment tests.
+Expected: All tests pass.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/build-prompt.js test/
-git commit -m "feat: inject brand governance rules into generation prompt"
+git add worker/src/tenant.js worker/src/tenant.governance.test.mjs
+git commit -m "feat: load brand governance rules into tenant object"
 ```
 
 ---
 
-## Task 3: Configure `wrangler.jsonc`
+## Task 3: Add governance macro and wire up the Nunjucks template
 
 **Files:**
-- Modify: `wrangler.jsonc`
+- Modify: `prompts/shared/macros.njk`
+- Modify: `prompts/generate/template.njk`
 
-- [ ] **Step 1: Create the KV namespace in Cloudflare**
+The build step (`npm run build:prompts`) precompiles the Nunjucks templates into `worker/src/prompts/_generated/templates.js`. You must run the build before deploying.
+
+- [ ] **Step 1: Add the `governanceRules` macro to `prompts/shared/macros.njk`**
+
+Append this macro at the end of the file, after the closing `{%- endmacro %}` of the last existing macro:
+
+```nunjucks
+{% macro governanceRules(gov) -%}
+{%- if gov -%}
+{%- if gov.checks.brand and gov.checks.brand.length %}
+## Brand Guidelines
+{% for c in gov.checks.brand -%}
+- {{ c.rule }}
+{% endfor -%}
+{%- endif -%}
+{%- if gov.checks.compliance and gov.checks.compliance.length %}
+## Compliance Rules
+{% for c in gov.checks.compliance -%}
+- {{ c.rule }}
+{% endfor -%}
+{%- endif -%}
+{%- if gov.checks.other and gov.checks.other.length %}
+## Additional Governance Rules
+{% for c in gov.checks.other -%}
+- {{ c.rule }}
+{% endfor -%}
+{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+```
+
+- [ ] **Step 2: Call the macro in `prompts/generate/template.njk`**
+
+Find the `{{ m.brandVoice(tenant.brandVoice) }}` line in the SYSTEM section. Add the governance call immediately after it:
+
+```nunjucks
+{{ m.brandVoice(tenant.brandVoice) }}
+{{ m.governanceRules(tenant.governance) }}
+```
+
+The top of `template.njk` should now look like:
+
+```nunjucks
+{% import "shared/macros.njk" as m %}---SYSTEM---
+You are a helpful product advisor that generates page sections.
+
+{{ m.brandVoice(tenant.brandVoice) }}
+{{ m.governanceRules(tenant.governance) }}
+{% if tenant.blockGuide and tenant.blockGuide.guide -%}
+```
+
+- [ ] **Step 3: Build the prompts to regenerate the compiled templates**
 
 ```bash
-npx wrangler kv namespace create BRAND_GOVERNANCE_CACHE
+cd /Users/ffroese/git/of1-preview-service
+npm run build:prompts
 ```
 
-Copy the `id` from the output — you need it in the next step. It will look like:
-```
-{ binding = "BRAND_GOVERNANCE_CACHE", id = "abc123def456..." }
-```
+Expected output: `Built N prompts → worker/src/prompts/_generated`
 
-For a preview/dev namespace (used in local dev):
+Verify the generated file includes the governance macro:
+
 ```bash
-npx wrangler kv namespace create BRAND_GOVERNANCE_CACHE --preview
+grep -c "governanceRules\|Brand Guidelines\|Compliance Rules" worker/src/prompts/_generated/templates.js
 ```
 
-Copy the preview `id` too.
+Expected: Output is a number > 0 (lines referencing governance found).
 
-- [ ] **Step 2: Add the KV binding and env var to wrangler.jsonc**
+- [ ] **Step 4: Test the template rendering with a fixture**
 
-Open `wrangler.jsonc` and add to the top-level config (adjust to match the file's existing structure):
+Verify the template renders correctly when `tenant.governance` is populated. Run this quick test:
 
+```bash
+node -e "
+import('./worker/src/prompts/index.js').then(({ getPrompt }) => {
+  const prompt = getPrompt('generate');
+  const { system } = prompt.render({
+    tenant: {
+      brandVoice: { personality: 'Bold' },
+      governance: {
+        brandName: 'Acme',
+        checks: {
+          brand: [{ name: 'Tone', rule: 'Always be concise', criticality: 'HIGH' }],
+          compliance: [{ name: 'Legal', rule: 'Never promise results', criticality: 'HIGH' }],
+          other: []
+        }
+      },
+      blockGuide: null
+    },
+    query: 'test',
+    intent: null,
+    rag: { products: [], content: [], persona: null, useCase: null, behaviorAnalysis: null },
+    request: { mode: 'query', followUp: false, conversationHistory: [] }
+  });
+  const hasGovernance = system.includes('Brand Guidelines') && system.includes('Always be concise');
+  const hasBrandVoice = system.includes('Bold');
+  console.log('hasGovernance:', hasGovernance);
+  console.log('hasBrandVoice:', hasBrandVoice);
+  if (!hasGovernance || !hasBrandVoice) process.exit(1);
+  console.log('OK');
+});
+"
+```
+
+Expected output:
+```
+hasGovernance: true
+hasBrandVoice: true
+OK
+```
+
+- [ ] **Step 5: Verify null governance produces unchanged prompt**
+
+```bash
+node -e "
+import('./worker/src/prompts/index.js').then(({ getPrompt }) => {
+  const prompt = getPrompt('generate');
+  const { system } = prompt.render({
+    tenant: { brandVoice: { personality: 'Bold' }, governance: null, blockGuide: null },
+    query: 'test',
+    intent: null,
+    rag: { products: [], content: [], persona: null, useCase: null, behaviorAnalysis: null },
+    request: { mode: 'query', followUp: false, conversationHistory: [] }
+  });
+  const noGovernance = !system.includes('Brand Guidelines') && !system.includes('Compliance Rules');
+  const hasBrandVoice = system.includes('Bold');
+  console.log('noGovernance:', noGovernance);
+  console.log('hasBrandVoice:', hasBrandVoice);
+  if (!noGovernance || !hasBrandVoice) process.exit(1);
+  console.log('OK');
+});
+"
+```
+
+Expected: `noGovernance: true`, `hasBrandVoice: true`, `OK`
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add prompts/shared/macros.njk prompts/generate/template.njk worker/src/prompts/_generated/
+git commit -m "feat: inject brand governance rules into generated prompt"
+```
+
+---
+
+## Task 4: Update `wrangler.jsonc` and set the token
+
+**Files:**
+- Modify: `worker/wrangler.jsonc`
+
+The existing `wrangler.jsonc` already has the `CACHE` KV namespace — we reuse it. We only need to add `BRAND_GOVERNANCE_BASE_URL` as a plain var. The token is set as a secret, never committed.
+
+Current `vars` section:
 ```jsonc
-{
-  // ... existing config ...
-  "kv_namespaces": [
-    // ... existing KV namespaces if any ...
-    {
-      "binding": "BRAND_GOVERNANCE_CACHE",
-      "id": "<paste production id from step 1>",
-      "preview_id": "<paste preview id from step 1>"
-    }
-  ],
-  "vars": {
-    // ... existing vars ...
-    "BRAND_GOVERNANCE_BASE_URL": "https://adobe-aem-foundation-brand-governance-agent-deploy-9950ff.cloud.adobe.io"
-  }
+"vars": {
+  "ENVIRONMENT": "production",
+  "USE_LLM_INTENT": "true"
 }
 ```
 
-> `BRAND_GOVERNANCE_TOKEN` is a secret — do NOT put it in wrangler.jsonc. Use `wrangler secret put` in Step 3.
+- [ ] **Step 1: Add `BRAND_GOVERNANCE_BASE_URL` to vars**
 
-- [ ] **Step 3: Set the token as a worker secret**
+```jsonc
+"vars": {
+  "ENVIRONMENT": "production",
+  "USE_LLM_INTENT": "true",
+  "BRAND_GOVERNANCE_BASE_URL": "https://adobe-aem-foundation-brand-governance-agent-deploy-9950ff.cloud.adobe.io"
+}
+```
+
+- [ ] **Step 2: Set the token as a Cloudflare secret**
 
 ```bash
+cd /Users/ffroese/git/of1-preview-service/worker
 npx wrangler secret put BRAND_GOVERNANCE_TOKEN
 ```
 
-Paste the bearer token when prompted. This stores it encrypted in Cloudflare; it will not appear in any config file.
+Paste the bearer token when prompted. This stores it encrypted in Cloudflare — it will NOT appear in `wrangler.jsonc` or any committed file.
 
-- [ ] **Step 4: Verify the config looks right**
+- [ ] **Step 3: Verify the config parses cleanly**
 
 ```bash
-npx wrangler deploy --dry-run 2>&1 | head -40
+npx wrangler deploy --dry-run 2>&1 | head -30
 ```
 
-Expected: No errors about missing bindings or unknown vars. You should see `BRAND_GOVERNANCE_CACHE` in the KV bindings list.
+Expected: No errors. `BRAND_GOVERNANCE_BASE_URL` should appear in the vars list.
 
-- [ ] **Step 5: Commit wrangler.jsonc**
+- [ ] **Step 4: Commit wrangler.jsonc**
 
 ```bash
-git add wrangler.jsonc
-git commit -m "feat: add brand governance KV namespace and env config"
+cd /Users/ffroese/git/of1-preview-service
+git add worker/wrangler.jsonc
+git commit -m "feat: add brand governance base URL to worker config"
 ```
 
 ---
 
-## Task 4: Deploy and verify end-to-end
+## Task 5: Deploy and verify
 
-- [ ] **Step 1: Deploy to the worker**
+- [ ] **Step 1: Build prompts and deploy**
 
 ```bash
+cd /Users/ffroese/git/of1-preview-service
+npm run build:prompts
+cd worker
 npx wrangler deploy
 ```
 
-Expected: Deployment succeeds. Note the worker URL in the output (should be `https://of1-gen-web-service.franklin-prod.workers.dev`).
+Expected: Deployment succeeds. URL: `https://of1-gen-web-service.franklin-prod.workers.dev`
 
-- [ ] **Step 2: Test with a domain that has a brand in governance**
+- [ ] **Step 2: Test with a domain registered in the governance system**
 
-Replace `<domain>` with a domain that is registered in the Experience Governance system:
+Replace `<domain>` with a domain that exists in the Experience Governance system:
 
 ```bash
 curl -s -X POST https://of1-gen-web-service.franklin-prod.workers.dev/api/generate \
   -H "Content-Type: application/json" \
-  -d '{"domain":"<domain>","query":"show me your best products","followUp":false,"context":{"browsing":[],"conversationHistory":[]}}' \
-  | jq '.'
+  -d '{"domain":"<domain>","query":"show me your best products","followUp":false,"context":{"browsing":[],"conversationHistory":[]}}' | jq '.sections | length'
 ```
 
-Expected: Generation succeeds. The generated sections should reflect brand voice from governance. Check worker logs for confirmation:
+Expected: Response has sections, no errors.
+
+Check worker logs for governance activity:
 
 ```bash
-npx wrangler tail --format pretty 2>&1 | grep brand-governance
+cd /Users/ffroese/git/of1-preview-service/worker
+npx wrangler tail --format pretty 2>&1 | grep governance &
+# Then make the curl request above
 ```
 
-You should see either `[brand-governance] No brand found for...` (domain not registered) or no governance log entries (cache hit after first request).
+On first request: should see `[governance] ...` log line (brand lookup). On repeat: no governance logs (served from cache).
 
 - [ ] **Step 3: Test graceful degradation with an unregistered domain**
 
 ```bash
 curl -s -X POST https://of1-gen-web-service.franklin-prod.workers.dev/api/generate \
   -H "Content-Type: application/json" \
-  -d '{"domain":"definitely-not-in-governance.example.com","query":"test","followUp":false,"context":{"browsing":[],"conversationHistory":[]}}' \
-  | jq '.sections | length'
+  -d '{"domain":"definitely-not-registered.example.com","query":"test","followUp":false,"context":{"browsing":[],"conversationHistory":[]}}' | jq '.'
 ```
 
-Expected: Response is identical to today's behavior — sections generated normally, no error, no governance enrichment. Worker logs should show `[brand-governance] No brand found for...` on first call, then nothing (cached miss) on repeat calls.
+Expected: Normal generation response (or 404 if no tenant config), no 500 errors. Worker logs should show `[governance] No brand for...`.
 
-- [ ] **Step 4: Verify KV cache is being written**
+- [ ] **Step 4: Verify KV cache entries are created**
 
 ```bash
-npx wrangler kv key list --namespace-id <your-kv-id> | grep gov:
+# Get the CACHE KV namespace ID from wrangler.jsonc (c685de5e1c9144f89a4ac17f5cf9d800)
+cd /Users/ffroese/git/of1-preview-service/worker
+npx wrangler kv key list --namespace-id c685de5e1c9144f89a4ac17f5cf9d800 2>/dev/null | grep '"gov:'
 ```
 
-Expected: You should see `gov:<domain>` keys for any domains that have been queried.
-
-- [ ] **Step 5: Final commit and push**
-
-```bash
-git add -p   # review any remaining changes
-git commit -m "feat: brand governance integration complete"
-git push origin main
-```
+Expected: You should see `"gov:<domain>"` key entries for queried domains.
 
 ---
 
@@ -729,8 +855,8 @@ git push origin main
 
 | Variable | Type | How to set |
 |----------|------|-----------|
-| `BRAND_GOVERNANCE_TOKEN` | Secret | `wrangler secret put BRAND_GOVERNANCE_TOKEN` |
-| `BRAND_GOVERNANCE_BASE_URL` | Var | `wrangler.jsonc` `vars` section |
-| `BRAND_GOVERNANCE_CACHE` | KV binding | `wrangler.jsonc` `kv_namespaces` section |
+| `BRAND_GOVERNANCE_TOKEN` | Secret | `wrangler secret put BRAND_GOVERNANCE_TOKEN` (in `worker/`) |
+| `BRAND_GOVERNANCE_BASE_URL` | Var | `worker/wrangler.jsonc` `vars` section |
+| `CACHE` | KV binding | Already present in `wrangler.jsonc` — no changes needed |
 
-To update the token later: re-run `wrangler secret put BRAND_GOVERNANCE_TOKEN`.
+To rotate the token: `wrangler secret put BRAND_GOVERNANCE_TOKEN` again.
