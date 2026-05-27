@@ -826,7 +826,8 @@
 
     function renderCard(i) {
       var step = STEPS[i];
-      var st = state.steps[i];
+      var st = state.steps[i] || { status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
+      if (!st) return '';
       var status = st.status || 'pending';
       var num = (i + 1 < 10 ? '0' : '') + (i + 1);
       var runnable = canRun(i);
@@ -974,7 +975,7 @@
     for (var q = 0; q < QUICKLINKS.length; q++) {
       var ql = QUICKLINKS[q];
       var idx = ql.step - 1;
-      var st = state.steps[idx];
+      var st = state.steps[idx] || {};
       var hasLink = st.deliverable || (st.deliverables && st.deliverables.length);
       var availClass = hasLink ? ' of1-quicklink--available' : '';
       if (hasLink) {
@@ -1019,6 +1020,7 @@
   if (saved && saved.steps && saved.steps.length === STEPS.length) {
     state = saved;
     for (var i = 0; i < state.steps.length; i++) {
+      if (!state.steps[i]) state.steps[i] = { status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
       if (!('startedAt' in state.steps[i])) state.steps[i].startedAt = null;
       if (!('completedAt' in state.steps[i])) state.steps[i].completedAt = null;
       if (!('summary' in state.steps[i])) state.steps[i].summary = null;
