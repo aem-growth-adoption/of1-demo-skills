@@ -103,6 +103,23 @@ cat > /shared/of1-demo/repo-config.json <<EOF
 EOF
 ```
 
+### 5. Write of1-endpoint.json
+
+The worker needs this to build CTA links in personalize mode. The URL is deterministic from the branch name — create it now so it's available as soon as config is synced:
+
+```bash
+cd /workspace/of1-demo
+mkdir -p of1/config
+cat > of1/config/of1-endpoint.json <<EOF
+{
+  "url": "https://${BRANCH}--of1-demo--aem-growth-adoption.aem.page/${BRANCH}/of1"
+}
+EOF
+git add of1/config/of1-endpoint.json
+git commit -m "feat: of1-endpoint config for ${DOMAIN}"
+git push origin ${BRANCH}
+```
+
 **Key fields explained:**
 - `contentPrefix`: The subfolder in DA where this demo's content lives (same as branch name)
 - `daMount`: The VFS mount point for the DA repo

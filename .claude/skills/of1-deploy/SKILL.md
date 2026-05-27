@@ -54,16 +54,18 @@ for f in brand-voice products personas use-cases features faqs suggestions cta-t
 done
 ```
 
-### 2. Also commit the of1-endpoint config
+### 2. Verify of1-endpoint config exists
 
-Create `of1/config/of1-endpoint.json` so the worker knows where the OF1 page lives:
+This should already exist from step 2 (branch-setup). Verify and update if needed:
 
 ```bash
-cat > of1/config/of1-endpoint.json << EOF
+if [ ! -f of1/config/of1-endpoint.json ]; then
+  cat > of1/config/of1-endpoint.json << EOF
 {
-  "url": "${PREVIEW_BASE}/of1"
+  "url": "${PREVIEW_BASE}/${BRANCH}/of1"
 }
 EOF
+fi
 ```
 
 ### 3. Build deliverables directory
