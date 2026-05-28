@@ -217,7 +217,21 @@ User wants changes. Ask in chat what they want different, then re-run the step s
 ### `reset`
 User reset the pipeline. Clean up any running scoops.
 
-## Auto-Approve — Keep Pipeline Moving
+## One-Shot Mode
+
+When the user says **"one shot"** (or "one-shot", "oneshot"), run the ENTIRE pipeline end-to-end without any user interaction. This means:
+
+1. **Zero approval gates** — every review step is auto-approved instantly
+2. **All deliverables still generated** — discovery.html, brand-review.html, prototypes, config-review.html, gallery, demo hub — everything gets built and committed
+3. **Pre-launch checklist still runs** — Step 13 must pass all 4 checks before marking done
+4. **Sprinkle still updated** — push all statuses with deliverable URLs so the user can review anything after the fact
+5. **Parallel execution maximized** — spawn all possible scoops simultaneously per the dependency graph
+
+The pipeline should complete in one uninterrupted flow. The user will review the finished demo, not intermediate steps.
+
+**Trigger:** User says "one shot a demo of X" or "one-shot demo for X.com" or similar.
+
+## Auto-Approve (Default Behavior)
 
 **By default, auto-approve all review steps and immediately proceed.** Do NOT wait for user confirmation between steps unless the user explicitly says "pause" or "wait for my review."
 
@@ -227,6 +241,8 @@ When a step finishes with `"status":"review"`:
 3. If the user later clicks "Revise" in the sprinkle, handle it reactively
 
 This means the full pipeline runs end-to-end without stopping. The user can always retroactively revise any step.
+
+**One-shot mode and auto-approve are the same behavior** — the term "one shot" just makes the intent explicit from the start so the orchestrator never hesitates.
 
 ## Deliverable URLs — ALWAYS Include Them
 
