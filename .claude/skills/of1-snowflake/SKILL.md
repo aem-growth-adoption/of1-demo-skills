@@ -34,44 +34,89 @@ BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
 REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
 DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 CONTENT_PREFIX=$(echo "$REPO_CONFIG" | jq -r '.contentPrefix // .branch')
-DA_CONTENT_PATH=$(echo "$REPO_CONFIG" | jq -r '.daContentPath // "/mnt/da/"+.branch')
+DA_CONTENT_PATH="/mnt/da/${BRANCH}"
 ```
 
 ---
 
-## Step 1: Understand the Snowflake Overlay
+## ⚠️ CRITICAL: The #1 Rule — Template Gets EVERYTHING Visual
 
-The overlay methodology is summarized below. If you need deeper reference, read `/workspace/skills/snowflake/SKILL.md` and its `knowledge/` subfolder — but this summary should be sufficient:
+**The template HTML must contain the COMPLETE visual DOM of the prototype page.** The DA content document only stores minimal text overrides that authors might edit. Images, layout, styling — ALL stay in the template.
 
-### How Snowflake Overlay Works (Quick Reference)
+### What goes WHERE:
 
-The overlay engine keeps the prototype's exact DOM and CSS. Content (text, images) becomes editable in DA without changing the visual output.
+| Artifact | Contains | Does NOT contain |
+|----------|----------|------------------|
+| **Template HTML** (`templates/{slug}.html`) | ALL images (as `<img src="...">` with absolute URLs), ALL layout structure, ALL decorative elements, ALL SVG icons, backgrounds, everything visual | Nothing removed — it IS the prototype's `<main>` with `data-slot` markers added to editable text |
+| **Template CSS** (`styles/{slug}.css`) | ALL `<style>` content from the prototype, ALL visual styles, backgrounds, gradients, colors, spacing | Nothing — include everything |
+| **DA content doc** | ONLY text headings, short text paragraphs, button labels, link URLs — marked with `data-slot="name"` in the template | NO images, NO complex HTML, NO layout. DA strips images! |
+| **Header fragment** (`fragments/{slug}/header.html`) | Complete header DOM from prototype including logo, nav, banner — everything before `<main>` | Nothing removed |
+| **Footer fragment** (`fragments/{slug}/footer.html`) | Complete footer DOM from prototype — everything after `</main>` | Nothing removed |
 
-**Artifacts per page:**
-| File | Location | Purpose |
-|------|----------|---------|
-| Template HTML | `templates/{slug}.html` | The prototype's `<main>` content as static shell |
-| Template CSS | `styles/{slug}.css` | All `<style>` content from the prototype |
-| Header fragment | `fragments/{slug}/header.html` | `<header>` + anything before `<main>` |
-| Footer fragment | `fragments/{slug}/footer.html` | `<footer>` + anything after `</main>` |
-| DA content doc | `.snowflake/projects/{N}-{slug}/da/{slug}.html` | Editable content in DA block format |
+### WHY: DA Strips Images
 
-**DA content doc format** — each section becomes a block with slot name/value rows:
+DA's HTML→Markdown→HTML round-trip **removes ALL `<img>`, `<picture>`, `<svg>`, and `<video>` elements**. If you put image references in the DA content document, they will vanish. The ONLY safe approach is:
+
+1. **Keep all images in the template HTML** (which is served from the code bus, NOT through DA)
+2. **Only put plain text in DA slots** (headings, paragraphs, button labels)
+3. If an image MUST be authorable, store its URL as plain text in a DA slot, and have the template use `data-slot` on the `<img>` element — the overlay JS (`writeSlot`) handles img elements specially by reading the src from the DA cell
+
+### Template HTML Example (CORRECT):
+
+```html
+<!-- /templates/prototype-home.html -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=...">
+
+<main>
+  <section class="hero">
+    <!-- Images STAY in the template — they are NOT DA slots -->
+    <img src="https://frescopa.coffee/media/hero-hands-coffee.jpg" alt="Coffee" class="hero-bg">
+    <div class="hero-content">
+      <p class="hero-eyebrow" data-slot="eyebrow">MYBARISTA COFFEE QUIZ...</p>
+      <h1 data-slot="heading">Your perfect coffee is four questions away!</h1>
+      <a href="/quiz" class="btn-primary" data-slot="cta">Start Quiz Now</a>
+    </div>
+  </section>
+
+  <section class="promo-banner">
+    <!-- This entire section with its image stays in the template -->
+    <img src="https://frescopa.coffee/media/coffee-cup-icon.png" alt="" class="promo-icon">
+    <div class="promo-text">
+      <h3 data-slot="promo-heading">Fall in love with coffee. Every single day!</h3>
+      <p data-slot="promo-body">With a MyBarista subscription, you get hand-selected coffees delivered right to your door each month.</p>
+    </div>
+    <a href="/subscription" class="btn-secondary" data-slot="promo-cta">Shop Now</a>
+  </section>
+
+  <!-- MORE SECTIONS — all with full visual DOM preserved -->
+</main>
+```
+
+### DA Content Document Example (CORRECT — minimal text only):
+
 ```html
 <html>
 <body>
 <header></header>
 <main>
   <div>
-    <div class="section-class-name">
-      <div><div>slot-name</div><div>slot value (text, links, image URLs)</div></div>
-      <div><div>another-slot</div><div>another value</div></div>
+    <div class="hero">
+      <div><div>eyebrow</div><div>MYBARISTA COFFEE QUIZ...</div></div>
+      <div><div>heading</div><div><h1>Your perfect coffee is four questions away!</h1></div></div>
+      <div><div>cta</div><div><a href="/quiz">Start Quiz Now</a></div></div>
     </div>
   </div>
-  <!-- more sections... -->
+  <div>
+    <div class="promo-banner">
+      <div><div>promo-heading</div><div><h3>Fall in love with coffee. Every single day!</h3></div></div>
+      <div><div>promo-body</div><div>With a MyBarista subscription, you get hand-selected coffees delivered right to your door each month.</div></div>
+      <div><div>promo-cta</div><div><a href="/subscription">Shop Now</a></div></div>
+    </div>
+  </div>
   <div>
     <div class="metadata">
-      <div><div>template</div><div>{slug}</div></div>
+      <div><div>template</div><div>prototype-home</div></div>
     </div>
   </div>
 </main>
@@ -80,87 +125,164 @@ The overlay engine keeps the prototype's exact DOM and CSS. Content (text, image
 </html>
 ```
 
-**How the overlay engine resolves content:**
-1. DA serves the content doc → EDS pipeline decorates each `<div class="block-name">` as a block
-2. `scripts.js` (substrate) reads `<meta name="template">` → fetches `/templates/{slug}.html`
-3. Template HTML is injected into the page as the visual shell
-4. Block JS reads slot values from the DA content and injects them into the template's DOM nodes
-5. `/styles/{slug}.css` is loaded for visual styling
-6. Header/footer fragments are loaded into `<header>`/`<footer>`
+### WRONG Approach (What Causes Visual Degradation):
+
+```html
+<!-- ❌ WRONG — Putting images in DA content (they get stripped!) -->
+<div class="hero">
+  <div><div>background</div><div><img src="https://frescopa.coffee/media/hero.jpg"></div></div>
+  <!-- ↑ THIS IMAGE WILL BE STRIPPED BY DA! -->
+</div>
+
+<!-- ❌ WRONG — Template with images removed (template should have them!) -->
+<section class="hero">
+  <div data-slot="background"></div>  <!-- Empty! Image was supposed to come from DA but DA stripped it -->
+  <h1 data-slot="heading">...</h1>
+</section>
+```
+
+---
+
+## Step 1: Understand the Overlay Engine
+
+The substrate (`scripts.js`) is already installed in this repo. It does:
+
+1. Reads `<meta name="template">` from the DA content → e.g., `prototype-home`
+2. Fetches `/templates/prototype-home.html` (the full visual shell)
+3. Reads slot data from the DA content blocks (`readBlockSlots()`)
+4. Writes slot values into matching `[data-slot="name"]` elements in the template (`applySlotsToTemplate()`)
+5. Replaces `main.innerHTML` with the populated template
+6. Loads `/styles/prototype-home.css`
+7. Header/footer blocks load `/fragments/prototype-home/header.html` and `footer.html`
+
+**The visual result should be IDENTICAL to the prototype because the template IS the prototype.**
 
 ---
 
 ## Step 2: Generate All Artifacts
 
-For each prototype in `stardust/prototypes/*.html`:
+For each prototype in `stardust/prototypes/*.html` (or `deliverables/prototype-*.html`):
 
-### 2a. Analyze the prototype HTML
+### 2a. Read and Parse the Prototype
 
-Read each prototype. Identify:
-- Everything before `<main>` → header fragment
-- The `<main>` content → template (the visual shell)
-- Everything after `</main>` → footer fragment
-- All `<style>` blocks → template CSS
-- Editable content (text, images, links) → DA content doc with slot names
+Read the full prototype HTML. Parse it into:
+- **Before `<main>`**: everything from `<body>` start to `<main>` → header fragment
+- **`<main>` content**: the visual body → template HTML
+- **After `</main>`**: everything after main to `</body>` → footer fragment
+- **All `<style>` blocks** (anywhere in the document): → template CSS
+- **All `<link>` tags** (Google Fonts, etc.): → prepended to template HTML
 
-### 2b. Create template HTML
+### 2b. Create Template HTML
 
-Extract `<main>` inner content. Replace editable text/images with data attributes or CSS classes that the overlay JS will populate from DA slots.
+The template is the prototype's `<main>` content with `data-slot` attributes added to editable text elements.
+
+**Rules for adding `data-slot`:**
+- Add `data-slot="unique-name"` to `<h1>`, `<h2>`, `<h3>`, `<h4>` headings that contain human-readable text
+- Add `data-slot="unique-name"` to `<p>` elements with substantial body text (more than just a class name)
+- Add `data-slot="unique-name"` to `<a>` elements that are visible buttons/CTAs
+- Do NOT add data-slot to decorative elements, icons, images, or structural markup
+- Do NOT remove ANY element from the prototype — the template keeps everything
+- Each slot name must be unique within its section (use descriptive names: `heading`, `subheading`, `body`, `cta`, `price`, etc.)
+
+**Image handling in the template:**
+- ALL `<img>` elements keep their `src` attributes pointing to the live site URLs (absolute)
+- ALL background-image CSS stays in the stylesheet
+- ALL SVG icons stay inline
+- If the prototype uses relative image paths, convert them to absolute URLs pointing to the live site
 
 ```bash
 mkdir -p ${REPO_DIR}/templates
-# Write templates/{slug}.html for each page
+# Write templates/{slug}.html — the FULL <main> content with data-slot markers
+# Prepend any <link> tags (fonts) before <main>
 ```
 
-### 2c. Create template CSS
+### 2c. Create Template CSS
 
-Extract all `<style>` content from the prototype. Add Google Fonts `@import` if the prototype uses them.
+Extract ALL `<style>` blocks from the prototype into a single CSS file. This includes:
+- All layout CSS (grid, flexbox, positioning)
+- All colors, backgrounds, gradients
+- All typography (font-family, font-size, etc.)
+- All spacing (margin, padding)
+- All responsive media queries
+- All animations/transitions
+
+**Add `@import` or `@font-face` for any Google Fonts** the prototype uses.
+
+**CRITICAL: Add full-bleed wrapper overrides.** For any section that should be full-width (hero, banners, full-bleed images):
+```css
+.hero-wrapper,
+.promo-banner-wrapper,
+.store-locator-wrapper {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+```
+
+EDS wraps each section in a `.<section-class>-wrapper` div with `max-width: 1440px` by default. Without the override, full-bleed sections get constrained.
 
 ```bash
 mkdir -p ${REPO_DIR}/styles
-# Write styles/{slug}.css for each page
+# Write styles/{slug}.css
 ```
 
-### 2d. Create header/footer fragments
+### 2d. Create Header/Footer Fragments
+
+The header fragment is everything in the prototype before `<main>` (nav bar, announcement banners, etc.).
+The footer fragment is everything after `</main>` (footer links, copyright, etc.).
+
+**Keep the FULL DOM and styling.** Do not simplify or redesign. The fragments should render identically to the prototype's header/footer.
+
+If the header/footer have their own `<style>` tags, include those styles in the fragment HTML (as inline `<style>`) OR in the template CSS file.
 
 ```bash
 mkdir -p ${REPO_DIR}/fragments/{slug}
-# Write fragments/{slug}/header.html
-# Write fragments/{slug}/footer.html
+# Write fragments/{slug}/header.html — complete header DOM
+# Write fragments/{slug}/footer.html — complete footer DOM
 ```
 
-### 2e. Create DA content documents
+### 2e. Create DA Content Documents
+
+The DA content document is MINIMAL — it only contains text that authors might edit, structured as slot name/value pairs in block divs.
+
+**What to include as DA slots:**
+- Main headings (h1, h2, h3) — slot them
+- Body paragraphs with meaningful text — slot them
+- Button/CTA text and links — slot them
+- Prices (if text) — slot them
+
+**What to EXCLUDE from DA slots (keep only in template):**
+- Images (DA strips them!)
+- SVG icons
+- Decorative text (decorative labels that shouldn't change)
+- Layout-only elements
+- Navigation links (those stay in the header fragment)
+- Footer content (stays in footer fragment)
 
 ```bash
-mkdir -p ${REPO_DIR}/.snowflake/projects/{N}-{slug}/da
-# Write .snowflake/projects/{N}-{slug}/da/{slug}.html
+mkdir -p ${REPO_DIR}/.snowflake/projects/1-{slug}/da
+# Write .snowflake/projects/1-{slug}/da/{slug}.html
 ```
 
-The DA content doc MUST include a metadata section at the end with `template` = slug name.
+The DA content doc MUST have a metadata section at the end:
+```html
+<div>
+  <div class="metadata">
+    <div><div>template</div><div>{slug}</div></div>
+  </div>
+</div>
+```
 
 ---
 
-## Step 3: Install the Substrate (scripts.js)
+## Step 3: Verify Substrate is Installed
 
-The substrate is the overlay engine that loads templates, fragments, and wires up DA content.
-
-Check if already installed:
 ```bash
-grep -q "loadTemplate\|snowflake\|overlay" ${REPO_DIR}/scripts/scripts.js 2>/dev/null && echo "SUBSTRATE OK" || echo "NEEDS INSTALL"
+grep -q "applyTemplateOverlay\|loadTemplate\|overlay" ${REPO_DIR}/scripts/scripts.js 2>/dev/null && echo "SUBSTRATE OK" || echo "NEEDS INSTALL"
 ```
 
-If not installed, read and install from:
-```bash
-cat /workspace/skills/snowflake/knowledge/architecture.md
-# Follow substrate installation instructions
-```
+If already installed (which it should be in the of1-demo repo), skip to Step 4.
 
-The substrate's `scripts.js` must:
-- Export `decorateMain`
-- Load template HTML when `<meta name="template">` is present
-- Load template CSS
-- Load header/footer fragments
-- Decorate blocks (which read DA slot values)
+If NOT installed, read `/workspace/skills/snowflake/knowledge/architecture.md` for the full substrate code.
 
 ---
 
@@ -192,7 +314,7 @@ git push origin ${BRANCH}
 
 | Action | Method | Notes |
 |--------|--------|-------|
-| Write content to DA | `cp file /mnt/da/{branch}/page.html` | Mount handles auth automatically |
+| Write content to DA | `cp file /mnt/da/{BRANCH}/page.html` | Mount handles auth automatically |
 | Get IMS token | `oauth-token adobe` | Instant, no browser flow needed |
 | Trigger preview | `curl -X POST admin.hlx.page/preview/...` | Include both auth headers |
 | ~~Upload via API~~ | ~~`curl admin.da.live`~~ | **BLOCKED — will fail with "forbidden"** |
@@ -203,8 +325,8 @@ git push origin ${BRANCH}
 
 ```bash
 # The mount at /mnt/da/ = root of da://aem-growth-adoption/of1-demo
-# Content for this demo lives in /mnt/da/{branch}/ subfolder
-# This maps to URL path /{branch}/{page} on the EDS preview
+# Content for this demo lives in /mnt/da/{BRANCH}/ subfolder
+# IMPORTANT: Use ${BRANCH} (e.g., "frescopa-2"), NOT the domain name!
 
 mkdir -p "${DA_CONTENT_PATH}" 2>/dev/null
 
@@ -250,15 +372,12 @@ for DOC in ${DA_CONTENT_PATH}/*.html; do
   RESP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
     -H "Authorization: Bearer ${DA_TOKEN}" \
     -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
-    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${CONTENT_PREFIX}/${PAGE_SLUG}")
-  echo "Preview ${CONTENT_PREFIX}/${PAGE_SLUG}: ${RESP}"
+    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${BRANCH}/${PAGE_SLUG}")
+  echo "Preview ${BRANCH}/${PAGE_SLUG}: ${RESP}"
 done
 ```
 
-Expected: all return `200`. If you get `404`:
-- Verify the file exists: `cat ${DA_CONTENT_PATH}/page.html | head -3`
-- Verify the content format is correct (has `<html><body><main>...</main></body></html>`)
-- Wait 2-3 seconds and retry (DA write propagation)
+Note: The content prefix in the preview URL is `${BRANCH}` (same as the branch name), NOT the domain.
 
 ---
 
@@ -269,8 +388,8 @@ for DOC in ${DA_CONTENT_PATH}/*.html; do
   [ -f "$DOC" ] || continue
   PAGE_SLUG=$(basename "$DOC" .html)
   CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-    "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${CONTENT_PREFIX}/${PAGE_SLUG}")
-  echo "${CONTENT_PREFIX}/${PAGE_SLUG}: ${CODE}"
+    "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/${PAGE_SLUG}")
+  echo "${BRANCH}/${PAGE_SLUG}: ${CODE}"
 done
 ```
 
@@ -282,22 +401,42 @@ Expected: all return `200`.
 
 For each content page (skip of1), compare EDS preview against the prototype:
 
-1. **Screenshot both:**
+1. **Open the EDS preview page in a browser tab:**
    ```bash
-   playwright-cli screenshot "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${CONTENT_PREFIX}/${PAGE_SLUG}" --full-page --output /tmp/preview-${PAGE_SLUG}.png
-   playwright-cli screenshot "file://${REPO_DIR}/stardust/prototypes/${PAGE_SLUG}.html" --full-page --output /tmp/proto-${PAGE_SLUG}.png
+   playwright-cli navigate "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/${PAGE_SLUG}" --tab <tab_id>
    ```
 
-2. **Compare visually** — open both with `open --view`:
+2. **Screenshot both:**
+   ```bash
+   playwright-cli screenshot --tab <eds_tab_id> /tmp/preview-${PAGE_SLUG}.png
+   # For the prototype, open the file or use serve:
+   serve --entry ${PAGE_SLUG}.html ${REPO_DIR}/stardust/prototypes
+   playwright-cli screenshot --tab <proto_tab_id> /tmp/proto-${PAGE_SLUG}.png
+   ```
+
+3. **Compare visually** — open both screenshots side by side:
    ```bash
    open --view /tmp/preview-${PAGE_SLUG}.png
    open --view /tmp/proto-${PAGE_SLUG}.png
    ```
 
-3. **Fix or accept:**
-   - Significant diffs (broken layout, missing images, wrong colors) → fix template/CSS, push, re-preview
-   - Minor diffs (font rendering, 1-2px spacing) → accept
-   - After 3 iterations → accept with note
+4. **Fix or accept:**
+   - **Missing images** → Image URL in template is wrong or template doesn't have the image. Fix the template HTML and re-push.
+   - **Wrong layout** → CSS is missing full-bleed overrides or section structure was altered. Fix the CSS.
+   - **Missing sections** → DA content is missing a section block, or the template `<section>` class doesn't match. Verify the section class names match between template and DA doc.
+   - **Unstyled footer/header** → Fragment HTML is incomplete or missing styles. Add styles to the fragment or template CSS.
+   - **After 3 iterations** → accept with note about remaining differences
+
+### Common Fixes:
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| Images missing | Image was put in DA instead of template | Move image back to template HTML |
+| Hero is narrow (not full-width) | Missing wrapper override | Add `.hero-wrapper { max-width: 100% !important; padding: 0 !important; }` to CSS |
+| Footer is unstyled list | Footer fragment missing CSS | Add footer styles to template CSS or as inline `<style>` in footer fragment |
+| Background colors missing | CSS wasn't fully extracted from prototype | Re-extract ALL styles including section backgrounds |
+| Font is wrong/fallback | Google Fonts `<link>` not in template | Add `<link>` tags at top of template HTML (before `<main>`) |
+| Section missing entirely | Section class in template doesn't match DA block name | Ensure class names match exactly |
 
 ---
 
@@ -305,30 +444,32 @@ For each content page (skip of1), compare EDS preview against the prototype:
 
 | Mistake | Time wasted | Correct approach |
 |---------|-------------|------------------|
+| Putting images in DA content | 10+ min (images vanish, debug why) | Keep ALL images in template HTML |
+| Stripping visual elements from template | 10+ min (page looks bare) | Template = FULL prototype `<main>`, nothing removed |
 | Trying `curl` to `admin.da.live` | 3-5 min | Use `/mnt/da/` mount |
 | Running `npx da-auth-helper` | 2-3 min | Use `oauth-token adobe` |
-| Reading `~/.aem/da-token.json` | 1 min | Doesn't exist. Use `oauth-token adobe` |
-| Writing to `/mnt/da/of1-demo/page.html` | 3 min debugging 404s | Write to `/mnt/da/{branch}/page.html` |
-| Using URL path `/{page}` without prefix | 2 min debugging 404s | URL path is `/{branch}/{page}` |
-| Reading snowflake skill docs at runtime | 3-5 min | All context is in THIS file |
+| Writing to `/mnt/da/{domain}/` instead of `/mnt/da/{BRANCH}/` | 5 min debugging | DA path uses BRANCH name, not domain |
+| Using URL path `/{page}` without branch prefix | 2 min debugging 404s | URL path is `/${BRANCH}/${page}` |
+| Not including full-bleed wrapper overrides in CSS | 5 min debugging narrow sections | Add `.<section>-wrapper { max-width: 100% !important; }` |
+| Not including Google Fonts links in template | 3 min debugging wrong fonts | Add `<link>` tags at top of template HTML |
 | Multiple git pushes | 2-3 min | ONE push after all artifacts are created |
-| Checking node/npm availability | 1 min | Node is a shim. Don't use npm/npx |
-| Installing substrate via npm script | 2 min | Copy files directly |
-| Setting OF1 block domain to `frescopa.coffee` | 5+ min debugging missing suggestions | Use tenant ID: `${BRANCH}--${REPO}--${OWNER}` |
+| Using node/npm | 1 min | Node is a shim. Don't use npm/npx |
+| Setting OF1 domain to site domain | 5+ min debugging | Use tenant ID: `${BRANCH}--${REPO}--${OWNER}` |
+| Simplifying/redesigning the footer | 5+ min debugging unstyled footer | Keep the EXACT footer DOM from prototype |
 
 ---
 
 ## Deliverables
 
-- `templates/*.html` — one per page
-- `styles/*.css` — one per page
-- `fragments/{slug}/header.html` + `footer.html` — one pair per page
-- `.snowflake/projects/*/da/*.html` — DA content docs
+- `templates/*.html` — one per page (FULL visual DOM with data-slot markers)
+- `styles/*.css` — one per page (ALL CSS from prototype + wrapper overrides)
+- `fragments/{slug}/header.html` + `footer.html` — one pair per page (complete DOM)
+- `.snowflake/projects/*/da/*.html` — DA content docs (minimal text-only slots)
 - `blocks/of1/of1.js` + `blocks/of1/of1.css` — OF1 generative block
-- `scripts/scripts.js` — substrate (overlay engine)
+- `scripts/scripts.js` — substrate (overlay engine, should already exist)
 - All pages return 200 on EDS preview
 - Code pushed to branch `${BRANCH}`
-- DA content uploaded via mount to `/mnt/da/${CONTENT_PREFIX}/`
+- DA content uploaded via mount to `/mnt/da/${BRANCH}/`
 
 ---
 
@@ -337,7 +478,7 @@ For each content page (skip of1), compare EDS preview against the prototype:
 ```bash
 mkdir -p /shared/of1-demo
 
-PREVIEW_BASE="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${CONTENT_PREFIX}"
+PREVIEW_BASE="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}"
 
 DELIVERABLES="["
 FIRST=true
