@@ -6,7 +6,7 @@ user-invocable: true
 
 # Generative Block Styler
 
-Generate a polished, brand-aligned CSS file for the of1 generative block. This makes the dynamically-generated EDS sections (hero, cards, columns, tables) look visually impressive when rendered in the conversational/demo context — matching the quality of hand-crafted demos like nvidia-ema.
+Generate a polished, brand-aligned CSS file for the of1 generative block. This makes the dynamically-generated EDS sections (hero, cards, columns, tables) look visually impressive when rendered in the conversational/demo context.
 
 ## CRITICAL RULES
 
@@ -173,7 +173,7 @@ Start the dev server and test:
 ```bash
 # Extract header/footer styling from prototype CSS and write to styles/of1.css
 # The file MUST include:
-# 1. .site-header styling (dark translucent nav bar, white links, Apple logo fill)
+# 1. .site-header styling (dark translucent nav bar, white links, logo fill)
 # 2. .site-footer styling (footer columns, link colors, typography)
 # 3. Body/typography basics (font-family, color, background)
 # 4. Any h1-h6 overrides for the page

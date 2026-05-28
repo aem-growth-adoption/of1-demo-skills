@@ -1,13 +1,8 @@
 /* ============================================================
-   OF1 Generative Block — Adobe Brand Styling
+   OF1 Generative Block — Brand Styling (Example)
    
-   Brand: Adobe (www.adobe.com)
-   Primary: #EB1000 (Adobe Red)
-   Accent/CTA: #3B63FB (Action Blue)
-   Font: 'Adobe Clean', 'Trebuchet MS', sans-serif
-   Headings: 800 weight (ExtraBold)
-   Buttons: 25px radius (pill-shaped)
-   AI Gradient: linear-gradient(96deg, #B539C8, #7155FA, #3B63FB)
+   This is an EXAMPLE branded of1.css. Step 8 generates a fresh
+   version per demo using DESIGN.json tokens.
    ============================================================ */
 
 /* ─── Brand Token Mapping ─────────────────────────────────── */
@@ -32,8 +27,8 @@
   --radius:         4px;
   --radius-card:    16px;
   --radius-pill:    25px;
-  --font-heading:   'Adobe Clean', adobe-clean, 'Trebuchet MS', sans-serif;
-  --font-body:      'Adobe Clean', adobe-clean, 'Trebuchet MS', sans-serif;
+  --font-heading:   system-ui, -apple-system, sans-serif;
+  --font-body:      system-ui, -apple-system, sans-serif;
   --font-mono:      'Roboto Mono', menlo, consolas, 'Liberation Mono', monospace;
   --shadow-card:    0 2px 12px rgba(0, 0, 0, 0.06);
   --shadow-lift:    0 12px 32px rgba(0, 0, 0, 0.10);
