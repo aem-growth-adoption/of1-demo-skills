@@ -16,7 +16,7 @@ Lightweight orchestrator that opens the demo pipeline sprinkle and dispatches st
 4. The cone spawns a scoop to execute the step skill with appropriate context
 5. Steps with review gates pause for user approval (Approve/Revise buttons in sprinkle)
 6. After step 5 (Prototype), two tracks run in parallel:
-   - **Track A (EDS Site):** Steps 6 + 8 (Snowflake + OF1 styling) in parallel → Step 7 (Templates, needs S6 output)
+   - **Track A (EDS Site):** Step 6 (Snowflake) → Steps 7 (Templates) + 8 (OF1 styling) in parallel after S6
    - **Track B (Config):** Steps 9–11 (Brand & content, Suggestions, CTA) in parallel → Step 12 (Config review)
 7. Step 13 (Deploy) requires Track A step 7 done AND Track B step 12 approved
 
@@ -125,10 +125,10 @@ The pipeline has TWO parallel tracks that MUST run concurrently. **Do NOT serial
 
 | Trigger | Spawn immediately |
 |---------|-------------------|
-| Step 5 (Prototype) approved | **Track A:** Steps 6 + 8 in parallel (Snowflake + OF1 styling) AND **Track B:** Steps 9, 10, 11 (all three at once) |
-| Step 6 (Snowflake) approved | Step 7 (Templates — depends on S6's template structure) |
+| Step 5 (Prototype) approved | **Track A:** Step 6 (Snowflake) AND **Track B:** Steps 9, 10, 11 (all three at once) |
+| Step 6 (Snowflake) done | Steps 7 (Templates) + 8 (OF1 styling) in parallel — both need S6 complete |
 | Steps 9-11 ALL complete | Step 12 (Config review) — run inline by the cone |
-| Step 7 done AND Step 12 approved | Step 13 (Deploy) |
+| Steps 7 + 8 done AND Step 12 approved | Step 13 (Deploy) |
 
 ### Dependency graph:
 ```
@@ -142,22 +142,24 @@ Steps 1→2 (sequential)
          ↓
        Step 5             ← needs both S3 + S4
          ↓
-    ┌────┼────────────┐
-    ↓    ↓            ↓
-  S6   S8    Track B (S9+S10+S11)
-    ↓    ↓            ↓
-  S7     │         Step 12
-    ↓    ↓            ↓
-    └────┼────────────┘
-         ↓
-      Step 13 (Deploy)
+    ┌────┴────────────┐
+    ↓                 ↓
+  S6         Track B (S9+S10+S11)
+    ↓                 ↓
+  ┌─┴─┐           Step 12
+  S7  S8
+  ↓    ↓              ↓
+  └────┼──────────────┘
+       ↓
+    Step 13 (Deploy)
 ```
 
 ### Key rules:
 1. **Track B does NOT wait for Step 6** — it starts immediately after Step 5 is approved
-2. **Step 8 (OF1 styling) runs in parallel WITH Step 6** — it only needs DESIGN.json from Step 4, not S6 output
+2. **Step 8 (OF1 styling) runs AFTER Step 6** — it must not overwrite of1.css that S6 creates. S8 commits last.
 3. **Step 7 (Templates) waits for Step 6** — it needs the template CSS structure from the snowflake conversion
-4. **Steps 9, 10, 11 ALL run at once** — spawn all 3 scoops simultaneously
+4. **Steps 7 + 8 run in parallel AFTER Step 6** — both depend on S6 being done
+5. **Steps 9, 10, 11 ALL run at once** — spawn all 3 scoops simultaneously
 5. **Push each status as it arrives** — don't wait for all parallel steps to finish before updating the sprinkle
 
 ### Polling pattern for parallel steps:
@@ -226,7 +228,7 @@ User reset the pipeline. Clean up any running scoops.
 | 5 | Prototype | `of1-prototype` | Yes | — | steps 3 + 4 (needs both) |
 | 6 | Snowflake | `of1-snowflake` | Yes | A | step 5 |
 | 7 | Templates | `of1-template-generation` | Yes | A | step 6 |
-| 8 | OF1 styling | `of1-generative-block-styler` | Yes | A | step 5 (runs parallel with step 6) |
+| 8 | OF1 styling | `of1-generative-block-styler` | Yes | A | step 6 (must run AFTER S6 to avoid overwriting of1.css) |
 | 9 | Brand & content | `of1-brand-voice-extractor` + `of1-content-metadata` | No | B | step 5 |
 | 10 | Suggestions | `of1-quick-suggestions` | No | B | step 5 |
 | 11 | CTA template | `of1-cta-template-builder` | No | B | step 5 |
@@ -235,11 +237,11 @@ User reset the pipeline. Clean up any running scoops.
 
 ### Track Summary
 
-**Track A (EDS Site):** Steps 6 + 8 start in parallel after Step 5 → Step 7 starts after Step 6 approved
+**Track A (EDS Site):** Step 6 starts after Step 5 → Steps 7 + 8 start in parallel after Step 6
 
 **Track B (Config):** Steps 9 + 10 + 11 (ALL parallel, start immediately after step 5) → Step 12 (Config review)
 
-**Both tracks start after Step 5 is approved.** Track B does NOT wait for Step 6. Step 8 does NOT wait for Step 6 either — it only needs DESIGN.json from Step 4.
+**Both tracks start after Step 5 is approved.** Track B does NOT wait for Step 6. Step 8 DOES wait for Step 6 — it must commit AFTER S6 so it doesn't get overwritten.
 
 **Step 13 (Deploy)** requires Track A (step 7 done) AND Track B (step 12 approved).
 

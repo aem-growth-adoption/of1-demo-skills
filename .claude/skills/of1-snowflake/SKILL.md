@@ -656,6 +656,97 @@ For each content page (skip of1), compare EDS preview against the prototype:
 
 ---
 
+## OF1 Page Setup (REQUIRED)
+
+After converting the prototype pages, you MUST also set up the OF1 block page with a "passthrough" template that loads the branded header/footer without replacing the main content.
+
+### 1. Create the OF1 passthrough template
+
+```bash
+# Create of1 template (passthrough — keeps OF1 block, only provides header/footer)
+mkdir -p ${REPO_DIR}/templates
+cat > ${REPO_DIR}/templates/of1.html << 'TMPL'
+<main data-overlay="of1">
+  <div class="of1-container" data-slot-passthrough="true">
+  </div>
+</main>
+TMPL
+
+# Copy header/footer fragments from the first prototype template
+FIRST_TEMPLATE=$(ls ${REPO_DIR}/fragments/ | head -1)
+mkdir -p ${REPO_DIR}/fragments/of1
+cp ${REPO_DIR}/fragments/${FIRST_TEMPLATE}/header.html ${REPO_DIR}/fragments/of1/header.html
+cp ${REPO_DIR}/fragments/${FIRST_TEMPLATE}/footer.html ${REPO_DIR}/fragments/of1/footer.html
+
+# Copy the prototype CSS for header/footer styling on the OF1 page
+cp ${REPO_DIR}/styles/prototype-home.css ${REPO_DIR}/styles/of1.css
+```
+
+### 2. Add passthrough support to scripts.js
+
+In the `applyTemplateOverlay` function, add this check BEFORE the "Replace main content" line:
+
+```javascript
+  // Check for passthrough mode — if template has data-slot-passthrough,
+  // only load header/footer but keep original main content (for OF1 block pages)
+  if (templateMain.querySelector('[data-slot-passthrough]')) {
+    main.dataset.overlay = templateName;
+    return true;
+  }
+```
+
+This ensures the overlay engine loads the branded header/footer fragments but does NOT replace `<main>` content when the template is marked as passthrough.
+
+### 3. Create OF1 DA content
+
+```bash
+DA_TOKEN=$(oauth-token adobe)
+
+OF1_HTML='<html><body><header></header><main><div><table><tr><th colspan="2">of1</th></tr><tr><td><p>api-endpoint</p></td><td><p>https://of1-gen-web-service.franklin-prod.workers.dev</p></td></tr><tr><td><p>domain</p></td><td><p>'${BRANCH}'--'${REPO}'--'${OWNER}'</p></td></tr></table></div><div><table><tr><th colspan="2">Metadata</th></tr><tr><td><p>template</p></td><td><p>of1</p></td></tr><tr><td><p>nav</p></td><td><p>/'${BRANCH}'/nav</p></td></tr><tr><td><p>footer</p></td><td><p>/'${BRANCH}'/footer</p></td></tr></table></div></main><footer></footer></body></html>'
+
+curl -s -X PUT \
+  -H "Authorization: Bearer ${DA_TOKEN}" \
+  -H "Content-Type: text/html" \
+  -d "$OF1_HTML" \
+  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/of1.html"
+
+# Preview the OF1 page
+curl -s -X POST \
+  -H "Authorization: Bearer ${DA_TOKEN}" \
+  -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
+  "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${BRANCH}/of1"
+```
+
+**IMPORTANT:** Do NOT include a `<title>` tag in the DA HTML — EDS will render it as visible content.
+
+### 4. Create nav/footer DA content
+
+Create basic nav and footer DA pages so the default EDS header/footer blocks don't 404:
+
+```bash
+NAV_HTML='<html><body><header></header><main><div><p><a href="/">Brand</a></p></div><div><ul><li><a href="#">Link 1</a></li></ul></div></main><footer></footer></body></html>'
+
+curl -s -X PUT \
+  -H "Authorization: Bearer ${DA_TOKEN}" \
+  -H "Content-Type: text/html" \
+  -d "$NAV_HTML" \
+  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/nav.html"
+
+FOOTER_HTML='<html><body><header></header><main><div><p>Footer content</p></div></main><footer></footer></body></html>'
+
+curl -s -X PUT \
+  -H "Authorization: Bearer ${DA_TOKEN}" \
+  -H "Content-Type: text/html" \
+  -d "$FOOTER_HTML" \
+  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/footer.html"
+
+# Preview both
+curl -s -X POST -H "Authorization: Bearer ${DA_TOKEN}" -H "x-content-source-authorization: Bearer ${DA_TOKEN}" "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${BRANCH}/nav"
+curl -s -X POST -H "Authorization: Bearer ${DA_TOKEN}" -H "x-content-source-authorization: Bearer ${DA_TOKEN}" "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${BRANCH}/footer"
+```
+
+---
+
 ## Completion
 
 ```bash

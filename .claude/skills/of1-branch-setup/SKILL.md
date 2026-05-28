@@ -59,15 +59,16 @@ Tell the user:
 git checkout -b ${BRANCH} origin/main
 ```
 
-### 2b. Clean slate — remove ALL prior artifacts
+### 2b. Clean slate — remove prior PIPELINE artifacts only
 
-Whether continuing on an existing branch or starting fresh, ALWAYS remove stale pipeline artifacts so scoops don't get confused by old data:
+Whether continuing on an existing branch or starting fresh, remove stale pipeline outputs so scoops don't get confused by old data. **DO NOT delete boilerplate core files** (`styles/styles.css`, `scripts/`, `blocks/header/`, `blocks/footer/`, `blocks/fragment/`, `head.html`, etc.) — only demo-specific outputs:
 
 ```bash
 cd /workspace/of1-demo
 
-# Remove prior pipeline outputs (git-tracked artifacts from previous runs)
-rm -rf stardust/ deliverables/ templates/ styles/ fragments/ .snowflake/ drafts/ gallery/ of1/config/ tools/ output/
+# Remove prior pipeline outputs ONLY (NOT boilerplate core files)
+rm -rf stardust/ deliverables/ templates/ fragments/ .snowflake/ drafts/ gallery/ of1/config/ tools/ output/
+rm -rf styles/of1-*.css styles/prototype-*.css
 rm -f PRODUCT.md
 
 # Remove shared state from prior run
@@ -82,7 +83,14 @@ if ! git diff --cached --quiet; then
 fi
 ```
 
-**Why this matters:** Previous runs leave behind `deliverables/`, `stardust/`, `of1/config/`, and DA content. Scoops that find existing files waste 5-30 minutes trying to decide whether to reuse them, adapt to them, or overwrite them. A clean slate eliminates all this confusion.
+**NEVER delete these boilerplate files:**
+- `styles/styles.css` — EDS requires this (body stays invisible without it)
+- `styles/fonts.css`, `styles/lazy-styles.css` — EDS expects these
+- `scripts/scripts.js`, `scripts/aem.js` — EDS core runtime
+- `blocks/header/`, `blocks/footer/`, `blocks/fragment/` — EDS infrastructure blocks
+- `head.html` — EDS head includes
+
+**Why this matters:** Previous runs leave behind `deliverables/`, `stardust/`, `of1/config/`, and DA content. Scoops that find existing files waste 5-30 minutes trying to decide whether to reuse them, adapt to them, or overwrite them. A clean slate eliminates this confusion — but deleting boilerplate core files breaks the site entirely.
 
 ### 3. Check for existing DA content
 
