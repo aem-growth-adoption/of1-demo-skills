@@ -143,6 +143,51 @@ DA's HTML→Markdown→HTML round-trip **removes ALL `<img>`, `<picture>`, `<svg
 
 ---
 
+## ⚠️ CRITICAL: EDS Class Name Collisions
+
+EDS wraps the page header in `<div class="header-wrapper"><div class="header block">...</div></div>` and the footer in `<div class="footer-wrapper"><div class="footer block">...</div></div>`.
+
+**If your fragment HTML uses `<header class="header">`, the CSS rule `.header { display: flex }` will target BOTH the EDS wrapper AND your element — breaking the layout.**
+
+### Rules:
+
+1. **NEVER use `class="header"` on the `<header>` element** — use `class="site-header"` instead
+2. **NEVER use `class="footer"` on the `<footer>` element** — use `class="site-footer"` instead
+3. **Always include these CSS resets** at the top of every template CSS file:
+
+```css
+/* EDS block wrapper resets — REQUIRED */
+.header-wrapper { max-width: 100% !important; padding: 0 !important; }
+.header.block { display: block !important; }
+.footer-wrapper { max-width: 100% !important; padding: 0 !important; }
+.footer.block { display: block !important; }
+```
+
+4. **Announcement bars** must be a SEPARATE element from the header, not nested inside `<header>`:
+
+```html
+<!-- ✅ CORRECT — announcement bar is its own div above header -->
+<div class="announcement-bar">FREE SHIPPING...</div>
+<header class="site-header">
+  <a href="/" class="header-logo">...</a>
+  <nav>...</nav>
+</header>
+
+<!-- ❌ WRONG — will render on one line because EDS .header.block applies flex -->
+<header class="header">
+  <div class="announcement-bar">...</div>
+  <nav>...</nav>
+</header>
+```
+
+### When creating the header fragment:
+
+- Rename `<header class="header">` → `<header class="site-header">`
+- Rename `.header {` → `.site-header {` in all CSS
+- Keep any announcement/promo bar as a sibling div ABOVE the `<header>`
+
+---
+
 ## Step 1: Understand the Overlay Engine
 
 The substrate (`scripts.js`) is already installed in this repo. It does:
@@ -208,6 +253,15 @@ Extract ALL `<style>` blocks from the prototype into a single CSS file. This inc
 
 **Add `@import` or `@font-face` for any Google Fonts** the prototype uses.
 
+**CRITICAL: CSS MUST start with these EDS reset rules:**
+```css
+/* EDS block wrapper resets — REQUIRED at top of every template CSS */
+.header-wrapper { max-width: 100% !important; padding: 0 !important; }
+.header.block { display: block !important; }
+.footer-wrapper { max-width: 100% !important; padding: 0 !important; }
+.footer.block { display: block !important; }
+```
+
 **CRITICAL: Add full-bleed wrapper overrides.** For any section that should be full-width (hero, banners, full-bleed images):
 ```css
 .hero-wrapper,
@@ -219,6 +273,15 @@ Extract ALL `<style>` blocks from the prototype into a single CSS file. This inc
 ```
 
 EDS wraps each section in a `.<section-class>-wrapper` div with `max-width: 1440px` by default. Without the override, full-bleed sections get constrained.
+
+**CRITICAL: Rename `.header` to `.site-header` in all CSS rules:**
+```css
+/* ❌ WRONG — collides with EDS .header.block */
+.header { display: flex; align-items: center; ... }
+
+/* ✅ CORRECT — unique class, no collision */
+.site-header { display: flex; align-items: center; ... }
+```
 
 ```bash
 mkdir -p ${REPO_DIR}/styles
@@ -232,11 +295,18 @@ The footer fragment is everything after `</main>` (footer links, copyright, etc.
 
 **Keep the FULL DOM and styling.** Do not simplify or redesign. The fragments should render identically to the prototype's header/footer.
 
+**CRITICAL RENAMING:**
+- Change `<header class="header">` → `<header class="site-header">` in the fragment
+- Change `<footer class="footer">` → `<footer class="site-footer">` if applicable
+- Keep announcement bars as a SEPARATE div above `<header>`, not inside it
+
+**Logo in footer:** The footer logo SVG must be the SAME complete SVG as the header logo, but with fill colors changed for dark background (e.g., `fill="#F4E9DC"` instead of `fill="#58181d"`). Never use a truncated or partial SVG.
+
 If the header/footer have their own `<style>` tags, include those styles in the fragment HTML (as inline `<style>`) OR in the template CSS file.
 
 ```bash
 mkdir -p ${REPO_DIR}/fragments/{slug}
-# Write fragments/{slug}/header.html — complete header DOM
+# Write fragments/{slug}/header.html — complete header DOM (with .site-header class)
 # Write fragments/{slug}/footer.html — complete footer DOM
 ```
 
@@ -446,9 +516,13 @@ For each content page (skip of1), compare EDS preview against the prototype:
 |---------|-------------|------------------|
 | Putting images in DA content | 10+ min (images vanish, debug why) | Keep ALL images in template HTML |
 | Stripping visual elements from template | 10+ min (page looks bare) | Template = FULL prototype `<main>`, nothing removed |
+| Using `class="header"` on `<header>` element | 10+ min (nav/banner on same line) | Use `class="site-header"` — EDS reserves `.header` |
+| Missing EDS block reset CSS rules | 10+ min (header/footer broken layout) | Add `.header.block { display: block !important; }` at top of CSS |
+| Announcement bar nested inside `<header>` | 5+ min (renders on same line as nav) | Keep announcement bar as separate div ABOVE `<header>` |
+| Footer logo SVG truncated/partial | Broken logo forever | Use the SAME complete SVG as header, change fill colors for dark bg |
 | Trying `curl` to `admin.da.live` | 3-5 min | Use `/mnt/da/` mount |
 | Running `npx da-auth-helper` | 2-3 min | Use `oauth-token adobe` |
-| Writing to `/mnt/da/{domain}/` instead of `/mnt/da/{BRANCH}/` | 5 min debugging | DA path uses BRANCH name, not domain |
+| Writing to `/mnt/da/{domain}/` instead of `/mnt/da/{BRANCH}/` | 5 min debugging | DA path uses BRANCH name (e.g., `frescopa-2`), not domain |
 | Using URL path `/{page}` without branch prefix | 2 min debugging 404s | URL path is `/${BRANCH}/${page}` |
 | Not including full-bleed wrapper overrides in CSS | 5 min debugging narrow sections | Add `.<section>-wrapper { max-width: 100% !important; }` |
 | Not including Google Fonts links in template | 3 min debugging wrong fonts | Add `<link>` tags at top of template HTML |
