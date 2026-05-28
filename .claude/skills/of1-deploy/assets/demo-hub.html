@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OF1 Demo Hub — {{DOMAIN}}</title>
+<style>
+:root { --bg:#0f0f0f; --fg:#f5f5f5; --dim:#909090; --accent:#3b63fb; --red:#eb1000; --green:#05834e; --orange:#f5a623; --border:rgba(255,255,255,0.08); --surface:#1a1a1a; --surface-hover:#222; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--fg); font-family:'Trebuchet MS',sans-serif; font-size:14px; line-height:1.6; min-height:100vh; }
+.hero { padding:64px 32px 48px; text-align:center; border-bottom:1px solid var(--border); }
+.hero-logo { margin-bottom:16px; }
+.hero-logo svg { height:28px; }
+.hero h1 { font-size:32px; font-weight:800; margin-bottom:8px; }
+.hero .subtitle { color:var(--dim); font-size:16px; }
+.hero .domain { color:var(--accent); font-weight:700; }
+.container { max-width:1100px; margin:0 auto; padding:32px; }
+.stats { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:40px; justify-content:center; }
+.stat { text-align:center; padding:16px 24px; background:var(--surface); border-radius:12px; border:1px solid var(--border); min-width:100px; }
+.stat-num { font-size:28px; font-weight:800; color:var(--accent); }
+.stat-label { font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:1px; margin-top:4px; }
+.section { margin-bottom:40px; }
+.section-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:var(--dim); margin-bottom:16px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; text-decoration:none; color:var(--fg); transition:all 0.2s; display:block; }
+.card:hover { background:var(--surface-hover); transform:translateY(-1px); border-color:rgba(255,255,255,0.15); }
+.card-badge { display:inline-block; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:3px 8px; border-radius:4px; margin-bottom:10px; }
+.badge-of1 { background:rgba(235,16,0,0.1); color:var(--red); border:1px solid rgba(235,16,0,0.25); }
+.badge-aem { background:rgba(5,131,78,0.1); color:var(--green); border:1px solid rgba(5,131,78,0.25); }
+.badge-standalone { background:rgba(245,166,35,0.1); color:var(--orange); border:1px solid rgba(245,166,35,0.25); }
+.badge-config { background:rgba(59,99,251,0.1); color:var(--accent); border:1px solid rgba(59,99,251,0.25); }
+.card-title { font-size:16px; font-weight:700; margin-bottom:6px; }
+.card-desc { font-size:12px; color:var(--dim); line-height:1.5; }
+.narrative { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:40px; }
+.narrative h3 { font-size:14px; font-weight:700; margin-bottom:8px; }
+.narrative p { color:var(--dim); font-size:13px; line-height:1.7; }
+.narrative .persona { color:var(--accent); font-weight:700; }
+.config-summary { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; margin-top:16px; }
+.config-item { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px 16px; }
+.config-item-label { font-size:9px; color:var(--dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+.config-item-value { font-size:14px; font-weight:700; }
+.footer { text-align:center; padding:32px; color:var(--dim); font-size:11px; border-top:1px solid var(--border); margin-top:40px; }
+.footer a { color:var(--accent); text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="hero-logo">{{LOGO_SVG}}</div>
+  <h1>OF1 Demo Hub</h1>
+  <p class="subtitle"><span class="domain">{{DOMAIN}}</span> — {{DEMO_FOCUS}}</p>
+</div>
+
+<div class="container">
+  <div class="stats">
+    <div class="stat"><div class="stat-num">{{NUM_PRODUCTS}}</div><div class="stat-label">Products</div></div>
+    <div class="stat"><div class="stat-num">{{NUM_TEMPLATES}}</div><div class="stat-label">Templates</div></div>
+    <div class="stat"><div class="stat-num">{{NUM_PERSONAS}}</div><div class="stat-label">Personas</div></div>
+    <div class="stat"><div class="stat-num">{{NUM_SUGGESTIONS}}</div><div class="stat-label">Suggestions</div></div>
+    <div class="stat"><div class="stat-num">{{NUM_PAGES}}</div><div class="stat-label">EDS Pages</div></div>
+  </div>
+
+  <div class="narrative">
+    <h3>Demo Narrative</h3>
+    <p>{{NARRATIVE}}</p>
+  </div>
+
+  <div class="section">
+    <div class="section-title">OF1 Generative Experience</div>
+    <div class="cards">
+      <a href="{{OF1_URL}}" class="card">
+        <span class="card-badge badge-of1">OF1 Live</span>
+        <div class="card-title">Generative Search</div>
+        <div class="card-desc">AI-powered search with personalized templates and brand-native responses</div>
+      </a>
+      <a href="{{OF1_URL}}?personalize=1" class="card">
+        <span class="card-badge badge-of1">Personalize</span>
+        <div class="card-title">OF1 + CTA Injection</div>
+        <div class="card-desc">Full personalization mode with dynamic CTA banners and template routing</div>
+      </a>
+      <a href="{{GALLERY_URL}}" class="card">
+        <span class="card-badge badge-standalone">Gallery</span>
+        <div class="card-title">Template Gallery</div>
+        <div class="card-desc">Browse all {{NUM_TEMPLATES}} branded templates across 5 intents</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">EDS Site Pages</div>
+    <div class="cards">
+{{EDS_PAGES}}
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Pipeline Deliverables</div>
+    <div class="cards">
+      <a href="{{PREVIEW_BASE}}/deliverables/discovery.html" class="card">
+        <span class="card-badge badge-standalone">Discovery</span>
+        <div class="card-title">Site Analysis</div>
+        <div class="card-desc">Site structure, demo narrative, key pages, and persona definition</div>
+      </a>
+      <a href="{{PREVIEW_BASE}}/deliverables/brand-review.html" class="card">
+        <span class="card-badge badge-standalone">Extraction</span>
+        <div class="card-title">Brand & Design Tokens</div>
+        <div class="card-desc">Colors, typography, spacing, logo, and page screenshots</div>
+      </a>
+      <a href="{{PREVIEW_BASE}}/deliverables/config-review.html" class="card">
+        <span class="card-badge badge-config">Config</span>
+        <div class="card-title">Config Review</div>
+        <div class="card-desc">Products, brand voice, personas, suggestions, and CTA template</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Configuration Summary</div>
+    <div class="config-summary">
+{{CONFIG_SUMMARY}}
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <p>Branch: <a href="https://github.com/{{OWNER}}/{{REPO}}/tree/{{BRANCH}}">{{BRANCH}}</a> · Tenant: {{TENANT_ID}} · Generated {{DATE}}</p>
+</div>
+</body>
+</html>
