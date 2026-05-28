@@ -223,6 +223,46 @@ Read the discovery output for demo narrative:
 cat /shared/of1-demo/step-3-output.md
 ```
 
+### 0b. Extract component palette from prototype
+
+**This is critical for visual fidelity.** Read the prototype HTML to extract real component patterns from the site. These patterns become the building blocks for templates — instead of inventing generic HTML, templates reuse the actual visual components.
+
+```bash
+# Find the prototype (could be in stardust/current/prototypes/ or deliverables/)
+PROTOTYPE=$(ls ${REPO_DIR}/stardust/current/prototypes/home.html ${REPO_DIR}/deliverables/prototype-home.html 2>/dev/null | head -1)
+
+if [ -n "$PROTOTYPE" ]; then
+  echo "Found prototype: $PROTOTYPE"
+  cat "$PROTOTYPE"
+fi
+```
+
+From the prototype HTML, identify and catalog these reusable components:
+
+| Component | What to extract | Use in templates |
+|-----------|----------------|------------------|
+| **Hero** | Full hero section markup + inline styles (background, layout, text sizing) | Every template starts with a hero |
+| **Buttons/CTAs** | Exact button HTML (classes, border-radius, padding, colors, hover states) | All CTA elements in templates |
+| **Cards** | Card grid structure (grid-template-columns, gap, card border-radius, shadows) | Comparison, recommendation templates |
+| **Navigation links** | Link styling (color, font-weight, text-decoration, hover effects) | In-template navigation |
+| **Section layout** | Section padding, max-width, background alternation patterns | Every section wrapper |
+| **Typography** | Heading hierarchy (h1-h4 actual sizes, weights, colors, margins) | All text elements |
+| **Pricing/tables** | Table/pricing card structure if present | Budget intent templates |
+| **Icon patterns** | How icons are used (inline SVG? img? size? spacing with text?) | Feature lists, cards |
+
+**Output:** Build a mental "component palette" — the exact HTML+CSS snippets from the prototype that you will reuse verbatim in templates. When generating templates:
+- Buttons must use the SAME markup pattern as the prototype (same classes, same structure)
+- Cards must use the SAME grid and card structure
+- Heroes must follow the SAME layout approach (flexbox/grid, alignment, spacing)
+- Links must use the SAME styling (not generic blue underline if the site uses pill buttons)
+- Section backgrounds must follow the SAME alternation pattern
+
+**Example:** If the prototype has:
+```html
+<a href="#" class="btn-primary" style="background:#3b63fb; border-radius:25px; padding:12px 24px; color:#fff; font-weight:700;">Get Started</a>
+```
+Then EVERY CTA in EVERY template must use that exact pattern — not a generic `<button>` or an unstyled `<a>`.
+
 ### 1. Generate `styles/of1-base.css`
 
 Create the shared base stylesheet with brand-specific tokens derived from `DESIGN.json`:
@@ -255,6 +295,16 @@ Then include standard utilities: box-sizing reset, `main` base styles, `.of1-sec
 
 For each intent, generate 5 structurally distinct layouts.
 
+**CRITICAL: Use the component palette from step 0b.** Every template MUST:
+- Use the exact same button/CTA markup as the prototype (same classes, same inline styles)
+- Use the same card grid structure (same grid gaps, border-radius, shadows)
+- Use the same heading sizes and weights (don't invent new typography)
+- Use the same section padding and max-width patterns
+- Use the same link styling (if the site uses pill-shaped links, templates do too)
+- Match the exact color usage patterns (when does the site use dark bg vs light bg?)
+
+Templates should feel like they were designed by the same team that built the site — not like generic content slotted into brand colors.
+
 **Naming:** `of1-{intent}-{variation}` (kebab-case)
 
 For each template, produce ALL THREE files:
@@ -281,8 +331,16 @@ For each template, produce ALL THREE files:
 **C. `styles/{name}.css`** — Per-template styles:
 ```css
 @import url("/styles/of1-base.css");
-/* template-specific rules only */
+/* template-specific rules only — copy actual CSS values from the prototype,
+   don't approximate. If the prototype hero has padding: 80px 0, use that exact value.
+   If cards have box-shadow: 0 4px 12px rgba(0,0,0,0.08), use that exact shadow. */
 ```
+
+**CSS rules MUST mirror the prototype's actual styling:**
+- Copy exact padding values, border-radius, shadows from the prototype CSS
+- Use the same hover effects (transform: translateY(-2px)? opacity change? color shift?)
+- Match the exact font-size/line-height/letter-spacing for each heading level
+- Use the same gradient directions and stops if gradients appear in the prototype
 
 ### 3. Generate sample data and previews
 
