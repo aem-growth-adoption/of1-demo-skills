@@ -378,16 +378,16 @@ git push origin ${BRANCH}
 
 ---
 
-## Step 6: Upload DA Content via Mount
+## Step 6: Upload DA Content
 
 ### ⚠️ CRITICAL — READ THIS BEFORE DOING ANYTHING WITH DA
 
 | Action | Method | Notes |
 |--------|--------|-------|
-| Write content to DA | `cp file /mnt/da/{BRANCH}/page.html` | Mount handles auth automatically |
+| Write content to DA | **Option A:** `cp file /mnt/da/{BRANCH}/page.html` | Mount handles auth automatically |
+| Write content to DA | **Option B:** `cat file \| curl -s -X PUT -H "Authorization: Bearer $DA_TOKEN" -H "Content-Type: text/html" --data-binary @- "https://admin.da.live/source/{OWNER}/{REPO}/{BRANCH}/page.html"` | API fallback if mount has permission issues |
 | Get IMS token | `oauth-token adobe` | Instant, no browser flow needed |
 | Trigger preview | `curl -X POST admin.hlx.page/preview/...` | Include both auth headers |
-| ~~Upload via API~~ | ~~`curl admin.da.live`~~ | **BLOCKED — will fail with "forbidden"** |
 | ~~Use da-auth-helper~~ | ~~`npx da-auth-helper`~~ | **DOESN'T EXIST in this env** |
 | ~~Read ~/.aem/da-token.json~~ | ~~`cat ~/.aem/...`~~ | **FILE DOESN'T EXIST** |
 
@@ -398,27 +398,47 @@ git push origin ${BRANCH}
 # Content for this demo lives in /mnt/da/{BRANCH}/ subfolder
 # IMPORTANT: Use ${BRANCH} (e.g., "frescopa-2"), NOT the domain name!
 
+DA_TOKEN=$(oauth-token adobe)
 mkdir -p "${DA_CONTENT_PATH}" 2>/dev/null
 
-# Upload all DA docs
+# Upload all DA docs — try mount first, fall back to API
 for PROJECT_DIR in ${REPO_DIR}/.snowflake/projects/*/da/; do
   for DOC in ${PROJECT_DIR}*.html; do
     [ -f "$DOC" ] || continue
     BASENAME=$(basename "$DOC")
-    cp "$DOC" "${DA_CONTENT_PATH}/${BASENAME}"
-    echo "✓ ${DA_CONTENT_PATH}/${BASENAME}"
+    # Try mount first
+    if cp "$DOC" "${DA_CONTENT_PATH}/${BASENAME}" 2>/dev/null; then
+      echo "✓ mount: ${DA_CONTENT_PATH}/${BASENAME}"
+    else
+      # Fallback to API
+      cat "$DOC" | curl -s -X PUT \
+        -H "Authorization: Bearer ${DA_TOKEN}" \
+        -H "Content-Type: text/html" \
+        --data-binary @- \
+        "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/${BASENAME}"
+      echo "✓ API: ${BASENAME}"
+    fi
   done
 done
 
 # Create OF1 page
-cat > "${DA_CONTENT_PATH}/of1.html" <<EOF
+cat <<EOF | curl -s -X PUT \
+  -H "Authorization: Bearer ${DA_TOKEN}" \
+  -H "Content-Type: text/html" \
+  --data-binary @- \
+  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/of1.html"
 <html>
 <body>
   <header></header>
   <main>
     <div>
       <div class="of1">
-        <div><div>domain</div><div>${BRANCH}--${REPO}--${OWNER}</div></div>
+        <div><div><p>domain</p></div><div><p>${BRANCH}--${REPO}--${OWNER}</p></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="metadata">
+        <div><div><p>template</p></div><div><p>prototype-home</p></div></div>
       </div>
     </div>
   </main>
@@ -426,8 +446,55 @@ cat > "${DA_CONTENT_PATH}/of1.html" <<EOF
 </body>
 </html>
 EOF
-echo "✓ ${DA_CONTENT_PATH}/of1.html"
+echo "✓ of1.html"
 ```
+
+### ⚠️ DA Content Format — EXACT bytes EDS expects
+
+**THIS IS THE #1 SOURCE OF BUGS.** EDS expects a very specific HTML structure in DA content. Copy this format EXACTLY:
+
+```html
+<html>
+<body>
+  <header></header>
+  <main>
+    <div>
+      <div class="hero">
+        <div><div><p>heading</p></div><div><h1>Your perfect coffee is four questions away!</h1></div></div>
+        <div><div><p>subheading</p></div><div><p>Take our quick quiz to find your ideal roast profile.</p></div></div>
+        <div><div><p>cta</p></div><div><p><a href="/quiz">Start Quiz Now</a></p></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="promo-banner">
+        <div><div><p>heading</p></div><div><h3>Fall in love with coffee. Every single day!</h3></div></div>
+        <div><div><p>body</p></div><div><p>Hand-selected coffees delivered right to your door each month.</p></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="metadata">
+        <div><div><p>template</p></div><div><p>prototype-home</p></div></div>
+      </div>
+    </div>
+  </main>
+  <footer></footer>
+</body>
+</html>
+```
+
+**FORMAT RULES (violating ANY of these breaks the page):**
+1. Every cell text MUST be wrapped in `<p>` tags: `<div><p>slot-name</p></div>`
+2. Headings keep their tags inside the `<p>` wrapper: `<div><h1>text</h1></div>` — BUT the slot name cell is always `<p>`
+3. Links go inside `<p>`: `<div><p><a href="...">text</a></p></div>`
+4. The metadata block MUST be the LAST section (last `<div>` child of `<main>`)
+5. `<header></header>` and `<footer></footer>` tags MUST be present (even if empty)
+6. Each section is one `<div>` directly inside `<main>` containing one block-class div
+7. **NEVER use `--data-binary @/path/to/file`** — always pipe via `cat file | curl ... --data-binary @-`
+
+**What happens if you get the format wrong:**
+- Missing `<p>` wrappers → EDS sees empty cells → page renders with empty `<div></div>` in main
+- Missing metadata block → no `<meta name="template">` in output → overlay engine never activates
+- Wrong structure → EDS can't parse blocks → page shows nothing
 
 ---
 
@@ -520,7 +587,8 @@ For each content page (skip of1), compare EDS preview against the prototype:
 | Missing EDS block reset CSS rules | 10+ min (header/footer broken layout) | Add `.header.block { display: block !important; }` at top of CSS |
 | Announcement bar nested inside `<header>` | 5+ min (renders on same line as nav) | Keep announcement bar as separate div ABOVE `<header>` |
 | Footer logo SVG truncated/partial | Broken logo forever | Use the SAME complete SVG as header, change fill colors for dark bg |
-| Trying `curl` to `admin.da.live` | 3-5 min | Use `/mnt/da/` mount |
+| DA content missing `<p>` wrappers | 30+ min (page renders empty, hard to debug) | EVERY cell value MUST be wrapped in `<p>` tags — see "DA Content Format" section above |
+| Using `--data-binary @/path/to/file` | 10+ min (uploads literal string, breaks DA) | ALWAYS pipe: `cat file \| curl ... --data-binary @-` |
 | Running `npx da-auth-helper` | 2-3 min | Use `oauth-token adobe` |
 | Writing to `/mnt/da/{domain}/` instead of `/mnt/da/{BRANCH}/` | 5 min debugging | DA path uses BRANCH name (e.g., `frescopa-2`), not domain |
 | Using URL path `/{page}` without branch prefix | 2 min debugging 404s | URL path is `/${BRANCH}/${page}` |

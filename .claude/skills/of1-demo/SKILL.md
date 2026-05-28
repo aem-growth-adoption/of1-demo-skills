@@ -16,9 +16,9 @@ Lightweight orchestrator that opens the demo pipeline sprinkle and dispatches st
 4. The cone spawns a scoop to execute the step skill with appropriate context
 5. Steps with review gates pause for user approval (Approve/Revise buttons in sprinkle)
 6. After step 5 (Prototype), two tracks run in parallel:
-   - **Track A (EDS Site):** Step 6 (Snowflake) → Steps 7 + 8 (Templates + OF1 styling) in parallel
+   - **Track A (EDS Site):** Steps 6 + 8 (Snowflake + OF1 styling) in parallel → Step 7 (Templates, needs S6 output)
    - **Track B (Config):** Steps 9–11 (Brand & content, Suggestions, CTA) in parallel → Step 12 (Config review)
-7. Step 13 (Deploy) requires Track A steps 7 + 8 done AND Track B step 12 approved
+7. Step 13 (Deploy) requires Track A step 7 done AND Track B step 12 approved
 
 ## Setup
 
@@ -46,15 +46,24 @@ User clicked Run on step N. Parse the step number, skill name, and domain from t
 
 Pass `model: "claude-opus-4-6"` when calling `scoop_scoop()` for every step. No exceptions.
 
-**For step 6 (Snowflake), the scoop MUST additionally be created with write access to the project repo:**
+**For step 6 (Snowflake), the scoop MUST additionally be created with write access to the project repo AND the DA mount:**
 ```
 scoop_scoop({
   name: "of1-s6",
   model: "claude-opus-4-6",
-  writablePaths: ["/scoops/of1-s6/", "/shared/", "/workspace/{REPO_NAME}/"]
+  writablePaths: ["/scoops/of1-s6/", "/shared/", "/workspace/{REPO_NAME}/", "/mnt/da/"]
 })
 ```
-This allows the scoop to write blocks, styles, and content directly into the repo without needing the cone to copy files afterward.
+This allows the scoop to write blocks, styles, and content directly into the repo AND upload DA content via the mount without permission errors.
+
+**For step 9 (Content Metadata), the scoop also needs DA mount access for image uploads:**
+```
+scoop_scoop({
+  name: "of1-s9",
+  model: "claude-opus-4-6",
+  writablePaths: ["/scoops/of1-s9/", "/shared/", "/workspace/{REPO_NAME}/", "/mnt/da/"]
+})
+```
 
 ```
 feed_scoop("of1-demo-step-N", <system prompt with skill instructions + context>)
@@ -66,10 +75,13 @@ The system prompt MUST include:
 - **DA auth instructions** — ALWAYS include this block in every scoop prompt that touches DA:
   ```
   ## DA Auth (CRITICAL — do not deviate)
-  - Write DA content via mount: cp file /mnt/da/{branch}/page.html
   - Get IMS token: DA_TOKEN=$(oauth-token adobe)
-  - Trigger preview: curl -X POST -H "Authorization: Bearer $DA_TOKEN" -H "x-content-source-authorization: Bearer $DA_TOKEN" https://admin.hlx.page/preview/...
-  - DO NOT use curl against admin.da.live (blocked)
+  - Write DA content — TWO options (mount preferred, API as fallback):
+    Option A (preferred): cp file /mnt/da/{branch}/page.html
+    Option B (fallback):  cat file | curl -s -X PUT -H "Authorization: Bearer $DA_TOKEN" -H "Content-Type: text/html" --data-binary @- "https://admin.da.live/source/{owner}/{repo}/{branch}/page.html"
+  - Trigger preview: curl -X POST -H "Authorization: Bearer $DA_TOKEN" -H "x-content-source-authorization: Bearer $DA_TOKEN" https://admin.hlx.page/preview/{owner}/{repo}/{branch}/{branch}/{page}
+  - admin.da.live IS allowed for curl (PUT to write, GET to read)
+  - admin.hlx.page IS allowed for curl (preview/publish triggers)
   - DO NOT use npx/da-auth-helper (doesn't exist)
   - DO NOT look for ~/.aem/da-token.json (doesn't exist)
   - Content path: /mnt/da/{branch}/page.html (NOT /mnt/da/{repo}/page.html)
@@ -108,35 +120,40 @@ The pipeline has TWO parallel tracks that MUST run concurrently. **Do NOT serial
 
 | Trigger | Spawn immediately |
 |---------|-------------------|
-| Step 5 (Prototype) approved | **Track A:** Step 6 (Snowflake) AND **Track B:** Steps 9, 10, 11 (all three at once) |
-| Step 6 (Snowflake) approved | Steps 7 AND 8 in parallel (both depend on step 6 only) |
+| Step 5 (Prototype) approved | **Track A:** Steps 6 + 8 in parallel (Snowflake + OF1 styling) AND **Track B:** Steps 9, 10, 11 (all three at once) |
+| Step 6 (Snowflake) approved | Step 7 (Templates — depends on S6's template structure) |
 | Steps 9-11 ALL complete | Step 12 (Config review) — run inline by the cone |
-| Steps 7 + 8 done AND Step 12 approved | Step 13 (Deploy) |
+| Step 7 done AND Step 12 approved | Step 13 (Deploy) |
 
 ### Dependency graph:
 ```
-Steps 1→2→3→4→5 (sequential)
-                 ↓
-         ┌───────┴───────┐
-         ↓               ↓
-    Track A          Track B
-         ↓               ↓
-    Step 6          Steps 9,10,11
-    (Snowflake)     (all parallel)
-         ↓               ↓
-    Steps 7+8       Step 12
-    (parallel)      (config review)
-         ↓               ↓
-         └───────┬───────┘
-                 ↓
-            Step 13 (Deploy)
+Steps 1→2 (sequential)
+         ↓
+    ┌────┴────┐
+    ↓         ↓
+  Step 3    Step 4        ← PARALLEL (both need only domain)
+    ↓         ↓
+    └────┬────┘
+         ↓
+       Step 5             ← needs both S3 + S4
+         ↓
+    ┌────┼────────────┐
+    ↓    ↓            ↓
+  S6   S8    Track B (S9+S10+S11)
+    ↓    ↓            ↓
+  S7     │         Step 12
+    ↓    ↓            ↓
+    └────┼────────────┘
+         ↓
+      Step 13 (Deploy)
 ```
 
 ### Key rules:
 1. **Track B does NOT wait for Step 6** — it starts immediately after Step 5 is approved
-2. **Steps 7 and 8 run in parallel** — don't wait for one to finish before starting the other
-3. **Steps 9, 10, 11 ALL run at once** — spawn all 3 scoops simultaneously
-4. **Push each status as it arrives** — don't wait for all parallel steps to finish before updating the sprinkle
+2. **Step 8 (OF1 styling) runs in parallel WITH Step 6** — it only needs DESIGN.json from Step 4, not S6 output
+3. **Step 7 (Templates) waits for Step 6** — it needs the template CSS structure from the snowflake conversion
+4. **Steps 9, 10, 11 ALL run at once** — spawn all 3 scoops simultaneously
+5. **Push each status as it arrives** — don't wait for all parallel steps to finish before updating the sprinkle
 
 ### Polling pattern for parallel steps:
 
@@ -200,11 +217,11 @@ User reset the pipeline. Clean up any running scoops.
 | 1 | Install dependencies | `of1-setup` | No | — | nothing |
 | 2 | Branch setup | `of1-branch-setup` | No | — | step 1 |
 | 3 | Discovery | `of1-discovery` | Yes | — | step 2 |
-| 4 | Extraction | `of1-extraction` | Yes | — | step 3 |
-| 5 | Prototype | `of1-prototype` | Yes | — | step 4 |
+| 4 | Extraction | `of1-extraction` | Yes | — | step 2 (runs parallel with step 3) |
+| 5 | Prototype | `of1-prototype` | Yes | — | steps 3 + 4 (needs both) |
 | 6 | Snowflake | `of1-snowflake` | Yes | A | step 5 |
 | 7 | Templates | `of1-template-generation` | Yes | A | step 6 |
-| 8 | OF1 styling | `of1-generative-block-styler` | Yes | A | step 6 |
+| 8 | OF1 styling | `of1-generative-block-styler` | Yes | A | step 5 (runs parallel with step 6) |
 | 9 | Brand & content | `of1-brand-voice-extractor` + `of1-content-metadata` | No | B | step 5 |
 | 10 | Suggestions | `of1-quick-suggestions` | No | B | step 5 |
 | 11 | CTA template | `of1-cta-template-builder` | No | B | step 5 |
@@ -213,13 +230,13 @@ User reset the pipeline. Clean up any running scoops.
 
 ### Track Summary
 
-**Track A (EDS Site):** Step 6 → Steps 7 + 8 (parallel after step 6 approved)
+**Track A (EDS Site):** Steps 6 + 8 start in parallel after Step 5 → Step 7 starts after Step 6 approved
 
 **Track B (Config):** Steps 9 + 10 + 11 (ALL parallel, start immediately after step 5) → Step 12 (Config review)
 
-**Both tracks start after Step 5 is approved.** Track B does NOT wait for Step 6.
+**Both tracks start after Step 5 is approved.** Track B does NOT wait for Step 6. Step 8 does NOT wait for Step 6 either — it only needs DESIGN.json from Step 4.
 
-**Step 13 (Deploy)** requires Track A (steps 7+8 done) AND Track B (step 12 approved).
+**Step 13 (Deploy)** requires Track A (step 7 done) AND Track B (step 12 approved).
 
 ## Step 2 — Branch Setup
 
@@ -347,9 +364,9 @@ Each step scoop needs context from prior steps. Key dependencies:
 
 - **Step 1 (Install dependencies)** needs: nothing (can run without domain)
 - **Step 2 (Branch setup)** needs: domain. Creates branch on `aem-growth-adoption/of1-demo` and outputs `repo-config.json`.
-- **Step 3 (Discovery)** needs: domain
-- **Step 4 (Extraction)** needs: domain, Discovery output (demo focus, narrative, audience). The scoop reads `/workspace/skills/of1-extraction/SKILL.md` which instructs it to invoke `stardust:extract`. Produces PRODUCT.md, DESIGN.json, screenshots, logo, and brand-review.html under `stardust/current/`.
-- **Step 5 (Prototype)** needs: domain, extraction outputs from step 4 (`stardust/current/`). The scoop reads `/workspace/skills/of1-prototype/SKILL.md` which instructs it to invoke `stardust:prototype`. Produces pixel-perfect HTML prototypes under `stardust/prototypes/` and commits to `deliverables/`.
+- **Step 3 (Discovery)** needs: domain — runs in PARALLEL with step 4
+- **Step 4 (Extraction)** needs: domain only (does NOT need discovery output). Extracts design tokens, colors, typography, logo, and screenshots from the live site. Produces PRODUCT.md, DESIGN.json, screenshots, logo, and brand-review.html under `stardust/current/`. Runs in PARALLEL with step 3.
+- **Step 5 (Prototype)** needs: domain + extraction outputs from step 4 (`stardust/current/`) + discovery output from step 3 (key pages and narrative). Waits for BOTH S3 and S4 to complete.
 - **Step 6 (Snowflake)** needs: domain, prototypes from step 5, repo-config.json
 - **Step 7 (Templates)** needs: domain, design tokens from step 4 (`design-tokens.json`), demo narrative from step 3, snowflake output from step 6
 - **Step 8 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
@@ -471,7 +488,9 @@ DA_TOKEN=$(oauth-token adobe)
 ```
 That's it. No npx, no da-auth-helper, no browser flow, no manual paste. Works instantly.
 
-### Writing DA content — USE THE MOUNT, NOT curl
+### Writing DA content — Mount (preferred) OR admin.da.live API
+
+**Option A — Mount (preferred, fastest):**
 
 The DA mount at `/mnt/da/` handles auth automatically. It is mounted at the REPO root level (`da://aem-growth-adoption/of1-demo`).
 
@@ -487,11 +506,27 @@ The DA mount at `/mnt/da/` handles auth automatically. It is mounted at the REPO
 cp /path/to/content.html /mnt/da/${BRANCH}/page-name.html
 ```
 
+**Option B — admin.da.live API (fallback if mount has permission issues):**
+
+`admin.da.live` IS now in the allowed secret domains. Use it when the mount fails:
+
+```bash
+DA_TOKEN=$(oauth-token adobe)
+
+# Upload HTML content to DA via API
+cat /path/to/content.html | curl -s -X PUT \
+  -H "Authorization: Bearer ${DA_TOKEN}" \
+  -H "Content-Type: text/html" \
+  --data-binary @- \
+  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/page-name.html"
+```
+
+**⚠️ IMPORTANT: When using `--data-binary @-`, always pipe via `cat file |`. Do NOT use `--data-binary @/path/to/file` — it can fail silently in scoops.**
+
 **DO NOT:**
-- Use `curl` against `admin.da.live` — it's blocked by the SLICC secret proxy
 - Use `npx da-auth-helper` — it doesn't work in this environment
 - Try to extract tokens from `~/.aem/da-token.json` — it doesn't exist
-- Spend time exploring auth options — the mount is the answer
+- Spend time exploring auth options — mount first, API second, that's it
 
 ### Triggering preview — USE admin.hlx.page
 
@@ -521,6 +556,6 @@ Example: `https://frescopa--of1-demo--aem-growth-adoption.aem.page/frescopa/prot
 | Domain | Allowed | Use for |
 |--------|---------|---------|
 | `admin.hlx.page` | ✅ Yes | Preview/publish triggers |
-| `content.da.live` | ✅ Yes | (read-only content delivery) |
-| `admin.da.live` | ❌ No | Use mount instead |
+| `admin.da.live` | ✅ Yes | Read/write DA content (PUT for upload, GET for read) |
+| `content.da.live` | ✅ Yes | Read-only content delivery |
 | `*.adobelogin.com` | ✅ Yes | (IMS auth, handled by oauth-token) |

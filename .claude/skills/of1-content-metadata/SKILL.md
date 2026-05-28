@@ -263,24 +263,53 @@ Array.from(document.querySelectorAll('img'))
 
 Pick up to 5 unique, high-quality product images per product.
 
-**Download ALL images to DA:**
+**Download ALL images to DA (mount preferred, API fallback):**
 
 ```bash
+DA_TOKEN=$(oauth-token adobe)
+
 # Create the media folder in DA
-mkdir -p /mnt/da/${BRANCH}/media
+mkdir -p /mnt/da/${BRANCH}/media 2>/dev/null
 
 # Download each image — use a clean filename based on product ID
-curl -sL "${IMAGE_URL}" -o "/mnt/da/${BRANCH}/media/product-${PRODUCT_ID}-1.png"
-curl -sL "${IMAGE_URL_2}" -o "/mnt/da/${BRANCH}/media/product-${PRODUCT_ID}-2.png"
+for PRODUCT_ID in <product-ids>; do
+  for N in 1 2 3 4 5; do
+    IMAGE_URL="${EXTRACTED_URLS[$PRODUCT_ID][$N]}"
+    [ -z "$IMAGE_URL" ] && continue
+    
+    FILENAME="product-${PRODUCT_ID}-${N}.png"
+    
+    # Download from source
+    curl -sL "${IMAGE_URL}" -o "/tmp/${FILENAME}"
+    
+    # Verify download (must be > 10KB)
+    SIZE=$(wc -c < "/tmp/${FILENAME}" 2>/dev/null || echo 0)
+    if [ "$SIZE" -lt 10000 ]; then
+      echo "⚠️ Skipping ${FILENAME} — download too small (${SIZE} bytes)"
+      continue
+    fi
+    
+    # Upload to DA — try mount first, then API
+    if cp "/tmp/${FILENAME}" "/mnt/da/${BRANCH}/media/${FILENAME}" 2>/dev/null; then
+      echo "✓ mount: ${FILENAME}"
+    else
+      # Fallback: upload via admin.da.live API
+      curl -s -X PUT \
+        -H "Authorization: Bearer ${DA_TOKEN}" \
+        -H "Content-Type: image/png" \
+        --data-binary "@/tmp/${FILENAME}" \
+        "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/media/${FILENAME}"
+      echo "✓ API: ${FILENAME}"
+    fi
+  done
+done
 ```
-
-Verify each download: must be > 10KB (failed downloads are 0 bytes or tiny error pages).
 
 **The DA content URL for products.json:**
 
 After downloading to DA, the image is accessible at:
 ```
-https://content.da.live/{OWNER}/{REPO}/${BRANCH}/media/product-${PRODUCT_ID}-1.png
+https://content.da.live/{OWNER}/{REPO}/{BRANCH}/media/product-{PRODUCT_ID}-1.png
 ```
 
 **Update products.json images array with DA URLs:**
@@ -292,7 +321,14 @@ https://content.da.live/{OWNER}/{REPO}/${BRANCH}/media/product-${PRODUCT_ID}-1.p
 ]
 ```
 
-**IMPORTANT:** Never use invented/fabricated image URLs. Only use URLs extracted from the live site that actually downloaded successfully (> 10KB). Verify at least the first image per product loads from the DA URL.
+**Verify at least one image per product is accessible:**
+```bash
+# Spot-check first image of each product
+curl -s -o /dev/null -w "%{http_code}" "https://content.da.live/${OWNER}/${REPO}/${BRANCH}/media/product-${PRODUCT_ID}-1.png"
+# Must return 200
+```
+
+**IMPORTANT:** Never use invented/fabricated image URLs. Only use URLs extracted from the live site that actually downloaded successfully (> 10KB).
 
 ## DO NOT — Image Hosting
 
@@ -317,8 +353,10 @@ https://content.da.live/{OWNER}/{REPO}/${BRANCH}/media/product-${PRODUCT_ID}-1.p
 | Using `frescopa.coffee/products/...` URLs directly | breaks when customer site changes | Download to DA — self-host everything |
 | Inventing/hallucinating image URLs | broken images, user frustration | Only use URLs extracted via playwright that return 200 |
 | Not verifying downloads (0 byte files) | silent failures | Check each file is > 10KB after download |
-| Using git `/assets/` folder for images | large repo, slow clones | Use DA mount at `/mnt/da/{branch}/media/` |
+| Using git `/assets/` folder for images | large repo, slow clones | Use DA mount at `/mnt/da/{branch}/media/` or admin.da.live API |
 | Forgetting to verify DA URLs are accessible | 5 min debugging | `curl -s -o /dev/null -w "%{http_code}" "https://content.da.live/..."` must return 200 |
+| DA mount permission denied | 5 min exploring workarounds | Use `admin.da.live` API as fallback — it IS allowed now |
+| Using `--data-binary @/path/file` for binary uploads | silent failure | Use `--data-binary "@/tmp/file"` (quoted path with @) for binary; for text use `cat file \| curl --data-binary @-` |
 
 ## Tips
 

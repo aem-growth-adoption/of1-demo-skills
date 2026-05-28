@@ -59,6 +59,31 @@ Tell the user:
 git checkout -b ${BRANCH} origin/main
 ```
 
+### 2b. Clean slate — remove ALL prior artifacts
+
+Whether continuing on an existing branch or starting fresh, ALWAYS remove stale pipeline artifacts so scoops don't get confused by old data:
+
+```bash
+cd /workspace/of1-demo
+
+# Remove prior pipeline outputs (git-tracked artifacts from previous runs)
+rm -rf stardust/ deliverables/ templates/ styles/ fragments/ .snowflake/ drafts/ gallery/ of1/config/ tools/ output/
+rm -f PRODUCT.md
+
+# Remove shared state from prior run
+rm -rf /shared/of1-demo/step-*
+rm -f /shared/of1-demo/discovery.html
+
+# Commit the cleanup if there were tracked files
+git add -A
+if ! git diff --cached --quiet; then
+  git commit -m "chore: clean slate for fresh demo run"
+  git push origin ${BRANCH}
+fi
+```
+
+**Why this matters:** Previous runs leave behind `deliverables/`, `stardust/`, `of1/config/`, and DA content. Scoops that find existing files waste 5-30 minutes trying to decide whether to reuse them, adapt to them, or overwrite them. A clean slate eliminates all this confusion.
+
 ### 3. Check for existing DA content
 
 ```bash
@@ -67,16 +92,26 @@ if [ -d /mnt/da ] && ls /mnt/da/${BRANCH}/ >/dev/null 2>&1; then
 fi
 ```
 
-**If DA content exists and user chose "fresh start" in step 2:**
+**ALWAYS clean DA content for fresh runs** (regardless of branch choice). Old DA content with mismatched slot names is the #1 cause of the snowflake step failing:
 
 ```bash
-rm -rf /mnt/da/${BRANCH}/
-mkdir -p /mnt/da/${BRANCH}/
+DA_TOKEN=$(oauth-token adobe)
+
+if [ -d "/mnt/da/${BRANCH}" ]; then
+  # Remove all existing DA pages for this branch
+  for f in /mnt/da/${BRANCH}/*.html; do
+    [ -f "$f" ] || continue
+    BASENAME=$(basename "$f")
+    rm -f "$f" 2>/dev/null || \
+      curl -s -X DELETE -H "Authorization: Bearer ${DA_TOKEN}" \
+        "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/${BASENAME}"
+  done
+  echo "✓ Cleaned DA content at /mnt/da/${BRANCH}/"
+fi
+
+# Ensure the DA directory exists
+mkdir -p "/mnt/da/${BRANCH}" 2>/dev/null
 ```
-
-**If DA content exists and user chose "continue":**
-
-Leave it in place — the pipeline will overwrite individual pages as it progresses.
 
 **If DA is not mounted:**
 

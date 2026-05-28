@@ -10,9 +10,10 @@ Crawl the target site to understand what it offers, then propose a demo focus an
 
 ## ⚡ Speed Priority — Target: 3 minutes
 
-- Homepage + 3-5 nav pages is enough — don't over-crawl
+- Homepage + MAX 3 nav pages (4 pages total) — do NOT over-crawl
 - Take screenshots as you go (reused by extraction)
 - Write structured output for downstream steps
+- Do NOT visit product detail pages, about pages, or sustainability pages — stick to top-level category/listing pages
 
 ---
 
@@ -47,9 +48,9 @@ Analyze:
 - Target audience
 - Key CTAs and conversion paths
 
-### 2. Crawl 3-5 navigation pages
+### 2. Crawl UP TO 3 navigation pages (MAX 4 total including homepage)
 
-Follow top navigation links to the most visual/product-rich pages. For each page:
+Follow top navigation links to the most visual/product-rich pages. **STOP after 3 subpages** — you do NOT need to visit every category. Pick the 2-3 most product-rich or visual pages from the main nav. For each page:
 
 ```bash
 playwright-cli visit "https://{DOMAIN}/{path}" --headed
