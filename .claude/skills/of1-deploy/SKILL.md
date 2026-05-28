@@ -268,9 +268,10 @@ EOF
 
 **Pass criteria:**
 - Every product has at least 2 images (thumbnail + at least 1 gallery image)
+- ALL image URLs must be from `content.da.live` — NEVER from the customer's CDN
 - Image URLs return 200 (spot-check 3-4 URLs with curl)
 
-**If it fails:** Re-run Step 9 with instructions to download more product images to DA.
+**If it fails:** Download the missing images from the customer site, upload to DA (`/mnt/da/{branch}/media/`), and update products.json with the `content.da.live` URLs. NEVER use customer CDN URLs directly — they can break, have CORS issues, or expose the demo to rate limiting.
 
 ### Check 4: Sprinkle quick links all work
 
