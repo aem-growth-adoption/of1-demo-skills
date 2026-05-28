@@ -10,12 +10,12 @@
 #   fetch-brand-tokens.sh <domain> <output-dir>
 #
 # Resolves the brand id from <domain>, then fetches design tokens for two
-# segments (global, fr-under25) in both markdown and JSON formats. Writes:
+# segments (global, fr) in both markdown and JSON formats. Writes:
 #   <output-dir>/brand-info.json
 #   <output-dir>/design-tokens-global.md
 #   <output-dir>/design-tokens-global.json
-#   <output-dir>/design-tokens-fr-under25.md
-#   <output-dir>/design-tokens-fr-under25.json
+#   <output-dir>/design-tokens-fr.md
+#   <output-dir>/design-tokens-fr.json
 #
 # Exits 64 on usage error, 65 on prod URL refused, 1 on any other failure.
 
@@ -92,6 +92,6 @@ fetch_segment() {
 }
 
 fetch_segment "global" "{}"
-fetch_segment "fr-under25" '{"country":"FR","audience":"under-25"}'
+fetch_segment "fr" '{"country":"FR"}'
 
 echo "Done: tokens written to ${OUTPUT_DIR}"

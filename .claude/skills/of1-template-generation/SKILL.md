@@ -53,9 +53,9 @@ The OF1 worker uses a template routing system. After `POST /api/tenants/<id>/syn
   "byIntent": {
     "comparison": [
       "of1-comparison-table-global",
-      "of1-comparison-table-fr-under25",
+      "of1-comparison-table-fr",
       "of1-comparison-versus-global",
-      "of1-comparison-versus-fr-under25"
+      "of1-comparison-versus-fr"
     ]
   },
   "templates": [
@@ -69,7 +69,7 @@ The OF1 worker uses a template routing system. After `POST /api/tenants/<id>/syn
 }
 ```
 
-The `description` field is critical — the LLM uses it to pick between variants for the same intent. Each description MUST disambiguate both the layout (`table` vs `versus`) and the segment (`global palette` vs `French youth palette`).
+The `description` field is critical — the LLM uses it to pick between variants for the same intent. Each description MUST disambiguate both the layout (`table` vs `versus`) and the segment (`global palette` vs `French palette`).
 
 **3. `templates/<name>.metadata.json`** — Per-template metadata with slot contract:
 ```json
@@ -200,9 +200,9 @@ This skill generates exactly **4 templates** = 1 intent × 2 layouts × 2 segmen
 | Intent | Layout | Segment | Template name |
 |---|---|---|---|
 | comparison | table | global | `of1-comparison-table-global` |
-| comparison | table | fr-under25 | `of1-comparison-table-fr-under25` |
+| comparison | table | fr | `of1-comparison-table-fr` |
 | comparison | versus | global | `of1-comparison-versus-global` |
-| comparison | versus | fr-under25 | `of1-comparison-versus-fr-under25` |
+| comparison | versus | fr | `of1-comparison-versus-fr` |
 
 **Layout differences:**
 - `table` — Hero + N-column feature table (rows = attributes, columns = options). 5–6 sections including the table.
@@ -212,7 +212,7 @@ The two layouts MUST be structurally distinct (different section counts, differe
 
 **Segment differences:**
 - `global` — uses tokens fetched with `segment={}`. Frescopa baseline: brick_red, icon_gold, maroon_wordmark + secondaries.
-- `fr-under25` — uses tokens fetched with `segment={"country":"FR","audience":"under-25"}`. Adds `color.brand.primary`, `color.accent` overrides over the baseline.
+- `fr` — uses tokens fetched with `segment={"country":"FR"}`. Adds `color.brand.primary` (`#A93214`) over the baseline.
 
 The HTML is identical between segments for the same layout; only the per-template CSS (specifically the `:root` block) differs.
 
@@ -259,8 +259,8 @@ After it succeeds you have:
 - `/shared/of1-demo/brand-info.json`
 - `/shared/of1-demo/design-tokens-global.md`
 - `/shared/of1-demo/design-tokens-global.json`
-- `/shared/of1-demo/design-tokens-fr-under25.md`
-- `/shared/of1-demo/design-tokens-fr-under25.json`
+- `/shared/of1-demo/design-tokens-fr.md`
+- `/shared/of1-demo/design-tokens-fr.json`
 
 If the script exits non-zero, **stop** and report the failure. Do not fall back to stardust or invented tokens.
 
@@ -295,7 +295,7 @@ For each of the 4 (layout, segment) combinations, produce 4 files:
 - `templates/of1-comparison-{layout}-{segment-slug}.sample.json`
 - `styles/of1-comparison-{layout}-{segment-slug}.css`
 
-The HTML is the same for `(layout, global)` and `(layout, fr-under25)` — only the CSS differs.
+The HTML is the same for `(layout, global)` and `(layout, fr)` — only the CSS differs.
 
 **For each template:**
 
@@ -317,16 +317,16 @@ The HTML is the same for `(layout, global)` and `(layout, fr-under25)` — only 
 
 Each description MUST be a single sentence that disambiguates layout AND segment. Suggested forms:
 - "Side-by-side comparison table — global palette."
-- "Side-by-side comparison table — French youth palette."
+- "Side-by-side comparison table — French palette."
 - "Two-option versus layout with verdict — global palette."
-- "Two-option versus layout with verdict — French youth palette."
+- "Two-option versus layout with verdict — French palette."
 
 **C. `<name>.css`** — Per-template stylesheet. Compose it from the appropriate `design-tokens-<segment-slug>.json`.
 
 Iterate over both segments (the same layout HTML feeds both):
 
 ```bash
-for SEGMENT_SLUG in global fr-under25; do
+for SEGMENT_SLUG in global fr; do
   SEGMENT_JSON=/shared/of1-demo/design-tokens-${SEGMENT_SLUG}.json
 
   # Extract using the named paths from the mapping convention below. Each jq
@@ -335,7 +335,7 @@ for SEGMENT_SLUG in global fr-under25; do
   BG=$(jq -r '.color.secondary.cream."$value".hex // empty'           "$SEGMENT_JSON")
   FG=$(jq -r '.color.secondary.charcoal."$value".hex // empty'        "$SEGMENT_JSON")
   MUTED=$(jq -r '.color.brand.maroon_wordmark."$value".hex // empty'  "$SEGMENT_JSON")
-  # Accent prefers color.brand.primary (present in fr-under25), falls back to
+  # Accent prefers color.brand.primary (present in fr), falls back to
   # color.brand.brick_red (always present at baseline).
   ACCENT=$(jq -r '.color.brand.primary."$value".hex // .color.brand.brick_red."$value".hex // empty' "$SEGMENT_JSON")
   ACCENT_HOVER=$(jq -r '.color.brand.maroon_wordmark."$value".hex // empty' "$SEGMENT_JSON")
@@ -358,7 +358,7 @@ The CSS MUST:
 - `--of1-bg` ← `color.secondary.cream` if present, else lightest hex from `color.secondary.*`, else `#F7F7F7`
 - `--of1-fg` ← `color.secondary.charcoal` if present, else darkest hex, else `#1D1D1D`
 - `--of1-muted` ← `color.brand.maroon_wordmark` if present, else second-darkest, else `#5E6670`
-- `--of1-accent` ← `color.brand.primary` if present (fr-under25 has this; global doesn't), else `color.brand.brick_red`, else first hex from `color.brand.*`
+- `--of1-accent` ← `color.brand.primary` if present (fr has this; global doesn't), else `color.brand.brick_red`, else first hex from `color.brand.*`
 - `--of1-accent-hover` ← `color.brand.maroon_wordmark` if present, else darker shade
 - `--of1-accent-fg` ← `#FFFFFF`
 - `--of1-font-display` ← `typography.heading.h1.$value.fontFamily` + serif/sans fallbacks
@@ -408,16 +408,16 @@ cat > templates/templates-catalog.json <<EOF
   "byIntent": {
     "comparison": [
       "of1-comparison-table-global",
-      "of1-comparison-table-fr-under25",
+      "of1-comparison-table-fr",
       "of1-comparison-versus-global",
-      "of1-comparison-versus-fr-under25"
+      "of1-comparison-versus-fr"
     ]
   },
   "templates": [
     { "name": "of1-comparison-table-global",      "description": "Side-by-side comparison table — global palette.",        "minItems": 2, "maxItems": 4 },
-    { "name": "of1-comparison-table-fr-under25",  "description": "Side-by-side comparison table — French youth palette.",  "minItems": 2, "maxItems": 4 },
+    { "name": "of1-comparison-table-fr",  "description": "Side-by-side comparison table — French palette.",  "minItems": 2, "maxItems": 4 },
     { "name": "of1-comparison-versus-global",     "description": "Two-option versus layout with verdict — global palette.","minItems": 2, "maxItems": 2 },
-    { "name": "of1-comparison-versus-fr-under25", "description": "Two-option versus layout with verdict — French youth palette.","minItems": 2, "maxItems": 2 }
+    { "name": "of1-comparison-versus-fr", "description": "Two-option versus layout with verdict — French palette.","minItems": 2, "maxItems": 2 }
   ]
 }
 EOF
@@ -504,7 +504,7 @@ Catalog descriptions are 1 sentence, MUST mention both layout and segment, and M
 - `templates/templates-catalog.json` — template index
 - `gallery/index.html` — browsable review UI
 - `tools/fill-template.py` — fill script
-- `/shared/of1-demo/design-tokens-{global,fr-under25}.{md,json}` and `brand-info.json` — cached cascade responses (not committed to the demo repo)
+- `/shared/of1-demo/design-tokens-{global,fr}.{md,json}` and `brand-info.json` — cached cascade responses (not committed to the demo repo)
 
 ## Completion
 

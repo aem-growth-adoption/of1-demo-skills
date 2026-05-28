@@ -51,7 +51,7 @@ fi
 rm -f "$STDERR1"
 
 # Check artifacts exist and are non-empty
-for f in brand-info.json design-tokens-global.md design-tokens-global.json design-tokens-fr-under25.md design-tokens-fr-under25.json; do
+for f in brand-info.json design-tokens-global.md design-tokens-global.json design-tokens-fr.md design-tokens-fr.json; do
   if [ ! -s "${TMP1}/${f}" ]; then
     echo "FAIL: expected artifact ${TMP1}/${f} missing or empty" >&2
     fail=$((fail + 1))
