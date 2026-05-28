@@ -240,6 +240,38 @@ Verify all ID references are consistent across files. Fix mismatches.
 
 ### Step 9: Pull Product Assets — MUST SELF-HOST ON DA
 
+**⚡ FAST PATH — Use `download-images.sh` for batch download + upload:**
+
+After writing products.json (Step 7), generate an image manifest and run the batch tool:
+
+```bash
+cd "$REPO_DIR"
+
+# Generate manifest from products.json
+python3 << 'EOF'
+import json
+with open("of1/config/products.json") as f:
+    products = json.load(f)
+manifest = [{"productId": p["id"], "urls": p.get("images", [])} for p in products if p.get("images")]
+with open("/tmp/image-manifest.json", "w") as f:
+    json.dump(manifest, f)
+print(f"Manifest: {len(manifest)} products with images")
+EOF
+
+# Batch download + upload to DA (handles mount/API fallback automatically)
+bash /workspace/skills/of1-content-metadata/assets/download-images.sh \
+  --input /tmp/image-manifest.json \
+  --branch "$BRANCH" --owner "$OWNER" --repo "$REPO" \
+  --output /tmp/image-mapping.json \
+  --update-products
+```
+
+This downloads all images, uploads to DA, and updates products.json with `content.da.live` URLs in one command.
+
+**Only use the manual approach below if the tool fails.**
+
+---
+
 **CRITICAL RULE: ALL product images MUST be downloaded and uploaded to DA.** Never leave external CDN URLs in products.json — not AEM delivery URLs, not the customer's site URLs, not any third-party CDN. External URLs break due to CORS, referrer policies, encoding issues, CDN token expiration, and EDS image optimization rewriting.
 
 **Target:** Up to 5 images per product (use fewer if the source page has less) — prioritize:

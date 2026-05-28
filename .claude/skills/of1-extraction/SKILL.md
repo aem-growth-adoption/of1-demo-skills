@@ -68,20 +68,26 @@ ls stardust/current/brand-review.html && echo "Brand review OK"
 
 If any critical file is missing, re-run extraction with `--refresh` for the failing page.
 
-### Step 4: Copy deliverables for EDS hosting
+### Step 4: Generate brand review page (USE THE TOOL)
+
+**⚡ FAST PATH — Use `fill-brand-review.py` to generate the review page automatically:**
 
 ```bash
 cd "$REPO_DIR"
-mkdir -p deliverables/assets/screenshots
 
-# Copy brand review and screenshots to deliverables (served via EDS)
-cp stardust/current/brand-review.html deliverables/brand-review.html
-cp stardust/current/assets/screenshots/*.png deliverables/assets/screenshots/
+# Generate brand review from DESIGN.json + screenshots + logo (takes <1 second)
+python3 /workspace/skills/of1-extraction/assets/fill-brand-review.py . "$DOMAIN"
 ```
 
-**Image paths in brand-review.html MUST be absolute from repo root** (start with `/deliverables/`). If the generated HTML uses relative paths, fix them:
+This reads `stardust/current/DESIGN.json`, finds screenshots and logo, and writes `deliverables/brand-review.html` with correct absolute paths. No need to hand-write HTML.
 
+**Only generate the brand-review.html manually if the tool doesn't produce adequate output.**
+
+If the tool is unavailable, fall back to:
 ```bash
+mkdir -p deliverables/assets/screenshots
+cp stardust/current/brand-review.html deliverables/brand-review.html
+cp stardust/current/assets/screenshots/*.png deliverables/assets/screenshots/
 sed -i '' 's|assets/screenshots/|/deliverables/assets/screenshots/|g' deliverables/brand-review.html
 ```
 

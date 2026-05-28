@@ -204,7 +204,36 @@ The substrate (`scripts.js`) is already installed in this repo. It does:
 
 ---
 
-## Step 2: Generate All Artifacts
+## Step 2: Generate All Artifacts (USE THE TOOL)
+
+**⚡ FAST PATH — Use `snowflake-split.py` for mechanical transformation:**
+
+```bash
+cd "$REPO_DIR"
+
+# Run the tool for each prototype — generates templates, CSS, fragments, and DA docs automatically
+for PROTO in stardust/prototypes/prototype-*.html deliverables/prototype-*.html; do
+  [ -f "$PROTO" ] || continue
+  python3 /workspace/skills/of1-snowflake/assets/snowflake-split.py "$PROTO" \
+    --output-dir "$REPO_DIR" \
+    --branch "$BRANCH" \
+    --owner "$OWNER" \
+    --repo "$REPO"
+done
+```
+
+This generates ALL mechanical artifacts in ~2 seconds. The scoop's job is then LIMITED to:
+1. Verify the tool output looks correct (quick scan)
+2. Fix any creative issues (e.g., slot names that should be different)
+3. Install the OF1 block (Step 4)
+4. Push code, upload DA, trigger preview (Steps 5-7)
+5. Screenshot diff loop (Step 9)
+
+**Only fall back to manual generation if the tool produces incorrect output.**
+
+---
+
+### Manual generation reference (if tool fails)
 
 For each prototype in `stardust/prototypes/*.html` (or `deliverables/prototype-*.html`):
 
@@ -378,9 +407,21 @@ git push origin ${BRANCH}
 
 ---
 
-## Step 6: Upload DA Content
+## Step 6: Upload DA Content (USE THE TOOL)
 
-### ⚠️ CRITICAL — READ THIS BEFORE DOING ANYTHING WITH DA
+**⚡ FAST PATH — Use `da-upload.sh` for one-command upload + preview + verify:**
+
+```bash
+bash /workspace/skills/of1-snowflake/assets/da-upload.sh \
+  --branch "$BRANCH" --owner "$OWNER" --repo "$REPO" \
+  ${REPO_DIR}/.snowflake/projects/*/da/*.html
+```
+
+This handles mount-first-then-API fallback, triggers preview, and verifies each page returns 200. If all succeed, skip to Step 9 (screenshot diff).
+
+**Only use the manual approach below if the tool fails.**
+
+### ⚠️ Manual approach — READ THIS BEFORE DOING ANYTHING WITH DA
 
 | Action | Method | Notes |
 |--------|--------|-------|
