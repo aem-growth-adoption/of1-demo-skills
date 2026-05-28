@@ -1,19 +1,23 @@
 ---
 name: of1-template-generation
-description: Generate 25 branded OF1 templates (5 intents × 5 variations) from the snowflake design system and demo narrative.
+description: Generate 4 branded OF1 templates (1 intent × 2 variations × 2 segments) using design tokens from the brand-governance-agent cascade.
 user-invocable: false
 ---
 
 # OF1 Template Generation
 
-Generate a complete template library for the OF1 worker. Each template is a slot-based HTML page that the worker fills with personalized content at runtime based on user intent.
+Generate a small, segment-aware template library for the OF1 worker. Each template is a slot-based HTML page that the worker fills with personalized content at runtime. Design tokens come from the brand-governance-agent design-token cascade — the same brand, queried under two segments, produces two visually distinct palettes for the same layout.
 
 ## Inputs
 
-- `DOMAIN`: Target domain
 - Repo config from `/shared/of1-demo/repo-config.json`
-- Design tokens from `stardust/current/DESIGN.json` (from step 4)
-- Demo narrative from `/shared/of1-demo/step-3-output.md` (from step 3 — discovery)
+- Brand-governance-agent credentials from environment:
+  - `BGA_API_URL` — base URL of the brand-governance-agent (must point at the stage cluster; prod is rejected)
+  - `BGA_IMS_ORG_ID` — IMS org id
+  - `IMS_TOKEN` — IMS user token (may include `Bearer ` prefix; the script strips it)
+- `DOMAIN` is read from `repo-config.json` and resolved against the cascade API via `GET /api/v1/brands/from-url`.
+
+The skill **does not** read stardust output files or the discovery narrative. Those files may still exist (other steps write/read them); they are simply not consumed here.
 
 ## Worker Contract
 
@@ -27,8 +31,8 @@ The OF1 worker uses a template routing system. After `POST /api/tenants/<id>/syn
 | 2 | `templates/templates-catalog.json` | Index with `byIntent` mapping + template list |
 | 3 | `templates/<name>.metadata.json` | Per-template slot contract (one per template) |
 | 4 | `templates/<name>.html` | Slot-based HTML body |
-| 5 | `styles/of1-base.css` | Shared design tokens + utilities |
-| 6 | `styles/<name>.css` | Per-template stylesheet (optional, imports base) |
+| 5 | `styles/of1-base.css` | Shared utility classes (no colors/fonts — those live per-template) |
+| 6 | `styles/<name>.css` | Per-template stylesheet — declares `:root` tokens, imports the base, adds layout rules |
 
 ### File details
 
@@ -44,19 +48,20 @@ The OF1 worker uses a template routing system. After `POST /api/tenants/<id>/syn
 **2. `templates/templates-catalog.json`** — Catalog:
 ```json
 {
-  "generatedAt": "2026-05-26T...",
-  "count": 25,
+  "generatedAt": "2026-05-28T...",
+  "count": 4,
   "byIntent": {
-    "comparison": ["of1-comparison-table", "of1-comparison-versus", ...],
-    "recommendation": [...],
-    "deep-dive": [...],
-    "budget": [...],
-    "discovery": [...]
+    "comparison": [
+      "of1-comparison-table-global",
+      "of1-comparison-table-fr-under25",
+      "of1-comparison-versus-global",
+      "of1-comparison-versus-fr-under25"
+    ]
   },
   "templates": [
     {
-      "name": "of1-comparison-table",
-      "description": "Side-by-side feature table for 2–4 options.",
+      "name": "of1-comparison-table-global",
+      "description": "Side-by-side comparison table — global palette.",
       "minItems": 2,
       "maxItems": 4
     }
@@ -64,18 +69,18 @@ The OF1 worker uses a template routing system. After `POST /api/tenants/<id>/syn
 }
 ```
 
-The `description` field is critical — the LLM uses it to pick between variants for the same intent. Make descriptions short and distinctive.
+The `description` field is critical — the LLM uses it to pick between variants for the same intent. Each description MUST disambiguate both the layout (`table` vs `versus`) and the segment (`global palette` vs `French youth palette`).
 
 **3. `templates/<name>.metadata.json`** — Per-template metadata with slot contract:
 ```json
 {
-  "name": "of1-comparison-table",
+  "name": "of1-comparison-table-global",
   "intent": "comparison",
-  "description": "Side-by-side feature table for 2–4 options.",
+  "description": "Side-by-side comparison table — global palette.",
   "minItems": 2,
   "maxItems": 4,
-  "stylesheet": "/styles/of1-comparison-table.css",
-  "html": "/templates/of1-comparison-table.html",
+  "stylesheet": "/styles/of1-comparison-table-global.css",
+  "html": "/templates/of1-comparison-table-global.html",
   "slots": [
     { "key": "hero.title", "type": "text", "instruction": "Headline, ≤8 words" },
     { "key": "hero.subtitle", "type": "text", "instruction": "1-sentence framing" },
@@ -98,9 +103,7 @@ The `description` field is critical — the LLM uses it to pick between variants
 - Pattern: `<scope>.<field>` (e.g., `hero.title`, `cta.label`, `item-3.title`)
 - For repeated items: `item-1` … `item-9` — the renderer auto-hides cards whose title and body are empty
 
-**Slot instructions** are passed to the LLM — write them as concise guidance for content generation (e.g., "Headline, ≤8 words", "Use the matched product's image URL", "1-sentence value proposition").
-
-**4. `templates/<name>.html`** — Template HTML body:
+**4. `templates/<name>.html`** — Template HTML body (just `<main>...</main>`, no DOCTYPE):
 ```html
 <main>
 <section class="of1-{name}-hero of1-hero">
@@ -144,41 +147,72 @@ The `description` field is critical — the LLM uses it to pick between variants
 - `<div class="of1-cmp-grid" data-grid-items>` gets `data-item-count="N"` injected at render time
 - NO `<!DOCTYPE>`, NO `<html>/<head>/<body>` — just `<main>...</main>`
 
-## The 5 Intents (fixed)
+**5. `styles/of1-base.css`** — Shared utilities, **no token declarations**:
+```css
+/* Shared utilities for all of1-* templates.
+   Tokens (--of1-accent, --of1-font-display, etc.) are declared by each
+   per-template stylesheet so the same layout can render under different
+   brand-governance segments without rebuilding the base. */
 
-| Intent | Purpose | Example queries |
-|--------|---------|-----------------|
-| `comparison` | Compare options side by side | "X vs Y", "which is better", "differences between" |
-| `recommendation` | Personalized pick or ranked list | "best for me", "what should I choose", "top picks" |
-| `deep-dive` | In-depth explanation or article | "how does X work", "tell me about", "explain" |
-| `budget` | Pricing, ROI, cost orientation | "how much", "pricing", "cost calculator", "ROI" |
-| `discovery` | Browse, explore, get inspired | "show me", "what's available", "categories", "ideas" |
+* { box-sizing: border-box; }
+main { font-family: var(--of1-font-body); color: var(--of1-fg); background: var(--of1-bg); }
+.of1-section { padding: 64px 0; }
+.of1-inner { max-width: var(--of1-max-width, 1200px); margin: 0 auto; padding: 0 24px; }
+.of1-inner-narrow { max-width: 800px; margin: 0 auto; padding: 0 24px; }
+.of1-eyebrow { font-family: var(--of1-font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--of1-muted); font-size: 12px; }
+.of1-hero { min-height: 480px; display: flex; align-items: center; padding: 80px 0; }
+.of1-hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+.of1-hero-media img:not([src]), .of1-hero-media img[src=""] { display: none; }
+.of1-hero-ctas { display: flex; gap: 12px; margin-top: 24px; }
+.of1-cta { display: inline-block; padding: 12px 24px; border-radius: var(--of1-radius, 12px); text-decoration: none; font-weight: 600; transition: background .15s; }
+.of1-cta-primary { background: var(--of1-accent); color: var(--of1-accent-fg); }
+.of1-cta-primary:hover { background: var(--of1-accent-hover); }
+```
 
-`discovery` is the fallback intent when classification is uncertain.
+**6. `styles/<name>.css`** — Per-template stylesheet. Starts with the base import, then declares **all** `--of1-*` tokens used by the base + the layout-specific rules:
+```css
+@import url("/styles/of1-base.css");
 
-## ⚡ Parallelization Strategy
+:root {
+  --of1-bg: #F4E9DC;
+  --of1-fg: #2C2C2C;
+  --of1-muted: #58181D;
+  --of1-accent: #A33532;
+  --of1-accent-hover: #58181D;
+  --of1-accent-fg: #FFFFFF;
+  --of1-font-display: "Baskerville URV", "Times New Roman", serif;
+  --of1-font-body: "Roboto Medium", system-ui, sans-serif;
+  --of1-font-mono: "Roboto Mono", ui-monospace, monospace;
+  --of1-radius: 12px;
+  --of1-max-width: 1200px;
+}
 
-This step is parallelized across 5 scoops — one per intent. The **orchestrator (cone)** handles coordination:
+/* layout-specific rules below */
+.of1-comparison-table-global-grid { /* ... */ }
+```
 
-### Orchestrator responsibilities:
-1. Generate `styles/of1-base.css` FIRST (shared dependency)
-2. Copy `fill-template.py` to `tools/` in the repo
-3. Spawn 5 scoops simultaneously (one per intent)
-4. Wait for all 5 to complete
-5. Generate `templates/templates-catalog.json` from all metadata files
-6. Generate `of1/config/templates.json` routing config
-7. Copy gallery HTML
-8. Single git commit + push
+## Layout × Segment matrix
 
-### Per-intent scoop responsibilities:
-Each scoop receives ONE intent and generates its 5 variations:
-- 5 × `templates/of1-{intent}-{variation}.html`
-- 5 × `templates/of1-{intent}-{variation}.metadata.json`
-- 5 × `styles/of1-{intent}-{variation}.css`
-- 5 × `templates/of1-{intent}-{variation}.sample.json`
-- 5 × `drafts/of1-{intent}-{variation}-sample.html` (via fill-template.py)
+This skill generates exactly **4 templates** = 1 intent × 2 layouts × 2 segments:
 
-The scoop writes directly to the repo dir and signals completion via `/shared/of1-demo/step-7-{intent}-done`.
+| Intent | Layout | Segment | Template name |
+|---|---|---|---|
+| comparison | table | global | `of1-comparison-table-global` |
+| comparison | table | fr-under25 | `of1-comparison-table-fr-under25` |
+| comparison | versus | global | `of1-comparison-versus-global` |
+| comparison | versus | fr-under25 | `of1-comparison-versus-fr-under25` |
+
+**Layout differences:**
+- `table` — Hero + N-column feature table (rows = attributes, columns = options). 5–6 sections including the table.
+- `versus` — Hero + two-column side-by-side "A vs B" with verdict band. 4–5 sections.
+
+The two layouts MUST be structurally distinct (different section counts, different visual rhythm), not just restyled.
+
+**Segment differences:**
+- `global` — uses tokens fetched with `segment={}`. Frescopa baseline: brick_red, icon_gold, maroon_wordmark + secondaries.
+- `fr-under25` — uses tokens fetched with `segment={"country":"FR","audience":"under-25"}`. Adds `color.brand.primary`, `color.accent` overrides over the baseline.
+
+The HTML is identical between segments for the same layout; only the per-template CSS (specifically the `:root` block) differs.
 
 ### SLICC Environment Note:
 - **Node.js is a SHIM** — do NOT use `node` or `npm` or `.mjs` files
@@ -189,7 +223,7 @@ The scoop writes directly to the repo dir and signals completion via `/shared/of
 
 ## Process
 
-### 0. Read repo config and design tokens
+### 0. Read repo config and validate environment
 
 ```bash
 REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
@@ -199,103 +233,135 @@ BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
 REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
 DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 
+for v in BGA_API_URL BGA_IMS_ORG_ID IMS_TOKEN; do
+  if [ -z "${!v:-}" ]; then
+    echo "FATAL: $v is not set" >&2
+    exit 1
+  fi
+done
+
 cd "$REPO_DIR"
 ```
 
-Read the design tokens:
+### 1. Fetch design tokens
+
+Call the helper script. It resolves the brand from the domain and writes 5 files to `/shared/of1-demo/`:
+
+```bash
+mkdir -p /shared/of1-demo
+/workspace/skills/of1-template-generation/assets/fetch-brand-tokens.sh \
+  "$DOMAIN" /shared/of1-demo
 ```
-read_file ${REPO_DIR}/stardust/current/design-tokens.json
+
+After it succeeds you have:
+- `/shared/of1-demo/brand-info.json`
+- `/shared/of1-demo/design-tokens-global.md`
+- `/shared/of1-demo/design-tokens-global.json`
+- `/shared/of1-demo/design-tokens-fr-under25.md`
+- `/shared/of1-demo/design-tokens-fr-under25.json`
+
+If the script exits non-zero, **stop** and report the failure. Do not fall back to stardust or invented tokens.
+
+### 2. Clear stale templates from a previous run
+
+Remove stale templates from a previous run so the gallery doesn't show leftovers:
+
+```bash
+cd "$REPO_DIR"
+git rm -f --ignore-unmatch templates/of1-*.html templates/of1-*.metadata.json templates/of1-*.sample.json
+git rm -f --ignore-unmatch styles/of1-*.css
+git rm -f --ignore-unmatch drafts/of1-*-sample.html
+# Re-create empty directories
+mkdir -p templates styles drafts tools gallery of1/config
 ```
 
-Read the discovery output for demo narrative:
-```
-read_file /shared/of1-demo/step-3-output.md
-```
+### 3. Generate `styles/of1-base.css` (utilities only)
 
-### 1. Generate `styles/of1-base.css`
+Write the file shown in the Worker Contract section above. It MUST NOT declare any token values — only utility classes that reference `var(--of1-*)`.
 
-Create the shared base stylesheet with brand-specific tokens derived from `DESIGN.json`:
+### 4. Generate 4 templates (1 intent × 2 layouts × 2 segments)
 
-```css
-/* Shared base for all of1-* templates */
+For each of the 4 (layout, segment) combinations, produce 4 files:
 
-:root {
-  --of1-bg: {background from DESIGN.json};
-  --of1-fg: {text color};
-  --of1-muted: {muted text};
-  --of1-accent: {primary/accent color};
-  --of1-accent-hover: {darker accent};
-  --of1-accent-fg: {text on accent};
-  --of1-surface: {card surface};
-  --of1-surface-cream: {secondary surface};
-  --of1-surface-dark: {dark surface};
-  --of1-border: {border color};
-  --of1-radius: 16px;
-  --of1-max-width: 1200px;
-  --of1-font-display: {display font + fallbacks};
-  --of1-font-body: {body font + fallbacks};
-  --of1-font-mono: {mono font + fallbacks};
+- `templates/of1-comparison-{layout}-{segment-slug}.html`
+- `templates/of1-comparison-{layout}-{segment-slug}.metadata.json`
+- `templates/of1-comparison-{layout}-{segment-slug}.sample.json`
+- `styles/of1-comparison-{layout}-{segment-slug}.css`
+
+The HTML is the same for `(layout, global)` and `(layout, fr-under25)` — only the CSS differs.
+
+**For each template:**
+
+**A. `<name>.html`** — Layout-driven structure (table vs versus). Must follow the worker contract HTML conventions above. Must have at least 4–5 sections including a hero. NO `<!DOCTYPE>`, NO `<html>` — just `<main>...</main>`.
+
+**B. `<name>.metadata.json`** — Slot contract pointing at the right stylesheet:
+```json
+{
+  "name": "of1-comparison-table-global",
+  "intent": "comparison",
+  "description": "Side-by-side comparison table — global palette.",
+  "minItems": 2,
+  "maxItems": 4,
+  "stylesheet": "/styles/of1-comparison-table-global.css",
+  "html": "/templates/of1-comparison-table-global.html",
+  "slots": [...]
 }
 ```
 
-Then include standard utilities: box-sizing reset, `main` base styles, `.of1-section`, `.of1-inner`, `.of1-inner-narrow`, `.of1-eyebrow`, `.of1-hero` shell (min-height, flex center), `.of1-hero-grid` (two-column), `.of1-hero-title/subtitle/ctas/media`, `.of1-cta` button styles, empty media container collapse rule.
+Each description MUST be a single sentence that disambiguates layout AND segment. Suggested forms:
+- "Side-by-side comparison table — global palette."
+- "Side-by-side comparison table — French youth palette."
+- "Two-option versus layout with verdict — global palette."
+- "Two-option versus layout with verdict — French youth palette."
 
-### 2. Generate 5 template variations per intent (25 total)
+**C. `<name>.css`** — Per-template stylesheet. Compose it from the appropriate `design-tokens-<segment-slug>.json`:
 
-For each intent, generate 5 structurally distinct layouts.
+```bash
+SEGMENT_JSON=/shared/of1-demo/design-tokens-${SEGMENT_SLUG}.json
 
-**Naming:** `of1-{intent}-{variation}` (kebab-case)
-
-For each template, produce ALL THREE files:
-
-**A. `templates/{name}.html`** — Slot-based template body (just `<main>...</main>`)
-
-**B. `templates/{name}.metadata.json`** — Slot contract for the worker:
-```json
-{
-  "name": "{name}",
-  "intent": "{intent}",
-  "description": "{distinctive short description for LLM picker}",
-  "minItems": N,
-  "maxItems": M,
-  "stylesheet": "/styles/{name}.css",
-  "html": "/templates/{name}.html",
-  "slots": [
-    { "key": "hero.title", "type": "text", "instruction": "..." },
-    ...
-  ]
-}
+# Extract values you need with jq. Examples:
+ACCENT_HEX=$(jq -r '.. | objects | select(."$type"=="color") | select(."$value".hex) | ."$value".hex' "$SEGMENT_JSON" | head -1)
+HEADING_FAMILY=$(jq -r '.typography.heading.h1."$value".fontFamily // "serif"' "$SEGMENT_JSON")
+BODY_FAMILY=$(jq -r '.typography.body.default."$value".fontFamily // "system-ui"' "$SEGMENT_JSON")
 ```
 
-**C. `styles/{name}.css`** — Per-template styles:
-```css
-@import url("/styles/of1-base.css");
-/* template-specific rules only */
-```
+The CSS MUST:
+- Start with `@import url("/styles/of1-base.css");`
+- Declare every `--of1-*` token referenced by the base utilities (`--of1-bg`, `--of1-fg`, `--of1-muted`, `--of1-accent`, `--of1-accent-hover`, `--of1-accent-fg`, `--of1-font-display`, `--of1-font-body`, `--of1-font-mono`, `--of1-radius`, `--of1-max-width`) in a `:root` block.
+- Use real hex values pulled from the segment's JSON — no placeholders, no `var(--something-else)` indirection inside the `:root` block.
+- Add layout-specific rules using `.of1-{name}-*` class prefixes for everything that varies per layout.
 
-### 3. Generate sample data and previews
+**Color mapping convention (frescopa-flavored, generalize as needed):**
+- `--of1-bg` ← `color.secondary.cream` if present, else lightest hex from `color.secondary.*`, else `#F7F7F7`
+- `--of1-fg` ← `color.secondary.charcoal` if present, else darkest hex, else `#1D1D1D`
+- `--of1-muted` ← `color.brand.maroon_wordmark` if present, else second-darkest, else `#5E6670`
+- `--of1-accent` ← `color.brand.primary` if present (fr-under25 has this; global doesn't), else `color.brand.brick_red`, else first hex from `color.brand.*`
+- `--of1-accent-hover` ← `color.brand.maroon_wordmark` if present, else darker shade
+- `--of1-accent-fg` ← `#FFFFFF`
+- `--of1-font-display` ← `typography.heading.h1.$value.fontFamily` + serif/sans fallbacks
+- `--of1-font-body` ← `typography.body.default.$value.fontFamily` + system-ui fallback
+- `--of1-font-mono` ← `ui-monospace, monospace` (no mono in the cascade today)
 
-For each template, also produce:
-
-**D. `templates/{name}.sample.json`** — Sample slot data for gallery preview:
+**D. `<name>.sample.json`** — Sample slot data:
 ```json
 {
-  "_meta": { "stylesheet": "/styles/{name}.css" },
-  "hero.title": "Real brand-relevant headline",
-  "hero.image": "https://real-image-url-from-site.com/...",
+  "_meta": { "stylesheet": "/styles/of1-comparison-table-global.css" },
+  "hero.title": "Find your daily ritual",
+  "hero.subtitle": "Compare two single-origin roasts at a glance.",
+  "hero.cta-primary": { "label": "Shop both", "href": "https://frescopa.coffee/shop" },
+  "item-1.title": "Aurora Blend",
   ...
 }
 ```
 
-**⚠️ Sample data rules:**
+**Sample data rules:**
 - Use ASCII-safe text only (no accented characters like é, ñ — use plain equivalents)
-- Use real image URLs from the site extraction
+- Use real image URLs from the brand or `https://placehold.co/600x400` as fallback
 - Keep text realistic but simple
 
-**E. `drafts/{name}-sample.html`** — Filled preview (generated by fill-template.py)
+### 5. Generate filled previews
 
 ```bash
-mkdir -p tools drafts
 cp /workspace/skills/of1-template-generation/assets/fill-template.py tools/fill-template.py
 
 for TPL in templates/of1-*.html; do
@@ -309,32 +375,34 @@ done
 
 **DO NOT use `node` or `fill-template.mjs`** — Node.js is a shim in SLICC and doesn't support ESM imports.
 
-### 4. Generate the catalog
-
-Build `templates/templates-catalog.json` from the metadata files:
-
-```json
-{
-  "generatedAt": "...",
-  "count": 25,
-  "byIntent": {
-    "comparison": ["of1-comparison-table", ...],
-    "recommendation": [...],
-    "deep-dive": [...],
-    "budget": [...],
-    "discovery": [...]
-  },
-  "templates": [
-    { "name": "of1-comparison-table", "description": "...", "minItems": 2, "maxItems": 4 },
-    ...
-  ]
-}
-```
-
-### 5. Generate the routing config
+### 6. Generate the catalog
 
 ```bash
-mkdir -p of1/config
+cat > templates/templates-catalog.json <<EOF
+{
+  "generatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "count": 4,
+  "byIntent": {
+    "comparison": [
+      "of1-comparison-table-global",
+      "of1-comparison-table-fr-under25",
+      "of1-comparison-versus-global",
+      "of1-comparison-versus-fr-under25"
+    ]
+  },
+  "templates": [
+    { "name": "of1-comparison-table-global",      "description": "Side-by-side comparison table — global palette.",        "minItems": 2, "maxItems": 4 },
+    { "name": "of1-comparison-table-fr-under25",  "description": "Side-by-side comparison table — French youth palette.",  "minItems": 2, "maxItems": 4 },
+    { "name": "of1-comparison-versus-global",     "description": "Two-option versus layout with verdict — global palette.","minItems": 2, "maxItems": 2 },
+    { "name": "of1-comparison-versus-fr-under25", "description": "Two-option versus layout with verdict — French youth palette.","minItems": 2, "maxItems": 2 }
+  ]
+}
+EOF
+```
+
+### 7. Generate the routing config
+
+```bash
 cat > of1/config/templates.json <<EOF
 {
   "useRouting": true,
@@ -344,23 +412,22 @@ cat > of1/config/templates.json <<EOF
 EOF
 ```
 
-### 6. Install gallery page
+### 8. Install gallery page
 
 ```bash
-mkdir -p gallery
 cp /workspace/skills/of1-template-generation/assets/gallery.html gallery/index.html
 ```
 
-### 7. Commit and push
+### 9. Commit and push
 
 ```bash
 cd "$REPO_DIR"
 git add styles/of1-base.css styles/of1-*.css templates/ drafts/ tools/ gallery/ of1/config/templates.json
-git commit -m "feat: generate 25 OF1 templates (5 intents × 5 variations) for ${DOMAIN}"
+git commit -m "feat: generate 4 OF1 comparison templates (2 segments) for ${DOMAIN}"
 git push origin ${BRANCH}
 ```
 
-### 8. Verify gallery loads
+### 10. Verify gallery loads
 
 ```bash
 GALLERY_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/gallery/index.html"
@@ -374,69 +441,54 @@ echo "Gallery: HTTP ${HTTP_CODE} — ${GALLERY_URL}"
 
 Every template MUST:
 - **Start with a hero section** — always the first block (`<section class="of1-{name}-hero of1-hero">`)
-- **Have at least 4-5 sections/blocks** — hero + 3-4 content sections minimum. Never just a hero + one section.
+- **Have at least 4–5 sections/blocks** — hero + 3-4 content sections minimum.
 
-This ensures generated pages feel complete and substantial, not thin landing stubs.
+### Layout variety
 
-### Template variety
-
-Each intent's 5 variations must be **structurally distinct**:
-- Different section counts (4 vs 5 vs 6 sections — never fewer than 4)
-- Different layout patterns (grid vs stack vs split vs single-column)
-- Different content density (headline-only vs rich detail)
-- Different interaction metaphors (table vs cards vs timeline vs accordion)
+The two layouts (`table` vs `versus`) must be **structurally distinct**:
+- Different section counts (5–6 vs 4–5)
+- Different layout patterns (table grid vs side-by-side split)
+- Different content density
 
 ### Description quality
 
-The `description` field in metadata.json is what the LLM uses to select between templates for the same intent. Make them:
-- Short (1 sentence max)
-- Distinctive from siblings
-- Focused on the structural/visual pattern, not the content
-
-Good: "Side-by-side feature table for 2–4 options"
-Bad: "A comparison template"
-
-### Slot instruction quality
-
-Slot instructions guide the LLM's content generation. Make them:
-- Concise (≤10 words)
-- Specific about constraints ("≤8 words", "1-sentence", "URL from matched product")
-- Clear about the semantic role ("Primary CTA label + href", "Value proposition")
+Catalog descriptions are 1 sentence, MUST mention both layout and segment, and MUST be distinct across all four templates.
 
 ### CSS rules
 
 - Every per-template CSS starts with `@import url("/styles/of1-base.css");`
-- Use CSS custom properties from the base for all colors/fonts
+- Every per-template CSS declares the full set of `--of1-*` tokens in its own `:root`
+- Use real hex values from the segment's JSON — no placeholders
 - Template-specific classes use the full name prefix: `.of1-{name}-{element}`
-- Also apply generic utility classes: `.of1-hero`, `.of1-section`, `.of1-cta`
-- Keep CSS concise (30–80 lines per template)
+- Keep CSS concise (60–120 lines per template)
 
 ### Sample data quality
 
 - Use realistic content that matches the brand/domain
-- Include real image URLs from the extraction step
+- Include real image URLs where possible
 - CTAs should have plausible labels
 - Text length should be realistic
 
 ## Deliverables
 
 - `of1/config/templates.json` — routing config
-- `styles/of1-base.css` — shared design tokens
-- 25 × `templates/of1-*.html` — slot-based templates
-- 25 × `templates/of1-*.metadata.json` — slot contracts for the worker
-- 25 × `styles/of1-*.css` — per-template stylesheets
-- 25 × `templates/of1-*.sample.json` — sample data for gallery
-- 25 × `drafts/of1-*-sample.html` — filled previews
+- `styles/of1-base.css` — shared utilities (no tokens)
+- 4 × `templates/of1-comparison-*.html`
+- 4 × `templates/of1-comparison-*.metadata.json`
+- 4 × `styles/of1-comparison-*.css` (each with its own `:root` block)
+- 4 × `templates/of1-comparison-*.sample.json`
+- 4 × `drafts/of1-comparison-*-sample.html`
 - `templates/templates-catalog.json` — template index
 - `gallery/index.html` — browsable review UI
-- `tools/fill-template.mjs` — fill script
+- `tools/fill-template.py` — fill script
+- `/shared/of1-demo/design-tokens-{global,fr-under25}.{md,json}` and `brand-info.json` — cached cascade responses (not committed to the demo repo)
 
 ## Completion
 
 ```bash
 mkdir -p /shared/of1-demo
 GALLERY_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/gallery/index.html"
-echo "{\"step\":7,\"status\":\"review\",\"deliverable\":\"${GALLERY_URL}\",\"summary\":\"Generated 25 templates (5 intents × 5 variations). Browse the gallery to review layouts and sample content.\"}" > /shared/of1-demo/step-7-status.json
+echo "{\"step\":7,\"status\":\"review\",\"deliverable\":\"${GALLERY_URL}\",\"summary\":\"Generated 4 templates (1 intent × 2 layouts × 2 brand-governance segments). Browse the gallery to compare the same layout under different segment palettes.\"}" > /shared/of1-demo/step-7-status.json
 ```
 
 Do NOT call `sprinkle send` — only the orchestrator reads this file and pushes to the sprinkle.
