@@ -4,51 +4,54 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OF1 — Template gallery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #F5F3EF;
-      --fg: #161D26;
-      --muted: #5E6670;
-      --accent: #F55600;
-      --border: #E5E2DA;
-      --surface: #FFFFFF;
-      --font-display: "Ember Modern Display Standard", "Amazon Ember", system-ui, sans-serif;
-      --font-body: "Amazon Ember", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-      --font-mono: "Amazon Ember Mono", ui-monospace, monospace;
+      --bg: #1C1917;
+      --fg: #F5F0E8;
+      --muted: rgba(245,240,232,0.55);
+      --accent: #00E5A0;
+      --orange: #FF3D00;
+      --border: rgba(245,240,232,0.1);
+      --surface: #242220;
+      --font-display: 'Cormorant Garamond', serif;
+      --font-body: 'JetBrains Mono', monospace;
+      --font-mono: 'JetBrains Mono', monospace;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; height: 100%; }
-    body { font-family: var(--font-body); color: var(--fg); background: var(--bg); display: flex; flex-direction: column; }
+    body { font-family: var(--font-body); font-size: 11px; color: var(--fg); background: var(--bg); display: flex; flex-direction: column; }
 
     .gallery-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 20px 32px 0; flex: 0 0 auto; }
     .gallery-title-row { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; flex-wrap: wrap; }
-    .gallery-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; margin: 0; }
-    .gallery-subtitle { color: var(--muted); font-size: 14px; }
-    .gallery-meta { margin-left: auto; font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+    .gallery-title { font-family: var(--font-display); font-size: 24px; font-weight: 600; margin: 0; }
+    .gallery-subtitle { color: var(--muted); font-size: 11px; }
+    .gallery-meta { margin-left: auto; font-size: 10px; color: var(--muted); font-family: var(--font-mono); }
 
     .gallery-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 0 0; }
     .gallery-intent-pill {
       background: transparent;
-      border: 1.5px solid var(--border);
-      padding: 8px 16px;
+      border: 1px solid var(--border);
+      padding: 6px 14px;
       border-radius: 999px;
       font: inherit;
-      font-size: 13px;
+      font-size: 11px;
       color: var(--muted);
       cursor: pointer;
       transition: color .15s, border-color .15s, background .15s;
     }
-    .gallery-intent-pill:hover { color: var(--fg); border-color: var(--fg); }
-    .gallery-intent-pill[aria-selected="true"] { background: var(--fg); border-color: var(--fg); color: var(--surface); font-weight: 700; }
-    .gallery-intent-pill .gallery-intent-count { opacity: 0.6; margin-left: 6px; font-family: var(--font-mono); font-size: 11px; }
+    .gallery-intent-pill:hover { color: var(--fg); border-color: var(--accent); }
+    .gallery-intent-pill[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+    .gallery-intent-pill .gallery-intent-count { opacity: 0.6; margin-left: 6px; font-size: 10px; }
 
-    .gallery-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 12px; }
+    .gallery-tabs { display: flex; gap: 2px; flex-wrap: wrap; margin-top: 12px; }
     .gallery-tab {
       background: transparent;
       border: 0;
-      padding: 12px 16px;
+      padding: 10px 14px;
       font: inherit;
-      font-size: 13px;
+      font-size: 11px;
       color: var(--muted);
       cursor: pointer;
       border-bottom: 2px solid transparent;
@@ -57,29 +60,29 @@
       bottom: -1px;
     }
     .gallery-tab:hover { color: var(--fg); }
-    .gallery-tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 700; }
+    .gallery-tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
     .gallery-tab-tag {
       display: inline-block;
       margin-left: 6px;
-      font-size: 10px;
+      font-size: 9px;
       letter-spacing: .08em;
       text-transform: uppercase;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: rgb(245 86 0 / 12%);
-      color: var(--accent);
+      padding: 2px 5px;
+      border-radius: 3px;
+      background: rgba(255,61,0,0.1);
+      color: var(--orange);
       vertical-align: middle;
-      font-family: var(--font-mono);
     }
 
-    .gallery-body { flex: 1 1 auto; position: relative; background: #d9d6cd; padding: 12px; overflow: hidden; }
-    .gallery-frame { width: 100%; height: 100%; border: 0; background: var(--surface); border-radius: 8px; box-shadow: 0 4px 16px rgb(22 29 38 / 8%); display: block; }
-    .gallery-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-size: 14px; }
+    .gallery-body { flex: 1 1 auto; position: relative; background: #0f0e0d; padding: 12px; overflow: hidden; }
+    .gallery-frame { width: 100%; height: 100%; border: 0; background: #fff; border-radius: 6px; display: block; }
+    .gallery-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-size: 12px; }
 
-    .gallery-footer { flex: 0 0 auto; padding: 10px 32px; background: var(--surface); border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); display: flex; gap: 24px; align-items: center; }
-    .gallery-footer a { color: var(--accent); text-decoration: none; font-weight: 700; }
+    .gallery-footer { flex: 0 0 auto; padding: 10px 32px; background: var(--surface); border-top: 1px solid var(--border); font-size: 10px; color: var(--muted); display: flex; gap: 24px; align-items: center; }
+    .gallery-footer a { color: var(--accent); text-decoration: none; font-weight: 600; }
     .gallery-footer a:hover { text-decoration: underline; }
     .gallery-footer .gallery-tip { flex: 1 1 auto; }
+    .gallery-footer code { background: rgba(245,240,232,0.06); padding: 1px 4px; border-radius: 3px; }
   </style>
 </head>
 <body>
@@ -139,9 +142,8 @@
       return;
     }
 
-    meta.textContent = catalog.count + ' templates · catalog ' + (catalog.generatedAt || '');
+    meta.textContent = catalog.count + ' templates · catalog';
 
-    // Build intent pills sorted by the preferred order.
     const intentsInCatalog = Object.keys(catalog.byIntent || {});
     const orderedIntents = [...INTENT_ORDER.filter((i) => intentsInCatalog.includes(i)),
       ...intentsInCatalog.filter((i) => !INTENT_ORDER.includes(i))];
@@ -160,12 +162,10 @@
     });
 
     function selectIntent(intent, preferName) {
-      // Update pills
       intentBar.querySelectorAll('.gallery-intent-pill').forEach((p) => {
         p.setAttribute('aria-selected', p.dataset.intent === intent ? 'true' : 'false');
       });
 
-      // Build variant tabs
       tabs.innerHTML = '';
       const names = catalog.byIntent[intent] || [];
       const variants = names
@@ -173,7 +173,7 @@
         .filter(Boolean);
 
       if (variants.length === 0) {
-        tabs.innerHTML = '<span style="padding:12px;color:var(--muted);font-size:13px;">No templates for this intent yet.</span>';
+        tabs.innerHTML = '<span style="padding:12px;color:var(--muted);">No templates for this intent yet.</span>';
         frame.removeAttribute('src');
         openLink.removeAttribute('href');
         writeHash(intent, null);
