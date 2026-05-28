@@ -47,9 +47,14 @@ The OF1 worker uses a template routing system. After `POST /api/tenants/<id>/syn
 }
 ```
 
-**2. `templates/templates-catalog.json`** — Catalog:
+**2. `templates/templates-catalog.json`** — Catalog with FULLY INLINED templates:
+
+⚠️ **CRITICAL: Every entry in `templates[]` MUST include `slots`, `htmlContent`, and `stylesheet` inlined.** If you only include name/description/minItems/maxItems, the worker will try to fetch each template's metadata and HTML separately, exceeding the 50-subrequest limit and crashing with a 1101 error.
+
 ```json
 {
+  "useRouting": true,
+  "baseUrl": "https://{branch}--of1-demo--aem-growth-adoption.aem.page",
   "generatedAt": "2026-05-26T...",
   "count": 25,
   "byIntent": {
@@ -62,13 +67,33 @@ The OF1 worker uses a template routing system. After `POST /api/tenants/<id>/syn
   "templates": [
     {
       "name": "of1-comparison-table",
+      "intent": "comparison",
       "description": "Side-by-side feature table for 2–4 options.",
       "minItems": 2,
-      "maxItems": 4
+      "maxItems": 4,
+      "stylesheet": "/styles/of1-comparison-table.css",
+      "slots": [
+        { "key": "hero.title", "type": "text", "instruction": "Headline, 5-8 words" },
+        { "key": "hero.subtitle", "type": "text", "instruction": "1-sentence framing" },
+        { "key": "item-1.title", "type": "text", "instruction": "Product name" }
+      ],
+      "htmlContent": "<main>\n  <section class=\"hero\">...</section>\n  <section class=\"comparison\">...</section>\n</main>"
     }
   ]
 }
 ```
+
+**Required fields per template entry:**
+| Field | Type | Source |
+|-------|------|--------|
+| `name` | string | Template name |
+| `intent` | string | One of: comparison, recommendation, deep-dive, budget, discovery |
+| `description` | string | Short distinctive description for LLM routing |
+| `minItems` | number | Minimum products/items this template handles |
+| `maxItems` | number | Maximum products/items |
+| `stylesheet` | string | Path to per-template CSS (e.g., `/styles/of1-comparison-table.css`) |
+| `slots` | array | Full slot definitions from metadata (key, type, instruction) |
+| `htmlContent` | string | The ENTIRE template HTML file content as a JSON-escaped string |
 
 The `description` field is critical — the LLM uses it to pick between variants for the same intent. Make descriptions short and distinctive.
 
@@ -295,27 +320,61 @@ done
 
 **DO NOT use `node` or `fill-template.mjs`** — Node.js is a shim in SLICC and doesn't support ESM imports.
 
-### 4. Generate the catalog
+### 4. Generate the catalog (MUST be fully inlined)
 
-Build `templates/templates-catalog.json` from the metadata files:
+Build `templates/templates-catalog.json` with ALL template data inlined. Use a Python script to read each `.metadata.json` and `.html` file and assemble the catalog:
 
-```json
-{
-  "generatedAt": "...",
-  "count": 25,
-  "byIntent": {
-    "comparison": ["of1-comparison-table", ...],
-    "recommendation": [...],
-    "deep-dive": [...],
-    "budget": [...],
-    "discovery": [...]
-  },
-  "templates": [
-    { "name": "of1-comparison-table", "description": "...", "minItems": 2, "maxItems": 4 },
-    ...
-  ]
+```python
+python3 << 'EOF'
+import json, os, glob
+from datetime import datetime
+
+templates = []
+by_intent = {}
+template_dir = 'templates'
+
+for meta_file in sorted(glob.glob(f'{template_dir}/of1-*.metadata.json')):
+    with open(meta_file) as f:
+        meta = json.load(f)
+    name = meta['name']
+    intent = meta['intent']
+    
+    # Read HTML content
+    html_file = f'{template_dir}/{name}.html'
+    with open(html_file) as f:
+        html_content = f.read()
+    
+    # Build inlined entry (ALL fields required)
+    entry = {
+        "name": name,
+        "intent": intent,
+        "description": meta.get("description", ""),
+        "minItems": meta.get("minItems", 1),
+        "maxItems": meta.get("maxItems", 4),
+        "stylesheet": meta.get("stylesheet", f"/styles/{name}.css"),
+        "slots": meta.get("slots", []),
+        "htmlContent": html_content
+    }
+    templates.append(entry)
+    by_intent.setdefault(intent, []).append(name)
+
+catalog = {
+    "useRouting": True,
+    "baseUrl": f"https://{os.environ.get('BRANCH', 'main')}--of1-demo--aem-growth-adoption.aem.page",
+    "generatedAt": datetime.utcnow().isoformat(),
+    "count": len(templates),
+    "byIntent": by_intent,
+    "templates": templates
 }
+
+with open('templates/templates-catalog.json', 'w') as f:
+    json.dump(catalog, f, indent=2)
+
+print(f"Wrote catalog with {len(templates)} fully inlined templates")
+EOF
 ```
+
+⚠️ **DO NOT generate a catalog with only name/description/minItems/maxItems** — the worker WILL crash (50-subrequest limit exceeded). Every entry MUST have `slots`, `htmlContent`, and `stylesheet` inlined.
 
 ### 5. Generate the routing config
 
