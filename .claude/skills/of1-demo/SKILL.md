@@ -280,7 +280,7 @@ This step creates a domain-specific branch on the shared `aem-growth-adoption/of
 
 The repo is already cloned at `/workspace/of1-demo`. The step:
 1. Fetches latest from origin
-2. Creates a branch named after the domain (without TLD, e.g., `bmwusa` for `bmwusa.com`)
+2. Creates a branch named after the domain (without TLD, e.g., `frescopa` for `frescopa.coffee`)
 3. Creates `output/{DOMAIN}/` directory for deliverables
 4. Verifies DA mount at `/mnt/da`
 
@@ -289,12 +289,12 @@ The step outputs `/shared/of1-demo/repo-config.json` which all subsequent steps 
 {
   "owner": "aem-growth-adoption",
   "repo": "of1-demo",
-  "branch": "bmwusa",
+  "branch": "frescopa",
   "repoUrl": "https://github.com/aem-growth-adoption/of1-demo",
-  "previewUrl": "https://bmwusa--of1-demo--aem-growth-adoption.aem.page/",
+  "previewUrl": "https://frescopa--of1-demo--aem-growth-adoption.aem.page/",
   "daSource": "da://aem-growth-adoption/of1-demo",
   "repoDir": "/workspace/of1-demo",
-  "domain": "bmwusa.com"
+  "domain": "frescopa.coffee"
 }
 ```
 
