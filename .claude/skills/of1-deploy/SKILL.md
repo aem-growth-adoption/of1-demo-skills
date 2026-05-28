@@ -133,6 +133,46 @@ If specific files need re-syncing:
 curl -s -X POST "${WORKER_URL}/api/tenants/${TENANT_ID}/sync?file=products" | jq '.'
 ```
 
+### 6b. Verify tenant is ready
+
+After sync, check the tenant status. **ALL config flags must be true and `ready` must be true:**
+
+```bash
+STATUS=$(curl -s "${WORKER_URL}/api/tenants/${TENANT_ID}/status")
+READY=$(echo "$STATUS" | jq -r '.ready')
+echo "Tenant ready: $READY"
+
+if [ "$READY" != "true" ]; then
+  echo "ERROR: Tenant is NOT ready!"
+  echo "$STATUS" | jq '.config'
+  # Check which configs are missing
+  echo "$STATUS" | jq '.config | to_entries[] | select(.value == false) | .key'
+  echo ""
+  echo "Fix: ensure all required config files exist in of1/config/ and re-sync"
+fi
+```
+
+**Required for `ready: true`:**
+- `hasOf1Endpoint` — needs `of1/config/of1-endpoint.json` (created in Step 2 branch setup)
+- `hasProducts` — needs `of1/config/products.json`
+- `hasBrandVoice` — needs `of1/config/brand-voice.json`
+- `hasSuggestions` — needs `of1/config/suggestions.json`
+- `hasTemplates` — needs `of1/config/templates.json` + inlined catalog
+
+If `hasOf1Endpoint` is false, create it:
+```bash
+cat > of1/config/of1-endpoint.json <<EOF
+{
+  "url": "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/of1"
+}
+EOF
+git add of1/config/of1-endpoint.json
+git commit -m "feat: of1-endpoint config"
+git push origin ${BRANCH}
+# Re-sync
+curl -s -X POST "${WORKER_URL}/api/tenants/${TENANT_ID}/sync" | jq '.ok'
+```
+
 ### 7. Test generation
 
 ```bash
