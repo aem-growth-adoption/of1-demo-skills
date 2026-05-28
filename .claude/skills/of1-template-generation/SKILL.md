@@ -1,6 +1,6 @@
 ---
 name: of1-template-generation
-description: Generate 4 branded OF1 templates (1 intent × 2 variations × 2 segments) using design tokens from the brand-governance-agent cascade.
+description: Generate 4 branded OF1 templates (1 intent × 2 layouts × 2 segments) using design tokens from the brand-governance-agent cascade.
 user-invocable: false
 ---
 
@@ -82,9 +82,11 @@ The `description` field is critical — the LLM uses it to pick between variants
   "stylesheet": "/styles/of1-comparison-table-global.css",
   "html": "/templates/of1-comparison-table-global.html",
   "slots": [
+    { "key": "hero.eyebrow", "type": "text", "instruction": "Short kicker, ≤4 words" },
     { "key": "hero.title", "type": "text", "instruction": "Headline, ≤8 words" },
     { "key": "hero.subtitle", "type": "text", "instruction": "1-sentence framing" },
     { "key": "hero.cta-primary", "type": "link", "instruction": "Primary CTA label + href" },
+    { "key": "hero.image", "type": "image", "instruction": "Hero image URL" },
     { "key": "item-1.title", "type": "text", "instruction": "Product/option name" },
     { "key": "item-1.body", "type": "text", "instruction": "1–2 sentence description" },
     { "key": "item-1.image", "type": "image", "instruction": "Product image URL" },
@@ -268,9 +270,14 @@ Remove stale templates from a previous run so the gallery doesn't show leftovers
 
 ```bash
 cd "$REPO_DIR"
+# Remove tracked old templates (git rm only touches files known to git).
 git rm -f --ignore-unmatch templates/of1-*.html templates/of1-*.metadata.json templates/of1-*.sample.json
 git rm -f --ignore-unmatch styles/of1-*.css
 git rm -f --ignore-unmatch drafts/of1-*-sample.html
+# Also remove any untracked leftovers from a crashed previous run.
+rm -f templates/of1-*.html templates/of1-*.metadata.json templates/of1-*.sample.json
+rm -f styles/of1-*.css
+rm -f drafts/of1-*-sample.html
 # Re-create empty directories
 mkdir -p templates styles drafts tools gallery of1/config
 ```
@@ -314,15 +321,31 @@ Each description MUST be a single sentence that disambiguates layout AND segment
 - "Two-option versus layout with verdict — global palette."
 - "Two-option versus layout with verdict — French youth palette."
 
-**C. `<name>.css`** — Per-template stylesheet. Compose it from the appropriate `design-tokens-<segment-slug>.json`:
+**C. `<name>.css`** — Per-template stylesheet. Compose it from the appropriate `design-tokens-<segment-slug>.json`.
+
+Iterate over both segments (the same layout HTML feeds both):
 
 ```bash
-SEGMENT_JSON=/shared/of1-demo/design-tokens-${SEGMENT_SLUG}.json
+for SEGMENT_SLUG in global fr-under25; do
+  SEGMENT_JSON=/shared/of1-demo/design-tokens-${SEGMENT_SLUG}.json
 
-# Extract values you need with jq. Examples:
-ACCENT_HEX=$(jq -r '.. | objects | select(."$type"=="color") | select(."$value".hex) | ."$value".hex' "$SEGMENT_JSON" | head -1)
-HEADING_FAMILY=$(jq -r '.typography.heading.h1."$value".fontFamily // "serif"' "$SEGMENT_JSON")
-BODY_FAMILY=$(jq -r '.typography.body.default."$value".fontFamily // "system-ui"' "$SEGMENT_JSON")
+  # Extract using the named paths from the mapping convention below. Each jq
+  # expression returns "" if the token is missing; the CSS generator must
+  # substitute the documented fallback.
+  BG=$(jq -r '.color.secondary.cream."$value".hex // empty'           "$SEGMENT_JSON")
+  FG=$(jq -r '.color.secondary.charcoal."$value".hex // empty'        "$SEGMENT_JSON")
+  MUTED=$(jq -r '.color.brand.maroon_wordmark."$value".hex // empty'  "$SEGMENT_JSON")
+  # Accent prefers color.brand.primary (present in fr-under25), falls back to
+  # color.brand.brick_red (always present at baseline).
+  ACCENT=$(jq -r '.color.brand.primary."$value".hex // .color.brand.brick_red."$value".hex // empty' "$SEGMENT_JSON")
+  ACCENT_HOVER=$(jq -r '.color.brand.maroon_wordmark."$value".hex // empty' "$SEGMENT_JSON")
+  HEADING_FAMILY=$(jq -r '.typography.heading.h1."$value".fontFamily // "serif"'         "$SEGMENT_JSON")
+  BODY_FAMILY=$(jq -r '.typography.body.default."$value".fontFamily // "system-ui"'      "$SEGMENT_JSON")
+
+  # Use these values when writing styles/of1-comparison-<layout>-${SEGMENT_SLUG}.css
+  # (see :root requirements and mapping convention below). Substitute documented
+  # fallbacks if any extracted value is empty.
+done
 ```
 
 The CSS MUST:
