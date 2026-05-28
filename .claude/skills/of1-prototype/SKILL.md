@@ -6,13 +6,12 @@ user-invocable: false
 
 # OF1 Prototype
 
-Generate pixel-perfect, self-contained HTML reproductions of key pages from the target website. These prototypes are the source-of-truth for the snowflake overlay conversion in Step 6.
+Generate pixel-perfect, self-contained HTML reproductions of key pages from the target website by invoking the `stardust:prototype` plugin. These prototypes are the source-of-truth for the snowflake overlay conversion in Step 6.
 
 ## ⚡ Speed Priority — Target: 8 minutes
 
-- Use playwright-cli to extract real page structure, images, and styles
+- Invoke `stardust:prototype` to do the heavy lifting — do NOT reimplement prototype logic
 - ONE git commit + push at the end
-- Max 2 screenshot-diff iterations per page, then move on
 
 ---
 
@@ -36,166 +35,125 @@ REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
 DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 ```
 
-Read `stardust/current/DESIGN.json` for design tokens (colors, typography, spacing).
+### Step 2: Invoke stardust:prototype
 
-### Step 2: Extract Page Content via Playwright
+Use the Skill tool to invoke `stardust:prototype`. This reads the extraction output from `stardust/current/` and generates pixel-perfect HTML prototypes for each extracted page.
 
-For each key page, use `playwright-cli` to:
-1. Navigate to the page
-2. Extract the full DOM structure
-3. Extract all image URLs (use `format=png` not `format=webply`)
-4. Extract computed styles for key sections
-5. Screenshot the page as reference
+```
+Skill: stardust:prototype
+```
+
+The plugin will:
+1. Read design tokens from `stardust/current/DESIGN.json`
+2. Read logo from `stardust/current/assets/logo.svg`
+3. Use real images extracted from the live site (exact URLs)
+4. Generate self-contained HTML files with all CSS inlined
+5. Run screenshot diff loops to verify visual fidelity
+6. Write prototypes to `stardust/prototypes/`
+
+### Step 3: Verify prototype outputs
 
 ```bash
-playwright-cli navigate "https://${DOMAIN}/" --tab <tab_id>
-playwright-cli screenshot --tab <tab_id> /tmp/live-home.png
-playwright-cli eval --tab <tab_id> "document.querySelector('main').innerHTML"
+cd "$REPO_DIR"
+ls stardust/prototypes/prototype-*.html && echo "Prototypes OK"
 ```
 
-### Step 3: Generate Self-Contained HTML Prototypes
+If any expected page is missing, check `stardust/state.json` for extraction status and re-invoke if needed.
 
-For each page, produce a single `.html` file with ALL CSS inlined in `<style>` tags. The prototype must be:
+### Step 4: Post-generation fixes (CRITICAL)
 
-- **Self-contained** — opens in any browser with no external dependencies (except images from the live site and Google Fonts)
-- **Pixel-perfect** — visually matches the live site screenshot
-- **Complete** — every section, every image, every nav link, every footer column
+After `stardust:prototype` generates the prototypes, verify and fix these common issues:
 
-#### Structure of each prototype:
+#### 4a. Logo completeness
+
+Check that the logo SVG in the prototype is the FULL brand logotype:
+```bash
+# The logo in stardust/current/assets/logo.svg should be the complete file
+# downloaded directly from the site (e.g., from /icons/logo.svg or extracted from DOM)
+# Verify it renders the full wordmark — not just a partial path
+```
+
+If the logo is truncated or incomplete:
+1. Download the real logo SVG directly from the site: `curl -s "https://${DOMAIN}/icons/logo.svg"` (or find it via playwright)
+2. Save to `stardust/current/assets/logo.svg`
+3. Update both header AND footer logo in the prototypes
+
+**Footer logo:** Must use the SAME complete SVG as the header, but with fill colors changed for the dark footer background (e.g., `fill="#F4E9DC"` instead of `fill="#58181d"`).
+
+#### 4b. CSS class naming — avoid EDS collisions
+
+Check the prototype HTML for these class names and rename them:
+
+| If prototype uses | Rename to | Why |
+|-------------------|-----------|-----|
+| `class="header"` on `<header>` | `class="site-header"` | EDS reserves `.header` for its block wrapper |
+| `class="footer"` on `<footer>` | `class="site-footer"` | EDS reserves `.footer` for its block wrapper |
+| `.header {` in CSS | `.site-header {` | Same collision — CSS targets EDS wrapper too |
+| `.footer {` in CSS | `.site-footer {` | Same collision |
+
+**Why this matters:** EDS wraps content in `<div class="header-wrapper"><div class="header block">...</div></div>`. If the prototype uses `<header class="header">`, the snowflake step will inherit this collision and the nav will render incorrectly.
+
+#### 4c. Announcement bar structure
+
+If the site has an announcement/promo bar above the nav, ensure it's a **separate element** from the header — NOT nested inside `<header>`:
 
 ```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{Page Title}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=...">
-  <style>
-    /* ALL CSS HERE — inline, complete, no external sheets */
-  </style>
-</head>
-<body>
-  <!-- Announcement bar (if site has one) -->
-  <!-- Header with nav -->
-  <main>
-    <!-- All page sections -->
-  </main>
-  <!-- Footer -->
-</body>
-</html>
+<!-- ✅ CORRECT -->
+<div class="announcement-bar">FREE SHIPPING FROM $35...</div>
+<header class="site-header">
+  <a href="/" class="header-logo"><svg>...</svg></a>
+  <nav>...</nav>
+</header>
+
+<!-- ❌ WRONG — will break in EDS snowflake -->
+<header class="header">
+  <div class="announcement">...</div>
+  <nav>...</nav>
+</header>
 ```
 
----
+### Step 5: Copy to deliverables + commit
 
-## ⚠️ CRITICAL: Logo Extraction Rules
+```bash
+cd "$REPO_DIR"
+mkdir -p deliverables
+cp stardust/prototypes/prototype-*.html deliverables/
 
-The brand logo is the #1 source of rendering bugs in the pipeline. Follow these rules exactly:
+git add deliverables/prototype-*.html stardust/prototypes/ stardust/current/assets/
+git commit -m "feat: pixel-perfect HTML prototypes for ${DOMAIN}"
+git push origin ${BRANCH}
+```
 
-### Extracting the Logo
-
-1. **Download the real logo SVG directly from the site** — check these locations:
-   ```javascript
-   // In playwright-cli eval:
-   // Check for icon/logo in the nav
-   document.querySelector('[class*=logo] img, [class*=brand] img, nav img')?.src
-   // Check for SVG icons folder
-   document.querySelector('img[src*="logo"]')?.src
-   // Check for inline SVG in nav
-   document.querySelector('nav svg, header svg')?.outerHTML
-   ```
-
-2. **Save the complete SVG** to `stardust/current/assets/logo.svg` — verify it contains the FULL wordmark by checking the file renders correctly
-
-3. **Never partially recreate an SVG** from extracted path data — always use the original complete file from the site
-
-### Using the Logo in Prototypes
-
-- **Header**: Inline the full SVG with the original fill colors (typically dark on light background)
-- **Footer**: Inline the SAME full SVG but change `fill` attributes to cream/light color (e.g., `#F4E9DC`) for dark footer backgrounds
-- **Both must include ALL parts** of the logo (icon/symbol + wordmark text + any separator elements)
-
-### Verification
-
-After generating the prototype, visually confirm:
-- Header logo shows the complete brand name (not truncated)
-- Footer logo shows the complete brand name in the correct color for dark background
-- Both include any icon/symbol that's part of the logo (e.g., a coffee bean, swoosh, etc.)
-
----
-
-## ⚠️ CRITICAL: CSS Class Names — Avoid EDS Reserved Names
-
-When naming CSS classes in the prototype, **NEVER use these class names** for your own elements:
-
-| Reserved by EDS | Use instead |
-|----------------|-------------|
-| `.header` | `.site-header` |
-| `.footer` | `.site-footer` |
-| `.section` | `.page-section` or specific names |
-| `.block` | (avoid — EDS uses this internally) |
-| `.fragment` | (avoid) |
-
-**Why:** EDS wraps the page in `<div class="header-wrapper"><div class="header block">...</div></div>`. If your prototype uses `<header class="header">`, the CSS `.header { display: flex }` will target BOTH the EDS wrapper AND your element, breaking the layout.
-
-**Rule:** Use `.site-header` for the semantic `<header>` element and `.site-footer` for `<footer>`.
-
----
-
-## ⚠️ CRITICAL: Announcement Bar / Top Banner
-
-Many sites have an announcement bar above the main navigation. In the prototype:
-
-1. **Make it a SEPARATE element** from the header — NOT nested inside `<header>`
-2. **Structure:**
-   ```html
-   <div class="announcement-bar">...</div>
-   <header class="site-header">...</header>
-   ```
-3. This ensures when the snowflake overlay renders it in EDS, the announcement bar stays on its own row above the nav.
+**NOTE:** `stardust/` may be in `.gitignore`. Always commit to `deliverables/` — that's what gets served on EDS and reviewed.
 
 ---
 
 ## CRITICAL: Pixel-Perfect Copy — No Redesign, No Placeholders
 
-- **Use real images** from the live site (exact URLs extracted via playwright)
-- **Use the real brand SVG logo** (complete, from the site's icon folder or DOM)
-- **Match design tokens exactly** (colors, fonts, spacing from DESIGN.json)
+The `stardust:prototype` plugin already enforces this, but for clarity:
+
+- **Use real images** from the live site (exact URLs extracted during crawl)
+- **Inline the brand logo SVG** in the nav/header
+- **Match design tokens exactly** (colors, fonts, spacing)
 - **No placeholder images**, colored boxes, gradient divs, or emoji
 - **No redesign** — faithful reproduction only
-- Use `format=png` or `format=jpg` in image URLs (not `format=webply`)
 
 ---
 
-## Screenshot Diff Loop (max 2 iterations per page)
+## Lessons Learned (pass to stardust if issues arise)
 
-After generating each prototype:
-
-1. **Open the prototype** in a browser tab via `serve` or file URL
-2. **Compare side-by-side** with the live site screenshot
-3. **Fix significant differences:**
-   - Missing images → extract the correct URL via playwright eval
-   - Wrong layout → check column count, flex direction from live DOM
-   - Missing sections → re-extract from the live page
-   - Wrong colors → verify against DESIGN.json tokens
-4. **After 2 iterations** → accept remaining minor differences and move on
-
----
-
-## Lessons Learned (Prevent These Mistakes)
+These issues have occurred in previous runs:
 
 | Mistake | Impact | Prevention |
 |---------|--------|------------|
-| Partial/truncated logo SVG | Broken logo in header/footer forever | Always download the full SVG file from the site, verify it renders completely |
-| Using `class="header"` | Collides with EDS `.header.block` wrapper | Always use `class="site-header"` |
-| Putting announcement bar inside `<header>` | Bar and nav render on same line in EDS | Keep announcement bar as separate div ABOVE `<header>` |
-| Inventing image URLs | 404s everywhere | Only use URLs extracted from the live DOM via playwright |
+| Partial/truncated logo SVG | Broken logo in header/footer persists into EDS | Always download the full SVG file from the site, verify it renders completely |
+| Using `class="header"` on `<header>` | Collides with EDS `.header.block` wrapper in Step 6, breaks layout | Always use `class="site-header"` |
+| Announcement bar nested inside `<header>` | Banner and nav render on same line in EDS Step 6 | Keep announcement bar as separate div ABOVE `<header>` |
+| Using placeholder images | 404s everywhere, looks broken | Only use URLs extracted from the live DOM |
 | Using `format=webply` in image URLs | Browser compatibility issues | Change to `format=png` |
-| Heroes set to 100vh | Way too tall — site typically uses 200-400px | Check the actual height from the live site |
-| Adding box-shadows to cards | Over-designed vs. original | Only add shadows if the live site has them |
-| Forgetting Google Fonts link | Wrong typography | Include `<link>` to Google Fonts at top of `<head>` |
-| Footer logo with wrong fill color | Invisible on dark background | Use cream/light fill (#F4E9DC or similar) for dark footer backgrounds |
+| Heroes set to `100vh` | Way too tall — site typically uses 200-400px | Check actual height from live site |
+| Footer logo with wrong fill color | Invisible/broken on dark background | Use cream/light fill for dark footer backgrounds |
+| Cards with invented box-shadows | Over-designed vs. original | Only add shadows if the live site has them |
 
 ---
 
@@ -204,15 +162,12 @@ After generating each prototype:
 ```
 {REPO_DIR}/
 ├── stardust/
-│   ├── current/
-│   │   ├── DESIGN.json
-│   │   └── assets/logo.svg          ← Complete brand logo SVG
-│   └── prototypes/                   ← Generated prototypes
+│   └── prototypes/                     ← Generated by stardust:prototype
 │       ├── prototype-home.html
 │       ├── prototype-{page2}.html
 │       └── prototype-{page3}.html
 └── deliverables/
-    ├── prototype-home.html           ← Committed copies for EDS review
+    ├── prototype-home.html             ← Committed copies for review
     ├── prototype-{page2}.html
     └── prototype-{page3}.html
 ```
@@ -222,14 +177,6 @@ After generating each prototype:
 ## Completion
 
 ```bash
-cd "$REPO_DIR"
-mkdir -p deliverables
-cp stardust/prototypes/prototype-*.html deliverables/
-
-git add stardust/prototypes/ deliverables/prototype-*.html stardust/current/assets/
-git commit -m "feat: pixel-perfect HTML prototypes for ${DOMAIN}"
-git push origin ${BRANCH}
-
 mkdir -p /shared/of1-demo
 
 # Serve prototypes for review
