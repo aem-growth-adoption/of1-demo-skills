@@ -678,7 +678,9 @@ mkdir -p ${REPO_DIR}/fragments/of1
 cp ${REPO_DIR}/fragments/${FIRST_TEMPLATE}/header.html ${REPO_DIR}/fragments/of1/header.html
 cp ${REPO_DIR}/fragments/${FIRST_TEMPLATE}/footer.html ${REPO_DIR}/fragments/of1/footer.html
 
-# Copy the prototype CSS for header/footer styling on the OF1 page
+# Create a minimal styles/of1.css with ONLY header/footer/body chrome
+# (Step 8 will overwrite this with a proper branded version including page chrome)
+# For now, copy prototype CSS so the OF1 page renders correctly even before Step 8 runs
 cp ${REPO_DIR}/styles/prototype-home.css ${REPO_DIR}/styles/of1.css
 ```
 
@@ -691,11 +693,16 @@ In the `applyTemplateOverlay` function, add this check BEFORE the "Replace main 
   // only load header/footer but keep original main content (for OF1 block pages)
   if (templateMain.querySelector('[data-slot-passthrough]')) {
     main.dataset.overlay = templateName;
+    // CRITICAL: Passthrough still needs standard block decoration so the OF1 block JS runs
+    decorateMain(main);
+    await loadSection(main.querySelector('.section'), waitForFirstImage);
     return true;
   }
 ```
 
-This ensures the overlay engine loads the branded header/footer fragments but does NOT replace `<main>` content when the template is marked as passthrough.
+**⚠️ CRITICAL:** The passthrough MUST call `decorateMain(main)` and `loadSection()` before returning `true`. Without this, blocks in `<main>` (like the OF1 block) will never have their `decorate()` function called, and the page renders as raw unstyled DA content. Passthrough means "skip DOM replacement" — NOT "skip block decoration."
+
+This ensures the overlay engine loads the branded header/footer fragments, decorates blocks normally, but does NOT replace `<main>` content when the template is marked as passthrough.
 
 ### 3. Create OF1 DA content
 

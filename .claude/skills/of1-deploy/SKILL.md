@@ -190,6 +190,144 @@ Verify:
 - Only blocks from the approved block guide are used
 - Suggestions appear at the end
 
+## Pre-Launch Checklist (MANDATORY)
+
+Before marking the demo as done, run this checklist. ALL items must pass. If any fail, fix the issue and re-check.
+
+### Check 1: OF1 page loads and looks good
+
+Open the OF1 page in Playwright and verify it renders correctly:
+
+```bash
+playwright-cli open "${PREVIEW_BASE}/${BRANCH}/of1"
+sleep 6
+playwright-cli screenshot --tab <tab_id> --output /tmp/check-of1.png
+open --view /tmp/check-of1.png
+```
+
+**Pass criteria:**
+- Page shows the branded search UI (title, subtitle, input, suggestion chips)
+- No raw unstyled content visible (no plain divs/tables)
+- Header nav is styled (dark translucent bar with white links, not raw blue links)
+- Footer is styled (columns, proper link colors)
+- No 404 errors in the console
+
+**If it fails:** The passthrough template isn't decorating blocks — check `scripts.js` has `decorateMain(main)` in the passthrough branch. Or `styles/of1.css` is missing header/footer chrome.
+
+### Check 2: OF1 nav/footer matches prototype-home exactly
+
+Open both pages side by side and compare the header and footer:
+
+```bash
+playwright-cli open "${PREVIEW_BASE}/${BRANCH}/prototype-home"
+sleep 6
+playwright-cli screenshot --tab <home_tab_id> --output /tmp/check-home.png
+
+# Compare headers visually
+open --view /tmp/check-of1.png
+open --view /tmp/check-home.png
+```
+
+**Pass criteria:**
+- Nav bar background color/opacity is identical
+- Nav link font-size, color, and spacing match
+- Logo renders the same (same SVG, same fill color)
+- Footer column layout, typography, and colors match
+- No visible difference in header/footer between the two pages
+
+**If it fails:** `styles/of1.css` has different header/footer rules than `styles/prototype-home.css`. Fix by extracting the `.site-header` and `.site-footer` rules from prototype-home.css into styles/of1.css.
+
+### Check 3: Products have multiple images
+
+Read the products config and verify image coverage:
+
+```bash
+python3 << 'EOF'
+import json
+
+with open('of1/config/products.json') as f:
+    products = json.load(f)
+
+all_good = True
+for p in products:
+    name = p.get('name', 'Unknown')
+    images = p.get('images', [])
+    thumbnail = p.get('thumbnail', '')
+    total = len(images) + (1 if thumbnail and thumbnail not in images else 0)
+    status = "✓" if total >= 2 else "✗"
+    if total < 2:
+        all_good = False
+    print(f"  {status} {name}: {total} images")
+
+if all_good:
+    print("\n✓ All products have at least 2 images")
+else:
+    print("\n✗ FAIL: Some products have fewer than 2 images — fix content-metadata")
+EOF
+```
+
+**Pass criteria:**
+- Every product has at least 2 images (thumbnail + at least 1 gallery image)
+- Image URLs return 200 (spot-check 3-4 URLs with curl)
+
+**If it fails:** Re-run Step 9 with instructions to download more product images to DA.
+
+### Check 4: Sprinkle quick links all work
+
+Verify all quick link URLs return 200:
+
+```bash
+LINKS=(
+  "${PREVIEW_BASE}/deliverables/discovery.html"
+  "${PREVIEW_BASE}/deliverables/brand-review.html"
+  "${PREVIEW_BASE}/${BRANCH}/prototype-home"
+  "${PREVIEW_BASE}/gallery/index.html"
+  "${PREVIEW_BASE}/${BRANCH}/of1"
+  "${PREVIEW_BASE}/deliverables/config-review.html"
+  "${PREVIEW_BASE}/deliverables/index.html"
+)
+
+ALL_OK=true
+for URL in "${LINKS[@]}"; do
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+  if [ "$STATUS" = "200" ]; then
+    echo "  ✓ $STATUS $URL"
+  else
+    echo "  ✗ $STATUS $URL"
+    ALL_OK=false
+  fi
+done
+
+if [ "$ALL_OK" = "true" ]; then
+  echo "\n✓ All quick links accessible"
+else
+  echo "\n✗ FAIL: Some links return non-200 — check git push and preview triggers"
+fi
+```
+
+**Pass criteria:**
+- All URLs return HTTP 200
+- The sprinkle must have deliverable URLs pushed for steps 2, 3, 4, 5, 6, 7, 8, 12, 13
+
+**If it fails:** Re-push step statuses with correct deliverable URLs. Trigger preview for any missing pages.
+
+---
+
+### Checklist Summary
+
+Only mark Step 13 as `"done"` if ALL 4 checks pass:
+
+| # | Check | Pass? |
+|---|-------|-------|
+| 1 | OF1 page loads with styled search UI | |
+| 2 | OF1 nav/footer matches prototype-home | |
+| 3 | All products have ≥2 images | |
+| 4 | All quick link URLs return 200 | |
+
+If any check fails, fix the issue (commit + push + re-preview if needed), then re-run the failed check.
+
+---
+
 ## Deliverables
 
 - `of1/config/*.json` — All config files committed to git
@@ -198,6 +336,7 @@ Verify:
 - `deliverables/prototype-*.html` — Pixel-perfect HTML prototypes
 - Config synced to worker via EDS → R2
 - Test generation verified
+- Pre-launch checklist passed (all 4 checks ✓)
 
 ## Completion
 
@@ -209,17 +348,19 @@ Present final report with the hub URL:
 **Demo Hub:** ${PREVIEW_BASE}/deliverables/index.html
 
 All deliverables:
-- OF1 page: ${PREVIEW_BASE}/of1
+- OF1 page: ${PREVIEW_BASE}/${BRANCH}/of1
 - Block catalog: ${PREVIEW_BASE}/block-catalog
 - EDS site: ${PREVIEW_BASE}/
 - Config: ${PREVIEW_BASE}/of1/config/
 - DA.live: https://da.live/#/${OWNER}/${REPO}
 - Worker tenant: ${TENANT_ID} (synced + verified)
+
+Pre-launch checklist: 4/4 passed ✓
 ```
 
 Write a status file — do NOT call `sprinkle send` directly (only the of1-demo orchestrator scoop may do that):
 
 ```bash
 mkdir -p /shared/of1-demo
-echo '{"step":13,"status":"done","deliverable":"'${PREVIEW_BASE}'/deliverables/index.html"}' > /shared/of1-demo/step-13-status.json
+echo '{"step":13,"status":"done","deliverable":"'${PREVIEW_BASE}'/deliverables/index.html","summary":"Deployed + all 4 pre-launch checks passed."}' > /shared/of1-demo/step-13-status.json
 ```

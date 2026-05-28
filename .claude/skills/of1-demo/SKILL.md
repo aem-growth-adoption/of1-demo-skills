@@ -217,6 +217,35 @@ User wants changes. Ask in chat what they want different, then re-run the step s
 ### `reset`
 User reset the pipeline. Clean up any running scoops.
 
+## Auto-Approve — Keep Pipeline Moving
+
+**By default, auto-approve all review steps and immediately proceed.** Do NOT wait for user confirmation between steps unless the user explicitly says "pause" or "wait for my review."
+
+When a step finishes with `"status":"review"`:
+1. Push the review status to the sprinkle (so the user CAN review if they want)
+2. **Immediately treat it as approved** and proceed to the next step
+3. If the user later clicks "Revise" in the sprinkle, handle it reactively
+
+This means the full pipeline runs end-to-end without stopping. The user can always retroactively revise any step.
+
+## Deliverable URLs — ALWAYS Include Them
+
+When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), ALWAYS include a `deliverable` URL. The sprinkle's Quick Links section uses these URLs. Steps pushed without a `deliverable` field result in greyed-out quick links.
+
+**Required deliverable URLs by step:**
+
+| Step | Deliverable URL |
+|------|----------------|
+| 2 | `https://github.com/{owner}/{repo}/tree/{branch}` |
+| 3 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/discovery.html` |
+| 4 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/brand-review.html` |
+| 5 | `serve --entry prototype-home.html` result |
+| 6 | `https://{branch}--{repo}--{owner}.aem.page/{branch}/prototype-home` |
+| 7 | `https://{branch}--{repo}--{owner}.aem.page/gallery/index.html` |
+| 8 | `https://{branch}--{repo}--{owner}.aem.page/{branch}/of1` |
+| 12 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/config-review.html` |
+| 13 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/index.html` |
+
 ## Step → Skill Mapping
 
 | Step | Name | Skill(s) | Review | Track | Depends on |

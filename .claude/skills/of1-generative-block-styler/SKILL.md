@@ -82,9 +82,11 @@ Adapt these patterns to the current brand:
 
 ### Step 3: Write the CSS
 
-**OUTPUT FILE: `blocks/of1/of1.css`** — this is the ONLY file that matters. EDS auto-loads `/blocks/of1/of1.css` for the OF1 block. If you write CSS anywhere else (e.g., `styles/of1-base.css`, `styles/of1-branded.css`, etc.), it will NOT be loaded and the block will appear unstyled.
+**BLOCK CSS OUTPUT: `blocks/of1/of1.css`** — this is what EDS auto-loads for the OF1 block. All block-level styling (search UI, generated sections, cards, hero, suggestions, skeleton, debug) goes here.
 
-⚠️ **DO NOT write to `styles/*.css`** — only `blocks/of1/of1.css` is loaded by the EDS block system.
+**PAGE CHROME OUTPUT: `styles/of1.css`** — this is loaded by the overlay engine for the OF1 page template. It provides header/footer/body styling only (NOT block styling).
+
+⚠️ **DO NOT put block styling in `styles/of1.css`** — it's only for page chrome (header, footer, body typography). The block CSS MUST go in `blocks/of1/of1.css`.
 
 The process:
 1. Read `/workspace/skills/of1-snowflake/assets/of1-base.css` as the template
@@ -162,11 +164,41 @@ Start the dev server and test:
 6. Verify: sections animate in smoothly
 7. Verify: suggestions UI is polished with hover states
 
+### Step 5b: Write `styles/of1.css` — page-level chrome styling
+
+**⚠️ CRITICAL:** The OF1 page loads `styles/of1.css` via the overlay engine (template name = "of1"). This file provides page-level styling for the header, footer, and body — NOT the block itself. Without it, the nav bar and footer render as unstyled links.
+
+**Copy the header/footer CSS from the prototype styles.** Look at `styles/prototype-home.css` (or any prototype CSS file) and extract the `.site-header` and `.site-footer` rules. The OF1 page uses the same header/footer fragments as the prototype pages but loads a different page-level stylesheet.
+
+```bash
+# Extract header/footer styling from prototype CSS and write to styles/of1.css
+# The file MUST include:
+# 1. .site-header styling (dark translucent nav bar, white links, Apple logo fill)
+# 2. .site-footer styling (footer columns, link colors, typography)
+# 3. Body/typography basics (font-family, color, background)
+# 4. Any h1-h6 overrides for the page
+```
+
+**What `styles/of1.css` must contain:**
+
+| Section | Purpose |
+|---------|---------|
+| Body reset | Brand font-family, color, background |
+| `.site-header` | Sticky dark nav with backdrop-blur, white links |
+| `.site-header nav` | Flex layout, spacing, max-width |
+| `.site-header nav a` | White text, font-size, hover state |
+| `.site-header .nav-logo svg` | Logo fill color |
+| `.site-footer` | Footer background, columns grid, link colors |
+| Typography | Heading fonts, weights, sizes |
+| Responsive | Mobile nav/footer adjustments |
+
+**The easiest approach:** Read `styles/prototype-home.css`, find all rules targeting `.site-header` and `.site-footer` (and their children), and write them into `styles/of1.css` with the addition of body/typography overrides.
+
 ### Step 6: Commit and push
 
 Push so the preview updates:
 ```bash
-git add blocks/of1/
+git add blocks/of1/ styles/of1.css
 git commit -m "feat: brand-aligned OF1 generative block styling for {DOMAIN}"
 git push origin ${BRANCH}
 ```
@@ -209,6 +241,7 @@ The user will:
 |---------|-----------|-----|
 | Writing branded CSS to `styles/of1-base.css` or any other file | 10+ min (block appears completely unstyled) | Output MUST go to `blocks/of1/of1.css` — the ONLY file EDS auto-loads for the block |
 | Leaving generic tokens (`#000000`, `system-ui`) in of1.css | 5+ min (block looks unbranded) | Replace ALL placeholder token values with brand values from DESIGN.json |
+| **Forgetting `styles/of1.css` page chrome** | **OF1 nav/footer renders as raw unstyled links** | **MUST write `styles/of1.css` with header/footer CSS copied from prototype styles** |
 | Using existing `of1.js` from the demo repo | 10+ min debugging | Always copy from `/workspace/skills/of1-snowflake/assets/of1.js` |
 | Using existing `of1.css` from the demo repo as base | 5+ min stale/wrong | Always start from `/workspace/skills/of1-snowflake/assets/of1-base.css` |
 | Modifying `of1.js` to add brand logic | breaks block | JS is shared infrastructure — NEVER touch it, only customize CSS |
