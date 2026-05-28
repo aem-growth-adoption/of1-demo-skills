@@ -1,7 +1,7 @@
 import { decorateMain } from '../../scripts/scripts.js';
 import { loadSections, readBlockConfig } from '../../scripts/aem.js';
 
-const DEFAULT_WORKER_URL = 'https://feat-template-routing-of1-gen-web-service.franklin-prod.workers.dev';
+const DEFAULT_WORKER_URL = 'https://of1-gen-web-service.franklin-prod.workers.dev';
 
 const ARROW_SVG = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const RESTART_SVG = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 8A6 6 0 1 1 8 2c1.5 0 2.9.6 4 1.5M12 2v3h-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
