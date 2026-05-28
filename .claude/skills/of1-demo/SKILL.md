@@ -39,6 +39,11 @@ The sprinkle sends licks as a single `action` string with colon-delimited fields
 ### `set-domain:<domain>`
 User entered the target domain. Store it for all subsequent steps.
 
+**IMPORTANT:** Setting a new domain automatically resets ALL step states (pending, no deliverables, no summaries). The sprinkle handles this client-side — when `data.domain` differs from `state.domain`, all steps are wiped clean. This means:
+- The orchestrator MUST always send `set-domain` FIRST before pushing any step statuses for a new run.
+- No manual reset of individual steps is needed — the domain change handles it.
+- Quick links are also cleared because they derive from step deliverables.
+
 ### `run:<step>:<skill>:<domain>`
 User clicked Run on step N. Parse the step number, skill name, and domain from the colon-delimited string. Spawn a scoop to execute the skill.
 

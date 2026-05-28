@@ -994,11 +994,41 @@
   function hasActiveStep() { return state.steps.some(function(s) { return s.status === 'active'; }); }
 
   function applyUpdate(data) {
+    // Handle full reset action
+    if (data.action === 'reset') {
+      state.domain = '';
+      for (var r = 0; r < state.steps.length; r++) {
+        state.steps[r] = { status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
+      }
+      stopTimer();
+      slicc.setState(state);
+      render();
+      return;
+    }
+    // Auto-reset all steps when a NEW domain is set (different from current)
+    if (data.domain && data.domain !== state.domain) {
+      for (var r2 = 0; r2 < state.steps.length; r2++) {
+        state.steps[r2] = { status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
+      }
+      state.domain = data.domain;
+      stopTimer();
+      slicc.setState(state);
+      render();
+      return;
+    }
     if (data.domain) state.domain = data.domain;
     if (typeof data.step === 'number' && data.step >= 1 && data.step <= STEPS.length) {
       var idx = data.step - 1;
       if (data.status) {
         state.steps[idx].status = data.status;
+        if (data.status === 'pending') {
+          state.steps[idx].deliverable = null;
+          state.steps[idx].deliverables = null;
+          state.steps[idx].summary = null;
+          state.steps[idx].error = null;
+          state.steps[idx].startedAt = null;
+          state.steps[idx].completedAt = null;
+        }
         if (data.status === 'active') {
           state.steps[idx].startedAt = Date.now();
           state.steps[idx].completedAt = null;
