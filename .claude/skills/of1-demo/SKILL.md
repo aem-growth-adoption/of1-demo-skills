@@ -492,6 +492,59 @@ If a step fails or the user requests revisions:
 3. Re-spawn the step scoop with the same prompt + any user feedback
 4. The scoop can read prior outputs and iterate on them
 
+## Step 13 — MANDATORY Pre-Launch Checklist
+
+**DO NOT mark Step 13 as `"done"` without running these 4 checks.** This applies in ALL modes — one-shot, auto-approve, or manual. The cone must run these checks INLINE (not delegated to a scoop) after the sync succeeds:
+
+### Check 1: OF1 page loads with styled search UI
+```bash
+playwright-cli open "${PREVIEW_BASE}/${BRANCH}/of1"
+sleep 8
+playwright-cli screenshot --tab <tab_id> --output /tmp/check-of1.png
+open --view /tmp/check-of1.png
+```
+Pass: branded header, search input, suggestion chips visible, no raw unstyled content.
+
+### Check 2: OF1 nav/footer matches prototype-home
+```bash
+playwright-cli open "${PREVIEW_BASE}/${BRANCH}/prototype-home"
+sleep 8
+playwright-cli screenshot --tab <tab_id> --output /tmp/check-home.png
+open --view /tmp/check-home.png
+```
+Pass: nav bar and footer are visually identical between OF1 page and prototype-home.
+
+### Check 3: All products have ≥2 images
+```bash
+python3 << 'EOF'
+import json
+with open('of1/config/products.json') as f:
+    products = json.load(f)
+all_good = True
+for p in products:
+    if len(p.get('images', [])) < 2:
+        print(f"  ✗ {p['name']}: {len(p.get('images', []))} images")
+        all_good = False
+if not all_good:
+    raise SystemExit("FAIL: products with <2 images")
+print("✓ All products have ≥2 images")
+EOF
+```
+If this fails: download additional images from the site, upload to DA, update products.json, re-sync.
+
+### Check 4: All quick link URLs return 200
+```bash
+for URL in discovery.html brand-review.html config-review.html index.html; do
+  curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/deliverables/${URL}"
+done
+curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/${BRANCH}/prototype-home"
+curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/${BRANCH}/of1"
+```
+Pass: All return 200.
+
+### On failure:
+Fix the issue (commit + push + re-preview + re-sync if needed), then re-run the failing check. Only push `"step":13,"status":"done"` to the sprinkle after ALL 4 pass.
+
 ## Completion
 
 After step 13 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.

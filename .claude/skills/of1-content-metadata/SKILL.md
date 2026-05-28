@@ -274,12 +274,19 @@ This downloads all images, uploads to DA, and updates products.json with `conten
 
 **CRITICAL RULE: ALL product images MUST be downloaded and uploaded to DA.** Never leave external CDN URLs in products.json — not AEM delivery URLs, not the customer's site URLs, not any third-party CDN. External URLs break due to CORS, referrer policies, encoding issues, CDN token expiration, and EDS image optimization rewriting.
 
-**Target:** Up to 5 images per product (use fewer if the source page has less) — prioritize:
-1. Main product shot (hero/front view)
-2. Alternate angle or colorway
+**Target:** MINIMUM 2 images per product, up to 5. The pre-launch checklist FAILS if any product has fewer than 2 images. Prioritize:
+1. Main product shot (hero/front view) — REQUIRED
+2. Alternate angle, colorway, or lifestyle shot — REQUIRED (minimum 2 total)
 3. Lifestyle/in-use shot
 4. Detail/close-up shot
 5. Package or accessory shot
+
+**If a product detail page only has 1 image**, look for additional images on:
+- The category/listing page (model lineup shots, carousel images)
+- The manufacturer's press/media pages (high-res product galleries)
+- Related model pages (shared platform shots work as fallback)
+
+**NEVER leave a product with only 1 image** — the deploy checklist will flag it as a failure.
 
 **How to find images on a product page:**
 
@@ -353,12 +360,38 @@ https://content.da.live/{OWNER}/{REPO}/{BRANCH}/media/product-{PRODUCT_ID}-1.png
 ]
 ```
 
-**Verify at least one image per product is accessible:**
+**Verify EVERY product has ≥2 images and they're accessible:**
 ```bash
-# Spot-check first image of each product
-curl -s -o /dev/null -w "%{http_code}" "https://content.da.live/${OWNER}/${REPO}/${BRANCH}/media/product-${PRODUCT_ID}-1.png"
-# Must return 200
+python3 << 'EOF'
+import json, subprocess
+
+with open("of1/config/products.json") as f:
+    products = json.load(f)
+
+all_good = True
+for p in products:
+    name = p.get("name", "Unknown")
+    images = p.get("images", [])
+    if len(images) < 2:
+        print(f"  ✗ FAIL: {name} has only {len(images)} image(s) — MUST have ≥2")
+        all_good = False
+    else:
+        # Spot-check first image returns 200
+        r = subprocess.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", images[0]], capture_output=True, text=True)
+        status = "✓" if r.stdout.strip() == "200" else "✗"
+        print(f"  {status} {name}: {len(images)} images (HTTP {r.stdout.strip()})")
+        if r.stdout.strip() != "200":
+            all_good = False
+
+if not all_good:
+    print("\n✗ FAIL: Fix products with <2 images before completing this step!")
+    import sys; sys.exit(1)
+else:
+    print("\n✓ All products have ≥2 accessible images")
+EOF
 ```
+
+**If any product has fewer than 2 images, DO NOT write the completion status file.** Go back and download more images. Check the category/listing page, the model lineup page, or manufacturer press images for additional angles.
 
 **IMPORTANT:** Never use invented/fabricated image URLs. Only use URLs extracted from the live site that actually downloaded successfully (> 10KB).
 
