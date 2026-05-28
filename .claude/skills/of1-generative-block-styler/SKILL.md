@@ -82,6 +82,16 @@ Adapt these patterns to the current brand:
 
 ### Step 3: Write the CSS
 
+**OUTPUT FILE: `blocks/of1/of1.css`** — this is the ONLY file that matters. EDS auto-loads `/blocks/of1/of1.css` for the OF1 block. If you write CSS anywhere else (e.g., `styles/of1-base.css`, `styles/of1-branded.css`, etc.), it will NOT be loaded and the block will appear unstyled.
+
+⚠️ **DO NOT write to `styles/*.css`** — only `blocks/of1/of1.css` is loaded by the EDS block system.
+
+The process:
+1. Read `/workspace/skills/of1-snowflake/assets/of1-base.css` as the template
+2. Replace ALL generic token values (e.g., `#000000`, `system-ui`) with the brand's actual values from `DESIGN.json`
+3. Add brand-specific visual enhancements
+4. Write the COMPLETE result to `blocks/of1/of1.css`
+
 Write the complete CSS to `blocks/of1/of1.css`, organized into these sections:
 
 ```
@@ -197,8 +207,10 @@ The user will:
 
 | Mistake | Time Cost | Fix |
 |---------|-----------|-----|
+| Writing branded CSS to `styles/of1-base.css` or any other file | 10+ min (block appears completely unstyled) | Output MUST go to `blocks/of1/of1.css` — the ONLY file EDS auto-loads for the block |
+| Leaving generic tokens (`#000000`, `system-ui`) in of1.css | 5+ min (block looks unbranded) | Replace ALL placeholder token values with brand values from DESIGN.json |
 | Using existing `of1.js` from the demo repo | 10+ min debugging | Always copy from `/workspace/skills/of1-snowflake/assets/of1.js` |
-| Using existing `of1.css` from the demo repo as base | 5+ min  stale/wrong version | Always start from `/workspace/skills/of1-snowflake/assets/of1-base.css` |
-| Modifying `of1.js` to add brand logic | breaks block | JS is shared infrastructure  NEVER touch it, only customize CSS |
-| Forgetting to commit `of1.js` alongside `of1.css` | blank page on deploy | Always `git add blocks/of1/` to include both files |
-| Using Node.js for scripting | instant failure | Node is a shim in SLICC  use Python |
+| Using existing `of1.css` from the demo repo as base | 5+ min stale/wrong | Always start from `/workspace/skills/of1-snowflake/assets/of1-base.css` |
+| Modifying `of1.js` to add brand logic | breaks block | JS is shared infrastructure — NEVER touch it, only customize CSS |
+| Forgetting to commit `of1.js` alongside `of1.css` | blank page | Always `git add blocks/of1/` to include both files |
+| Using Node.js for scripting | instant failure | Node is a shim in SLICC — use Python |
