@@ -82,18 +82,17 @@ cp stardust/prototypes/*.html deliverables/ 2>/dev/null || true
 
 ### 4. Generate demo hub page
 
-Build `deliverables/index.html` — a single entry point linking to all deliverables. Self-contained HTML with inline styles.
+**USE THE FILL SCRIPT — do NOT write custom HTML:**
 
-**Required sections:**
-- **Discovery & Extraction** — link to brand-review.html, discovery.html
-- **Prototypes** — links to each prototype-*.html file
-- **EDS Pages** — links to AEM preview URLs (absolute: `${PREVIEW_BASE}/`)
-- **OF1 Generative** — links to OF1 page, block catalog (AEM), and config review (relative)
+```bash
+# REQUIRED: Create the DA pages list BEFORE running the fill script
+ls /mnt/da/${BRANCH}/*.html > /tmp/da-pages.txt 2>/dev/null
 
-Use badges to distinguish link types:
-- `AEM Preview` (green) — for DA-published content pages
-- `Standalone` (orange) — for self-contained HTML in deliverables/
-- `Config` (blue) — for config review page
+# Generate the demo hub from the template
+python3 /workspace/skills/of1-deploy/assets/fill-demo-hub.py . "${DOMAIN}"
+```
+
+This reads all config, finds prototypes, discovers EDS pages from DA, and writes `deliverables/index.html` using the OF1 dark theme template. Do NOT hand-write the hub HTML.
 
 ### 5. Commit and push everything
 
