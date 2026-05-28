@@ -124,12 +124,12 @@ def render_eds_pages(pages):
     """Render EDS page cards."""
     html = ''
     for p in pages:
-        html += f'''      <a href="{p['url']}" class="card">
-        <span class="card-badge badge-aem">AEM Preview</span>
-        <div class="card-title">{escape(p['label'])}</div>
-        <div class="card-desc">Live EDS page with snowflake overlay</div>
-      </a>\n'''
-    return html or '      <div class="card"><div class="card-title">No pages published yet</div></div>'
+        html += f'''    <a href="{p['url']}" class="link-card">
+      <span class="link-badge badge-aem">aem</span>
+      <div class="link-info"><div class="link-title">{escape(p['label'])}</div><div class="link-desc">EDS overlay page</div></div>
+      <span class="link-arrow">&rarr;</span>
+    </a>\n'''
+    return html or '    <span class="link-card"><div class="link-info"><div class="link-title">No pages published yet</div></div></span>'
 
 def render_config_summary(products, personas, suggestions, templates_json):
     """Render config summary items."""
@@ -160,10 +160,10 @@ def render_config_summary(products, personas, suggestions, templates_json):
     
     html = ''
     for label, value in items:
-        html += f'''      <div class="config-item">
-        <div class="config-item-label">{escape(label)}</div>
-        <div class="config-item-value">{escape(str(value))}</div>
-      </div>\n'''
+        html += f'''    <div class="config-item">
+      <div class="config-label">{escape(label)}</div>
+      <div class="config-value">{escape(str(value))}</div>
+    </div>\n'''
     return html
 
 def main():
