@@ -121,15 +121,31 @@ def find_eds_pages(repo_dir, branch, owner, repo):
     return pages
 
 def render_eds_pages(pages):
-    """Render EDS page cards."""
+    """Render EDS page link pills."""
     html = ''
     for p in pages:
-        html += f'''    <a href="{p['url']}" class="link-card">
-      <span class="link-badge badge-aem">aem</span>
-      <div class="link-info"><div class="link-title">{escape(p['label'])}</div><div class="link-desc">EDS overlay page</div></div>
-      <span class="link-arrow">&rarr;</span>
-    </a>\n'''
-    return html or '    <span class="link-card"><div class="link-info"><div class="link-title">No pages published yet</div></div></span>'
+        html += f'  <a href="{p["url"]}"><span class="badge badge--green">AEM Preview</span> {escape(p["label"])}</a>\n'
+    return html or '  <span style="color:var(--dim)">No pages published yet</span>'
+
+def render_prototypes(repo_dir, preview_base):
+    """Render prototype link pills."""
+    html = ''
+    proto_dir = Path(repo_dir) / 'stardust' / 'current' / 'prototypes'
+    deliv_dir = Path(repo_dir) / 'deliverables'
+    
+    # Check stardust prototypes
+    if proto_dir.exists():
+        for f in sorted(proto_dir.glob('*.html')):
+            label = f.stem.replace('-', ' ').replace('prototype ', '').title()
+            html += f'  <a href="{preview_base}/deliverables/prototype-{f.stem}.html"><span class="badge badge--orange">Standalone</span> {escape(label)}</a>\n'
+    
+    # Check deliverables for prototype-* files
+    if not html and deliv_dir.exists():
+        for f in sorted(deliv_dir.glob('prototype-*.html')):
+            label = f.stem.replace('prototype-', '').replace('-', ' ').title()
+            html += f'  <a href="{preview_base}/deliverables/{f.name}"><span class="badge badge--orange">Standalone</span> {escape(label)}</a>\n'
+    
+    return html or '  <span style="color:var(--dim)">No prototypes yet</span>'
 
 def render_config_summary(products, personas, suggestions, templates_json):
     """Render config summary items."""
@@ -214,27 +230,22 @@ def main():
     template_path = Path(__file__).parent / 'demo-hub.html'
     template = template_path.read_text()
     
+    # Render prototypes
+    prototypes_html = render_prototypes(repo_dir, preview_base)
+    
     # Fill template
     html = template
     html = html.replace('{{DOMAIN}}', escape(domain))
-    html = html.replace('{{DEMO_FOCUS}}', escape(focus))
-    html = html.replace('{{LOGO_SVG}}', logo_svg)
-    html = html.replace('{{NARRATIVE}}', escape(narrative))
     html = html.replace('{{NUM_PRODUCTS}}', str(len(products)))
-    html = html.replace('{{NUM_TEMPLATES}}', str(num_templates))
-    html = html.replace('{{NUM_PERSONAS}}', str(len(personas)))
-    html = html.replace('{{NUM_SUGGESTIONS}}', str(num_suggestions))
-    html = html.replace('{{NUM_PAGES}}', str(len(eds_pages)))
     html = html.replace('{{OF1_URL}}', of1_url)
     html = html.replace('{{GALLERY_URL}}', gallery_url)
     html = html.replace('{{PREVIEW_BASE}}', preview_base)
+    html = html.replace('{{PROTOTYPES}}', prototypes_html)
     html = html.replace('{{EDS_PAGES}}', render_eds_pages(eds_pages))
-    html = html.replace('{{CONFIG_SUMMARY}}', render_config_summary(products, personas, suggestions, templates_json))
     html = html.replace('{{OWNER}}', owner)
     html = html.replace('{{REPO}}', repo)
     html = html.replace('{{BRANCH}}', branch)
-    html = html.replace('{{TENANT_ID}}', tenant_id)
-    html = html.replace('{{DATE}}', date.today().isoformat())
+    html = html.replace('{{DATE}}', date.today().strftime('%B %d, %Y'))
     
     # Write output
     out_dir = Path(repo_dir) / 'deliverables'
