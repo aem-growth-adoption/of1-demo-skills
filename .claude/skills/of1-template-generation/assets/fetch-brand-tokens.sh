@@ -84,7 +84,7 @@ fetch_segment() {
   local color_count
   color_count=$(jq '[.. | objects | select(."$type" == "color") | select(."$value".hex)] | length' \
     "${OUTPUT_DIR}/design-tokens-${slug}.json")
-  if [ "$color_count" = "0" ]; then
+  if [ "$color_count" -eq 0 ]; then
     echo "Segment ${slug} returned no color tokens" >&2
     exit 1
   fi

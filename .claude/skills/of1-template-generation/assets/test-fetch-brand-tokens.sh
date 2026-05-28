@@ -32,11 +32,23 @@ assert_exit() {
   fi
 }
 
-# Case 1: happy path against frescopa
+# Case 1: happy path against frescopa (frescopa.coffee is the canonical stage brand for this demo)
 TMP1=$(mktemp -d)
+STDERR1=$(mktemp)
 BGA_API_URL="$BGA_API_URL" BGA_IMS_ORG_ID="$BGA_IMS_ORG_ID" IMS_TOKEN="$IMS_TOKEN" \
-  "$FETCH" frescopa.coffee "$TMP1" >/dev/null 2>&1
-assert_exit "happy path frescopa.coffee" 0 $?
+  "$FETCH" frescopa.coffee "$TMP1" >/dev/null 2>"$STDERR1"
+rc=$?
+if [ $rc -ne 0 ]; then
+  echo "FAIL: happy path frescopa.coffee (expected exit=0, got $rc)" >&2
+  echo "--- fetch-brand-tokens.sh stderr ---" >&2
+  cat "$STDERR1" >&2
+  echo "--- end stderr ---" >&2
+  fail=$((fail + 1))
+else
+  echo "PASS: happy path frescopa.coffee (exit=0)"
+  pass=$((pass + 1))
+fi
+rm -f "$STDERR1"
 
 # Check artifacts exist and are non-empty
 for f in brand-info.json design-tokens-global.md design-tokens-global.json design-tokens-fr-under25.md design-tokens-fr-under25.json; do
