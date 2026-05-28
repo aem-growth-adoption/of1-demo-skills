@@ -246,4 +246,7 @@ The user will:
 | Using existing `of1.css` from the demo repo as base | 5+ min stale/wrong | Always start from `/workspace/skills/of1-snowflake/assets/of1-base.css` |
 | Modifying `of1.js` to add brand logic | breaks block | JS is shared infrastructure — NEVER touch it, only customize CSS |
 | Forgetting to commit `of1.js` alongside `of1.css` | blank page | Always `git add blocks/of1/` to include both files |
+| **Generated sections constrained to 980px max-width** | **Content has huge side padding, doesn't fill viewport** | **Generated sections MUST be full-width (`max-width: 100%` or `none`). Only inner content (cards grid, text) should have max-width. Heroes/sections themselves go edge-to-edge.** |
+| **Section padding over 60px** | **Huge vertical gaps between generated sections** | **Use 40-56px vertical padding max. The base template uses 56px — don't increase it.** |
+| **Start over button icon misaligned** | **SVG icon floating above/below text** | **`.suggestion-restart` needs `display: inline-flex; align-items: center; gap: 6px;`** |
 | Using Node.js for scripting | instant failure | Node is a shim in SLICC — use Python |
