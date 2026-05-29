@@ -620,25 +620,15 @@ For each content page (skip of1), compare EDS preview against the prototype:
 
 ## 🚫 Common Mistakes That Waste Time
 
+Cross-cutting rules (DA strips images, EDS class collisions, `<p>` wrappers, full-bleed wrapper overrides, curl pitfalls, branch-vs-domain path patterns, tenant ID format, SLICC Node.js shim, one-commit-per-step) all live in `of1-demo/knowledge/common-pitfalls.md`. Read it before troubleshooting.
+
+Snowflake-specific pitfalls (the ones unique to the prototype → EDS transform):
+
 | Mistake | Time wasted | Correct approach |
 |---------|-------------|------------------|
-| Putting images in DA content | 10+ min (images vanish, debug why) | Keep ALL images in template HTML |
-| Stripping visual elements from template | 10+ min (page looks bare) | Template = FULL prototype `<main>`, nothing removed |
-| Using `class="header"` on `<header>` element | 10+ min (nav/banner on same line) | Use `class="site-header"` — EDS reserves `.header` |
-| Missing EDS block reset CSS rules | 10+ min (header/footer broken layout) | Add `.header.block { display: block !important; }` at top of CSS |
-| Announcement bar nested inside `<header>` | 5+ min (renders on same line as nav) | Keep announcement bar as separate div ABOVE `<header>` |
-| Footer logo SVG truncated/partial | Broken logo forever | Use the SAME complete SVG as header, change fill colors for dark bg |
-| DA content missing `<p>` wrappers | 30+ min (page renders empty, hard to debug) | EVERY cell value MUST be wrapped in `<p>` tags — see "DA Content Format" section above |
-| Using `--data-binary @/path/to/file` | 10+ min (uploads literal string, breaks DA) | ALWAYS pipe: `cat file \| curl ... --data-binary @-` |
-| Running `npx da-auth-helper` | 2-3 min | Use `oauth-token adobe` |
-| Writing to `/mnt/da/{domain}/` instead of `/mnt/da/{BRANCH}/` | 5 min debugging | DA path uses BRANCH name (e.g., `frescopa-2`), not domain |
-| Using URL path `/{page}` without branch prefix | 2 min debugging 404s | URL path is `/${BRANCH}/${page}` |
-| Not including full-bleed wrapper overrides in CSS | 5 min debugging narrow sections | Add `.<section>-wrapper { max-width: 100% !important; }` |
-| Not including Google Fonts links in template | 3 min debugging wrong fonts | Add `<link>` tags at top of template HTML |
-| Multiple git pushes | 2-3 min | ONE push after all artifacts are created |
-| Using node/npm | 1 min | Node is a shim. Don't use npm/npx |
-| Setting OF1 domain to site domain | 5+ min debugging | Use tenant ID: `${BRANCH}--${REPO}--${OWNER}` |
-| Simplifying/redesigning the footer | 5+ min debugging unstyled footer | Keep the EXACT footer DOM from prototype |
+| Stripping visual elements from the template | 10+ min (page looks bare) | Template = FULL prototype `<main>`, nothing removed. Only ADD `data-slot` markers; never DELETE elements. |
+| Missing Google Fonts `<link>` tags in template | 3+ min debugging wrong fonts | Prepend the prototype's `<link>` tags (fonts, preconnect) to the top of the template HTML, before `<main>` |
+| Simplifying/redesigning the footer fragment | 5+ min debugging unstyled footer | Keep the EXACT footer DOM from the prototype — including any inline `<style>` blocks |
 
 ---
 

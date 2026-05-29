@@ -137,17 +137,11 @@ git add -f stardust/current/DESIGN.json stardust/current/DESIGN.md stardust/curr
 
 ---
 
-## Lessons Learned (pass to stardust if issues arise)
+## Lessons Learned
 
-These issues have occurred in previous runs:
+Logo SVG completeness, deliverable image paths, and image format rules are documented in `of1-demo/knowledge/common-pitfalls.md` (§ 2-3). Extraction-specific gotcha:
 
-1. **Logo SVG truncation** — Logos extracted from `<symbol>` sprites can be truncated. Always extract the full `innerHTML` of the symbol element and wrap in a standalone `<svg>` with the correct `viewBox`. Verify the SVG ends with `</svg>` and renders the complete wordmark.
-
-2. **Image paths in deliverables** — HTML served on EDS needs absolute paths from repo root (`/deliverables/assets/screenshots/home.png`). Relative paths break because HTML is at `/deliverables/brand-review.html` while images are at `/deliverables/assets/screenshots/`.
-
-3. **Image format** — Use `format=png` or `format=jpg` (not `format=webply`) when constructing image URLs for browser compatibility.
-
-4. **Private fonts** — When the site uses private fonts (e.g. Sentinel, Gotham Narrow), use the closest system-font fallback AND note the substitution — do not invent a different typeface.
+**Private fonts** — When the site uses private fonts (e.g. Sentinel, Gotham Narrow), use the closest system-font fallback AND note the substitution in `DESIGN.json` — do not invent a different typeface.
 
 ---
 

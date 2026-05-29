@@ -369,17 +369,14 @@ EOF
 
 ## Common Mistakes That Waste Time
 
+Image-handling rules (self-host on DA, never use external CDN URLs, never invent URLs, minimum 2 per product, png/jpg format) and curl pitfalls (`--data-binary @-`) live in `of1-demo/knowledge/common-pitfalls.md` (§ 2 and § 5). `download-images.py` handles the parallel upload + content-type sniffing + mount-vs-API fallback automatically — most legacy gotchas from the bash flow no longer apply.
+
+Skill-specific:
+
 | Mistake | Time Cost | Fix |
 |---------|-----------|-----|
-| Leaving customer CDN image URLs in products.json | 10+ min debugging broken images later | ALWAYS download to DA and use `content.da.live` URLs |
-| Leaving `delivery-p*.adobeaemcloud.com` URLs as-is | 10+ min — breaks in OF1 generation | Download to `/mnt/da/{branch}/media/` and use DA URLs |
-| Using `frescopa.coffee/products/...` URLs directly | breaks when customer site changes | Download to DA — self-host everything |
-| Inventing/hallucinating image URLs | broken images, user frustration | Only use URLs extracted via playwright that return 200 |
-| Not verifying downloads (0 byte files) | silent failures | Check each file is > 10KB after download |
-| Using git `/assets/` folder for images | large repo, slow clones | Use DA mount at `/mnt/da/{branch}/media/` or admin.da.live API |
-| Forgetting to verify DA URLs are accessible | 5 min debugging | `curl -s -o /dev/null -w "%{http_code}" "https://content.da.live/..."` must return 200 |
-| DA mount permission denied | 5 min exploring workarounds | Use `admin.da.live` API as fallback — it IS allowed now |
-| Using `--data-binary @/path/file` for binary uploads | silent failure | Use `--data-binary "@/tmp/file"` (quoted path with @) for binary; for text use `cat file \| curl --data-binary @-` |
+| Skipping the post-upload verification | 10+ min debugging broken images at deploy time | The Step 9b verification block at the end of the skill MUST pass before completing — every product ≥2 images, every URL returns 200 |
+| Re-running without `--update-products` | products.json keeps external URLs even after upload | Always pass `--update-products` to `download-images.py` so the JSON is rewritten with DA URLs |
 
 ## Tips
 

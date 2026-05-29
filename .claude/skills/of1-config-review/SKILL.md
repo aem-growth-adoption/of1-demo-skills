@@ -84,12 +84,13 @@ Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that
 
 ## Common Mistakes That Waste Time
 
+Cross-cutting rules (Node.js shim, curl pitfalls, runtime traps) live in `of1-demo/knowledge/common-pitfalls.md`. Skill-specific ones below:
+
 | Mistake | Time Cost | Fix |
 |---------|-----------|-----|
 | Writing inline Python to generate config-review HTML | 5-10 min | Always use `fill-config-review.py` — it uses the proper template |
 | Forgetting to `cd` into the repo before running the script | 2 min | Use `cd "$REPO_DIR"` first |
 | Not passing the domain argument | 1 min | Second arg is required: `python3 fill-config-review.py . frescopa.coffee` |
-| Trying to use Node.js | 3 min | Node is a shim in SLICC — always use `python3` |
 | Manually editing deliverables/config-review.html | 5+ min | Never hand-edit — always regenerate with the script |
 
 ## DO NOT

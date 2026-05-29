@@ -140,20 +140,14 @@ The `stardust:prototype` plugin already enforces this, but for clarity:
 
 ---
 
-## Lessons Learned (pass to stardust if issues arise)
+## Lessons Learned
 
-These issues have occurred in previous runs:
+Cross-cutting rules (logo completeness, EDS class collisions, announcement-bar placement, image format/placeholders) are in `of1-demo/knowledge/common-pitfalls.md`. Prototype-specific gotchas:
 
 | Mistake | Impact | Prevention |
 |---------|--------|------------|
-| Partial/truncated logo SVG | Broken logo in header/footer persists into EDS | Always download the full SVG file from the site, verify it renders completely |
-| Using `class="header"` on `<header>` | Collides with EDS `.header.block` wrapper in Step 6, breaks layout | Always use `class="site-header"` |
-| Announcement bar nested inside `<header>` | Banner and nav render on same line in EDS Step 6 | Keep announcement bar as separate div ABOVE `<header>` |
-| Using placeholder images | 404s everywhere, looks broken | Only use URLs extracted from the live DOM |
-| Using `format=webply` in image URLs | Browser compatibility issues | Change to `format=png` |
-| Heroes set to `100vh` | Way too tall — site typically uses 200-400px | Check actual height from live site |
-| Footer logo with wrong fill color | Invisible/broken on dark background | Use cream/light fill for dark footer backgrounds |
-| Cards with invented box-shadows | Over-designed vs. original | Only add shadows if the live site has them |
+| Heroes set to `100vh` | Way too tall — sites typically use 200-400px | Check actual height from live site; do not assume full viewport |
+| Cards with invented box-shadows | Over-designed vs. the original | Only add shadows if the live site has them; pixel-perfect copy means matching, not improving |
 
 ---
 

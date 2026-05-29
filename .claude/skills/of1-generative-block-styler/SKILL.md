@@ -237,6 +237,8 @@ The user will:
 
 ## Common Mistakes That Waste Time
 
+Cross-cutting rules (SLICC Node.js shim, EDS class collisions) live in `of1-demo/knowledge/common-pitfalls.md`. The pitfalls below are specific to OF1-block styling — read all of them before writing CSS.
+
 | Mistake | Time Cost | Fix |
 |---------|-----------|-----|
 | Writing branded CSS to `styles/of1-base.css` or any other file | 10+ min (block appears completely unstyled) | Output MUST go to `blocks/of1/of1.css` — the ONLY file EDS auto-loads for the block |
@@ -249,4 +251,3 @@ The user will:
 | **Generated sections constrained to 980px max-width** | **Content has huge side padding, doesn't fill viewport** | **Generated sections MUST be full-width (`max-width: 100%` or `none`). Only inner content (cards grid, text) should have max-width. Heroes/sections themselves go edge-to-edge.** |
 | **Section padding over 60px** | **Huge vertical gaps between generated sections** | **Use 40-56px vertical padding max. The base template uses 56px — don't increase it.** |
 | **Start over button icon misaligned** | **SVG icon floating above/below text** | **`.suggestion-restart` needs `display: inline-flex; align-items: center; gap: 6px;`** |
-| Using Node.js for scripting | instant failure | Node is a shim in SLICC — use Python |
