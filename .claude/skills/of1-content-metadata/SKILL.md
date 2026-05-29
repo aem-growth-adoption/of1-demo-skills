@@ -240,38 +240,6 @@ Verify all ID references are consistent across files. Fix mismatches.
 
 ### Step 9: Pull Product Assets — MUST SELF-HOST ON DA
 
-**⚡ FAST PATH — Use `download-images.sh` for batch download + upload:**
-
-After writing products.json (Step 7), generate an image manifest and run the batch tool:
-
-```bash
-cd "$REPO_DIR"
-
-# Generate manifest from products.json
-python3 << 'EOF'
-import json
-with open("of1/config/products.json") as f:
-    products = json.load(f)
-manifest = [{"productId": p["id"], "urls": p.get("images", [])} for p in products if p.get("images")]
-with open("/tmp/image-manifest.json", "w") as f:
-    json.dump(manifest, f)
-print(f"Manifest: {len(manifest)} products with images")
-EOF
-
-# Batch download + upload to DA (handles mount/API fallback automatically)
-bash /workspace/skills/of1-content-metadata/assets/download-images.sh \
-  --input /tmp/image-manifest.json \
-  --branch "$BRANCH" --owner "$OWNER" --repo "$REPO" \
-  --output /tmp/image-mapping.json \
-  --update-products
-```
-
-This downloads all images, uploads to DA, and updates products.json with `content.da.live` URLs in one command.
-
-**Only use the manual approach below if the tool fails.**
-
----
-
 **CRITICAL RULE: ALL product images MUST be downloaded and uploaded to DA.** Never leave external CDN URLs in products.json — not AEM delivery URLs, not the customer's site URLs, not any third-party CDN. External URLs break due to CORS, referrer policies, encoding issues, CDN token expiration, and EDS image optimization rewriting.
 
 **Target:** MINIMUM 2 images per product, up to 5. The pre-launch checklist FAILS if any product has fewer than 2 images. Prioritize:
@@ -288,7 +256,7 @@ This downloads all images, uploads to DA, and updates products.json with `conten
 
 **NEVER leave a product with only 1 image** — the deploy checklist will flag it as a failure.
 
-**How to find images on a product page:**
+#### Step 9a — Extract source image URLs from each product page
 
 Use playwright-cli to visit each product detail page and extract ALL product images:
 
@@ -300,56 +268,46 @@ Array.from(document.querySelectorAll('img'))
 "
 ```
 
-Pick up to 5 unique, high-quality product images per product.
+Pick up to 5 unique, high-quality product images per product, and stage them in `products.json` as the source URLs (still external at this point — Step 9b rewrites them to DA URLs).
 
-**Download ALL images to DA (mount preferred, API fallback):**
+#### Step 9b — Parallel batch download + upload (the ONLY path)
+
+Use `download-images.py` — it downloads + uploads concurrently (8 workers), sniffs content type from magic bytes (so JPEGs get `Content-Type: image/jpeg`, not `image/png`), uses the DA mount when available and falls back to `admin.da.live` PUT otherwise, and resolves the IMS token from multiple sources (SLICC's `oauth-token adobe`, Claude Code's `.hlx/.da-token.json`, or `$DA_TOKEN`/`$ADOBE_IMS_TOKEN` env vars).
+
+Do NOT loop `curl` per image — that's how Step 9 used to take 12 minutes for 49 images. The script does the same work in ~2 minutes.
 
 ```bash
-DA_TOKEN=$(oauth-token adobe)
+cd "$REPO_DIR"
 
-# Create the media folder in DA
-mkdir -p /mnt/da/${BRANCH}/media 2>/dev/null
+# Generate manifest from products.json (current images field = source URLs from Step 9a)
+python3 << 'EOF'
+import json
+with open("of1/config/products.json") as f:
+    products = json.load(f)
+manifest = [{"productId": p["id"], "urls": p.get("images", [])} for p in products if p.get("images")]
+with open("/tmp/image-manifest.json", "w") as f:
+    json.dump(manifest, f)
+print(f"Manifest: {len(manifest)} products with images")
+EOF
 
-# Download each image — use a clean filename based on product ID
-for PRODUCT_ID in <product-ids>; do
-  for N in 1 2 3 4 5; do
-    IMAGE_URL="${EXTRACTED_URLS[$PRODUCT_ID][$N]}"
-    [ -z "$IMAGE_URL" ] && continue
-    
-    FILENAME="product-${PRODUCT_ID}-${N}.png"
-    
-    # Download from source
-    curl -sL "${IMAGE_URL}" -o "/tmp/${FILENAME}"
-    
-    # Verify download (must be > 10KB)
-    SIZE=$(wc -c < "/tmp/${FILENAME}" 2>/dev/null || echo 0)
-    if [ "$SIZE" -lt 10000 ]; then
-      echo "⚠️ Skipping ${FILENAME} — download too small (${SIZE} bytes)"
-      continue
-    fi
-    
-    # Upload to DA — try mount first, then API
-    if cp "/tmp/${FILENAME}" "/mnt/da/${BRANCH}/media/${FILENAME}" 2>/dev/null; then
-      echo "✓ mount: ${FILENAME}"
-    else
-      # Fallback: upload via admin.da.live API
-      curl -s -X PUT \
-        -H "Authorization: Bearer ${DA_TOKEN}" \
-        -H "Content-Type: image/png" \
-        --data-binary "@/tmp/${FILENAME}" \
-        "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/media/${FILENAME}"
-      echo "✓ API: ${FILENAME}"
-    fi
-  done
-done
+# Parallel download + upload + rewrite products.json with DA URLs in one shot
+python3 /workspace/skills/of1-content-metadata/assets/download-images.py \
+  --input /tmp/image-manifest.json \
+  --owner "$OWNER" --repo "$REPO" --branch "$BRANCH" \
+  --output /tmp/image-mapping.json \
+  --update-products
 ```
+
+The script prints per-image status (`ok`/`FAIL`) plus a final summary. If any images fail, fix the source URLs in products.json and re-run — the script is idempotent.
 
 **The DA content URL for products.json:**
 
-After downloading to DA, the image is accessible at:
+After downloading to DA, images are accessible at:
 ```
-https://content.da.live/{OWNER}/{REPO}/{BRANCH}/media/product-{PRODUCT_ID}-1.png
+https://content.da.live/{OWNER}/{REPO}/{BRANCH}/media/product-{PRODUCT_ID}-{N}.{ext}
 ```
+
+The `--update-products` flag rewrites `products.json[*].images` to use these URLs automatically, so you don't have to edit the JSON by hand.
 
 **Update products.json images array with DA URLs:**
 
