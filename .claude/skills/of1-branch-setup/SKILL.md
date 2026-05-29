@@ -131,24 +131,59 @@ Inform the user:
 
 ### 4. Write repo-config.json
 
+**This is a contract.** All 13 step skills read this file to learn where to operate. Both runtimes (SLICC and Claude Code) MUST produce the same required-fields shape — downstream skills depend on a stable schema.
+
+#### Schema
+
+**REQUIRED fields** (read by downstream skills — must always be present):
+
+| Field | Type | Read by | Notes |
+|---|---|---|---|
+| `owner` | string | 10 skills | GitHub org, always `aem-growth-adoption` for this pipeline |
+| `repo` | string | 10 skills | GitHub repo, always `of1-demo` for this pipeline |
+| `branch` | string | 10 skills | Demo branch name (e.g. `frescopa`, `wknd-3`) |
+| `contentPrefix` | string | 1 skill (`of1-snowflake`) | Subfolder in DA; same as `branch` |
+| `repoDir` | string | 12 skills | Absolute path to the local git clone |
+| `domain` | string | 10 skills | The customer domain (e.g. `wknd.site`) |
+
+**OPTIONAL documentation fields** (write them for humans reading the file; downstream skills MUST NOT depend on them):
+
+| Field | Example | Purpose |
+|---|---|---|
+| `repoUrl` | `https://github.com/aem-growth-adoption/of1-demo` | GitHub URL |
+| `previewUrl` | `https://${branch}--of1-demo--aem-growth-adoption.aem.page/` | EDS preview root |
+| `daSource` | `da://aem-growth-adoption/of1-demo` | DA source URL |
+
+**DEPRECATED — DO NOT WRITE.** These fields appeared in earlier runtime variants and caused silent drift. Downstream skills now compute these from the required fields instead:
+
+| Field | Compute from | |
+|---|---|---|
+| `daMount` | (SLICC only) hardcode `/mnt/da` | If you need it in SLICC, build it inline. |
+| `daContentPath` | `/mnt/da/${branch}` | Build inline. |
+| `daApiBase` | `https://admin.da.live/source/${owner}/${repo}/${branch}` | Build inline. |
+| `daListBase` | `https://admin.da.live/list/${owner}/${repo}/${branch}` | Build inline. |
+
+#### Minimal valid output
+
 ```bash
-mkdir -p /shared/of1-demo
-cat > /shared/of1-demo/repo-config.json <<EOF
+STATE_DIR="${OF1_STATE_DIR:-/shared/of1-demo}"
+mkdir -p "$STATE_DIR"
+cat > "$STATE_DIR/repo-config.json" <<EOF
 {
   "owner": "aem-growth-adoption",
   "repo": "of1-demo",
   "branch": "${BRANCH}",
   "contentPrefix": "${BRANCH}",
+  "repoDir": "${REPO_DIR}",
+  "domain": "${DOMAIN}",
   "repoUrl": "https://github.com/aem-growth-adoption/of1-demo",
   "previewUrl": "https://${BRANCH}--of1-demo--aem-growth-adoption.aem.page/",
-  "daSource": "da://aem-growth-adoption/of1-demo",
-  "daMount": "/mnt/da",
-  "daContentPath": "/mnt/da/${BRANCH}",
-  "repoDir": "/workspace/of1-demo",
-  "domain": "${DOMAIN}"
+  "daSource": "da://aem-growth-adoption/of1-demo"
 }
 EOF
 ```
+
+`${REPO_DIR}` is `/workspace/of1-demo` in SLICC, `$OF1_DEMO_REPO` (project-local absolute path) in Claude Code — set by the respective setup skill.
 
 ### 5. Write of1-endpoint.json
 
@@ -167,10 +202,8 @@ git commit -m "feat: of1-endpoint config for ${DOMAIN}"
 git push origin ${BRANCH}
 ```
 
-**Key fields explained:**
-- `contentPrefix`: The subfolder in DA where this demo's content lives (same as branch name)
-- `daMount`: The VFS mount point for the DA repo
-- `daContentPath`: Full path to write DA content files (= `daMount` + `/` + `contentPrefix`)
+**Notes:**
+- `contentPrefix` is always the same as `branch` for this pipeline; it exists as a separate field because the DA-content URL pattern uses it explicitly (`/{contentPrefix}/{page}`)
 - Content URLs follow: `https://{branch}--of1-demo--aem-growth-adoption.aem.page/{contentPrefix}/{page}`
 
 ## Completion
