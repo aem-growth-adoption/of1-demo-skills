@@ -61,14 +61,52 @@ scoop_scoop({
 ```
 This allows the scoop to write blocks, styles, and content directly into the repo AND upload DA content via the mount without permission errors.
 
-**For step 9 (Content Metadata), the scoop also needs DA mount access for image uploads:**
+**For step 9 (Brand voice + Content metadata), spawn TWO parallel scoops** — see "Step 9 split detail" below:
+
 ```
 scoop_scoop({
-  name: "of1-s9",
+  name: "of1-s9-brand",
   model: "claude-opus-4-6",
-  writablePaths: ["/scoops/of1-s9/", "/shared/", "/workspace/{REPO_NAME}/", "/mnt/da/"]
+  writablePaths: ["/scoops/of1-s9-brand/", "/shared/", "/workspace/{REPO_NAME}/"]
+})
+
+# Content metadata also needs DA mount access for parallel image uploads.
+scoop_scoop({
+  name: "of1-s9-content",
+  model: "claude-opus-4-6",
+  writablePaths: ["/scoops/of1-s9-content/", "/shared/", "/workspace/{REPO_NAME}/", "/mnt/da/"]
 })
 ```
+
+Run these in the same orchestrator turn as scoops 10 + 11 (four scoops in one batch after step 5).
+
+**For step 7 (Templates), spawn SIX scoops — five parallel intent scoops + one assemble scoop** (see "Step 7 fan-out detail" below for the rationale):
+
+Spawn the five intent scoops in the same orchestrator turn as Step 8 (six scoops at once). Each intent scoop runs the same skill (`of1-template-generation`) with `OF1_TG_MODE=intent` and one of the five intents in `OF1_TG_INTENT`:
+```
+for INTENT in comparison recommendation deep-dive budget discovery; do
+  scoop_scoop({
+    name: "of1-s7-${INTENT}",
+    model: "claude-opus-4-6",
+    writablePaths: ["/scoops/of1-s7-${INTENT}/", "/shared/", "/workspace/{REPO_NAME}/"],
+    env: { OF1_TG_MODE: "intent", OF1_TG_INTENT: "${INTENT}" }
+  })
+done
+```
+Intent scoops do NOT need DA mount access — they only write to the local repo, no uploads.
+
+After all five `/shared/of1-demo/step-7-intent-<intent>-status.json` files exist, spawn the assemble scoop:
+```
+scoop_scoop({
+  name: "of1-s7-assemble",
+  model: "claude-opus-4-6",
+  writablePaths: ["/scoops/of1-s7-assemble/", "/shared/", "/workspace/{REPO_NAME}/"],
+  env: { OF1_TG_MODE: "assemble" }
+})
+```
+The assemble scoop generates `styles/of1-base.css`, assembles the catalog, runs `fill-template.py`, installs the gallery, and does the single git commit + push. It writes the canonical `/shared/of1-demo/step-7-status.json` that the orchestrator pushes to the sprinkle.
+
+**If `env` is not supported by the scoop runtime,** pass the mode + intent in the scoop's system prompt instead — the skill reads them from env first, but the orchestrator can equivalently inject `export OF1_TG_MODE=intent OF1_TG_INTENT=<intent>` at the top of the prompt.
 
 ```
 feed_scoop("of1-demo-step-N", <system prompt with skill instructions + context>)
@@ -126,9 +164,10 @@ The pipeline has TWO parallel tracks that MUST run concurrently. **Do NOT serial
 | Trigger | Spawn immediately |
 |---------|-------------------|
 | Step 5 (Prototype) approved | **Track A:** Step 6 (Snowflake) AND **Track B:** Steps 9, 10, 11 (all three at once) |
-| Step 6 (Snowflake) done | Steps 7 (Templates) + 8 (OF1 styling) in parallel — both need S6 complete |
+| Step 6 (Snowflake) done | Step 8 (OF1 styling) AND Steps 7a–7e (5 intent scoops in parallel) — 6 scoops at once |
+| Steps 7a–7e ALL complete | Step 7-assemble — 1 scoop, sequential after the fan-out |
 | Steps 9-11 ALL complete | Step 12 (Config review) — run inline by the cone |
-| Steps 7 + 8 done AND Step 12 approved | Step 13 (Deploy) |
+| Steps 7-assemble + 8 done AND Step 12 approved | Step 13 (Deploy) |
 
 ### Dependency graph:
 ```
@@ -146,29 +185,116 @@ Steps 1→2 (sequential)
     ↓                 ↓
   S6         Track B (S9+S10+S11)
     ↓                 ↓
-  ┌─┴─┐           Step 12
-  S7  S8
-  ↓    ↓              ↓
-  └────┼──────────────┘
-       ↓
-    Step 13 (Deploy)
+  ┌─┴────────┐    Step 12
+  S8   S7a∥7b∥7c∥7d∥7e
+  ↓         ↓
+  ↓     S7-assemble       ← runs ONCE after S7a–7e all done
+  ↓         ↓             ↓
+  └─────────┴─────────────┘
+            ↓
+       Step 13 (Deploy)
 ```
 
 ### Key rules:
 1. **Track B does NOT wait for Step 6** — it starts immediately after Step 5 is approved
 2. **Step 8 (OF1 styling) runs AFTER Step 6** — it must not overwrite of1.css that S6 creates. S8 commits last.
 3. **Step 7 (Templates) waits for Step 6** — it needs the template CSS structure from the snowflake conversion
-4. **Steps 7 + 8 run in parallel AFTER Step 6** — both depend on S6 being done
-5. **Steps 9, 10, 11 ALL run at once** — spawn all 3 scoops simultaneously
-5. **Push each status as it arrives** — don't wait for all parallel steps to finish before updating the sprinkle
+4. **Step 7 is FANNED OUT into 5 parallel intent scoops (7a–7e) + 1 assemble scoop** — see "Step 7 fan-out detail" below
+5. **Step 8 runs in parallel with Steps 7a–7e** — 6 scoops at once after Step 6
+6. **Steps 9, 10, 11 ALL run at once** — spawn all 3 scoops simultaneously
+7. **Push each status as it arrives** — don't wait for all parallel steps to finish before updating the sprinkle
+
+### Step 7 fan-out detail
+
+Step 7 (template generation) used to be a single ~22-minute scoop. It is now split into 6 scoops plus a small inline screenshot step:
+
+- **Pre-fan-out (inline, orchestrator):** capture an EDS-rendered visual reference of `prototype-home` so the 5 intent scoops share a single visual ground truth (see "Pre-fan-out: capture EDS visual reference" below).
+- **7a — 7e (parallel intent scoops):** named `of1-s7-comparison`, `of1-s7-recommendation`, `of1-s7-deep-dive`, `of1-s7-budget`, `of1-s7-discovery`. Each runs the `of1-template-generation` skill with `OF1_TG_MODE=intent` and `OF1_TG_INTENT=<intent>`. Each writes only its own `templates/of1-{intent}-*.{html,metadata.json,sample.json}` + `styles/of1-{intent}-*.css` files. **No git operations.** Each writes `/shared/of1-demo/step-7-intent-<intent>-status.json` on completion.
+- **7-assemble (sequential after 7a–7e):** named `of1-s7-assemble`. Same skill with `OF1_TG_MODE=assemble`. Generates `styles/of1-base.css` from `DESIGN.json` (deterministic), assembles the fully-inlined catalog via `assemble-catalog.py`, runs `fill-template.py`, installs the gallery, single commit + push. Writes the canonical `/shared/of1-demo/step-7-status.json` that the sprinkle reads.
+
+### Pre-fan-out: capture EDS visual reference (inline)
+
+After step 6 returns `done` and before spawning 7a–7e, the orchestrator captures the EDS-rendered prototype-home and writes it to a known local path that all 5 intent scoops will read. This gives the agents the actual rendered styling stack (snowflake + OF1 + EDS base) instead of just the standalone prototype HTML.
+
+```bash
+EDS_HOME_URL="https://${BRANCH}--of1-demo--aem-growth-adoption.aem.page/${BRANCH}/prototype-home"
+REF_PATH="/workspace/of1-demo/deliverables/eds-prototype-home.png"
+
+playwright-cli visit "$EDS_HOME_URL"
+sleep 6
+playwright-cli screenshot --full-page --output "$REF_PATH"
+
+[ -s "$REF_PATH" ] && [ "$(stat -c%s "$REF_PATH" 2>/dev/null)" -gt 51200 ] \
+  && echo "EDS reference saved: $REF_PATH" \
+  || echo "WARN: EDS screenshot looks empty/missing — intent scoops will fall back to prototype-only reference"
+```
+
+Do NOT commit this PNG — it's local reference material for the intent scoops only. If the screenshot fails, intent scoops fall back to the prototype HTML + snowflake CSS files (degraded fidelity but still functional).
+
+Spawn 7a–7e and Step 8 in the **same orchestrator turn** (6 scoops total). After all 5 intent status files exist, spawn `of1-s7-assemble`. The sprinkle UI shows a single "Step 7" row; the orchestrator only pushes the step-7 status after `of1-s7-assemble` writes `step-7-status.json`.
+
+**Writable paths for ALL 6 step-7 scoops** (intent and assemble): the project repo (`/workspace/of1-demo/`) and `/shared/`. Intent scoops do not need DA mount access (no uploads from this step).
+
+If any intent scoop fails, retry only that one. If `of1-s7-assemble` fails, fix and re-run it alone — intent outputs are intact.
+
+### Step 9 split detail
+
+Step 9 used to be a single scoop that ran `of1-brand-voice-extractor` and `of1-content-metadata` back-to-back (~12 min). They're independent — both consume Step 4's extraction output and produce different config files — so split into two parallel scoops alongside Steps 10 and 11.
+
+- **`of1-s9-brand`** — runs `of1-brand-voice-extractor`. Produces `of1/config/brand-voice.json`. Writes `/shared/of1-demo/step-9-brand-status.json`. ~1–2 min.
+- **`of1-s9-content`** — runs `of1-content-metadata`. Produces `of1/config/{products,personas,use-cases,features,faqs}.json` + uploads all product images. Writes `/shared/of1-demo/step-9-content-status.json`. ~3–5 min.
+
+The content scoop **MUST use `download-images.py`** (parallel: 8 workers, content-type sniffing, mount-or-API fallback) — NOT a per-image `curl` loop. Inject this reminder into the scoop's system prompt:
+
+```
+## Image-upload performance requirement
+You MUST use `python3 /workspace/skills/of1-content-metadata/assets/download-images.py --update-products`
+for image download + DA upload. It runs 8 concurrent workers and finishes in
+~2 min for 50 images. Do NOT loop `curl` per image — the previous pipeline
+revision did this and it took 12 minutes per run.
+```
+
+Once both `/shared/of1-demo/step-9-brand-status.json` AND `step-9-content-status.json` exist, the orchestrator merges them into a single `/shared/of1-demo/step-9-status.json` (so the sprinkle's polling loop sees a single completion for Step 9):
+
+```bash
+if [ -f /shared/of1-demo/step-9-brand-status.json ] \
+   && [ -f /shared/of1-demo/step-9-content-status.json ] \
+   && [ ! -f /shared/of1-demo/step-9-status.json ]; then
+  BRAND_SUMMARY=$(jq -r .summary /shared/of1-demo/step-9-brand-status.json)
+  CONTENT_SUMMARY=$(jq -r .summary /shared/of1-demo/step-9-content-status.json)
+  jq -n \
+    --arg s1 "$BRAND_SUMMARY" --arg s2 "$CONTENT_SUMMARY" \
+    '{step:9, status:"done", summary:($s1 + " | " + $s2)}' \
+    > /shared/of1-demo/step-9-status.json
+fi
+```
 
 ### Polling pattern for parallel steps:
 
 ```bash
-# Poll for all active step status files and push each as it arrives
+# Poll for all active step status files and push each as it arrives.
+# Step 7 has a two-phase shape: 5 intent status files appear first, then the
+# orchestrator spawns of1-s7-assemble which writes the canonical step-7 status.
+S7_INTENTS="comparison recommendation deep-dive budget discovery"
+S7_ASSEMBLE_SPAWNED=false
+
 while true; do
   ALL_DONE=true
-  for STEP in 6 7 8 9 10 11; do
+
+  # Step 9 is fanned out into of1-s9-brand + of1-s9-content. Merge their
+  # sub-statuses into a single step-9-status.json once both arrive.
+  if [ -f /shared/of1-demo/step-9-brand-status.json ] \
+     && [ -f /shared/of1-demo/step-9-content-status.json ] \
+     && [ ! -f /shared/of1-demo/step-9-status.json ]; then
+    BRAND_SUM=$(jq -r .summary /shared/of1-demo/step-9-brand-status.json)
+    CONTENT_SUM=$(jq -r .summary /shared/of1-demo/step-9-content-status.json)
+    jq -n --arg s1 "$BRAND_SUM" --arg s2 "$CONTENT_SUM" \
+      '{step:9, status:"done", summary:($s1 + " | " + $s2)}' \
+      > /shared/of1-demo/step-9-status.json
+  fi
+
+  # Standard single-status-file steps (step 9 status is synthesized above)
+  for STEP in 6 8 9 10 11; do
     STATUS_FILE="/shared/of1-demo/step-${STEP}-status.json"
     PUSHED_FILE="/shared/of1-demo/step-${STEP}-pushed"
     if [ -f "$STATUS_FILE" ] && [ ! -f "$PUSHED_FILE" ]; then
@@ -179,6 +305,29 @@ while true; do
       ALL_DONE=false
     fi
   done
+
+  # Step 7 fan-out: wait for all 5 intent status files, then spawn assemble.
+  ALL_INTENTS_DONE=true
+  for INTENT in $S7_INTENTS; do
+    if [ ! -f "/shared/of1-demo/step-7-intent-${INTENT}-status.json" ]; then
+      ALL_INTENTS_DONE=false
+    fi
+  done
+  if [ "$ALL_INTENTS_DONE" = true ] && [ "$S7_ASSEMBLE_SPAWNED" = false ]; then
+    # Spawn of1-s7-assemble (see Step 7 fan-out detail)
+    S7_ASSEMBLE_SPAWNED=true
+    # (orchestrator: scoop_scoop call here for of1-s7-assemble)
+  fi
+  STEP7_STATUS_FILE="/shared/of1-demo/step-7-status.json"
+  STEP7_PUSHED_FILE="/shared/of1-demo/step-7-pushed"
+  if [ -f "$STEP7_STATUS_FILE" ] && [ ! -f "$STEP7_PUSHED_FILE" ]; then
+    sprinkle send of1-demo "$(cat "$STEP7_STATUS_FILE")"
+    touch "$STEP7_PUSHED_FILE"
+  fi
+  if [ ! -f "$STEP7_STATUS_FILE" ]; then
+    ALL_DONE=false
+  fi
+
   if [ "$ALL_DONE" = true ]; then break; fi
   sleep 5
 done
@@ -191,7 +340,7 @@ Sometimes a scoop completes its work but forgets to write the status file (it sh
 2. If the work IS done, write the status file manually
 3. Push to sprinkle
 
-For step 9 (brand + content), the orchestrator must wait for BOTH `step-9-brand-status.json` and `step-9-content-status.json` before pushing the combined step 9 status to the sprinkle.
+For step 9 see "Step 9 split detail" above — the polling loop merges the two sub-status files into a single `step-9-status.json` before pushing to the sprinkle.
 
 ### `open-deliverable:<step>:<encoded-url>`
 The user clicked a single deliverable button. Decode the URL and open it:
@@ -272,9 +421,9 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 | 4 | Extraction | `of1-extraction` | Yes | — | step 2 (runs parallel with step 3) |
 | 5 | Prototype | `of1-prototype` | Yes | — | steps 3 + 4 (needs both) |
 | 6 | Snowflake | `of1-snowflake` | Yes | A | step 5 |
-| 7 | Templates | `of1-template-generation` | Yes | A | step 6 |
+| 7 | Templates (fan-out) | `of1-template-generation` (×5 intent scoops + 1 assemble scoop) | Yes | A | step 6 |
 | 8 | OF1 styling | `of1-generative-block-styler` | Yes | A | step 6 (must run AFTER S6 to avoid overwriting of1.css) |
-| 9 | Brand & content | `of1-brand-voice-extractor` + `of1-content-metadata` | No | B | step 5 |
+| 9 | Brand & content (split) | `of1-brand-voice-extractor` (scoop `of1-s9-brand`) + `of1-content-metadata` (scoop `of1-s9-content`) — 2 parallel scoops | No | B | step 5 |
 | 10 | Suggestions | `of1-quick-suggestions` | No | B | step 5 |
 | 11 | CTA template | `of1-cta-template-builder` | No | B | step 5 |
 | 12 | Config review | (orchestrator-inline) | Yes | B | steps 9+10+11 |
@@ -282,13 +431,13 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 
 ### Track Summary
 
-**Track A (EDS Site):** Step 6 starts after Step 5 → Steps 7 + 8 start in parallel after Step 6
+**Track A (EDS Site):** Step 6 starts after Step 5 → Step 8 AND Steps 7a–7e (5 parallel intent scoops) start in parallel after Step 6 → Step 7-assemble runs once 7a–7e all complete
 
 **Track B (Config):** Steps 9 + 10 + 11 (ALL parallel, start immediately after step 5) → Step 12 (Config review)
 
 **Both tracks start after Step 5 is approved.** Track B does NOT wait for Step 6. Step 8 DOES wait for Step 6 — it must commit AFTER S6 so it doesn't get overwritten.
 
-**Step 13 (Deploy)** requires Track A (step 7 done) AND Track B (step 12 approved).
+**Step 13 (Deploy)** requires Track A (step 7-assemble done AND step 8 done) AND Track B (step 12 approved).
 
 ## Step 2 — Branch Setup
 
@@ -420,11 +569,13 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 4 (Extraction)** needs: domain only (does NOT need discovery output). Extracts design tokens, colors, typography, logo, and screenshots from the live site. Produces PRODUCT.md, DESIGN.json, screenshots, logo, and brand-review.html under `stardust/current/`. Runs in PARALLEL with step 3.
 - **Step 5 (Prototype)** needs: domain + extraction outputs from step 4 (`stardust/current/`) + discovery output from step 3 (key pages and narrative). Waits for BOTH S3 and S4 to complete.
 - **Step 6 (Snowflake)** needs: domain, prototypes from step 5, repo-config.json
-- **Step 7 (Templates)** needs: domain, design tokens from step 4 (`design-tokens.json`), demo narrative from step 3, snowflake output from step 6
+- **Step 7 (Templates)** is fanned out into 5 parallel intent scoops + 1 assemble scoop (see "Step 7 fan-out detail"):
+  - Each intent scoop needs: domain, `stardust/current/DESIGN.json` from step 4, demo narrative from step 3, prototype CSS files from step 6, plus its assigned `OF1_TG_INTENT`
+  - The assemble scoop needs: all 25 per-intent template + CSS files (from the 5 intent scoops), `stardust/current/DESIGN.json`, repo-config.json. It owns the single commit + push.
 - **Step 8 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
 - **Steps 9–12 (Track B)** need: domain, `stardust/` data from step 4. They do NOT depend on the snowflake — they can start immediately after step 5.
 - **Step 12 (Config review)** needs: all `of1/config/` files from steps 9-11 — orchestrator generates review page inline
-- **Step 13 (Deploy)** needs: steps 7 + 8 done (Track A) AND step 12 approved (Track B), plus domain, all config files, repo-config.json
+- **Step 13 (Deploy)** needs: step 7-assemble done AND step 8 done (Track A) AND step 12 approved (Track B), plus domain, all config files, repo-config.json
 
 When spawning a step scoop, read the relevant prior outputs and include key info in the prompt (or instruct the scoop to read specific files).
 
