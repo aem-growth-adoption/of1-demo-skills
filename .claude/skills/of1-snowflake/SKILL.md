@@ -385,14 +385,37 @@ If NOT installed, read `/workspace/skills/snowflake/knowledge/architecture.md` f
 
 ---
 
-## Step 4: Install OF1 Block
+## Step 4: Install OF1 Block AND overlay-aware header/footer JS
+
+The OF1 page (and all other snowflake-overlay pages) need a **custom** `blocks/header/header.js` and `blocks/footer/footer.js` that read `main.dataset.overlay` and fetch the matching `/fragments/<template>/{header,footer}.html`. Without this, the EDS boilerplate `header.js` / `footer.js` fetches the stock `/nav.html` and `/footer.html` — which contain placeholder text and have no relationship to the per-template fragments. Symptom: the OF1 page shows "Brand | Link 1" + "Footer content" instead of the branded chrome.
+
+These files are runtime-agnostic — the same JS works for every demo — so they ship as skill assets:
 
 ```bash
 cd "$REPO_DIR"
+
+# OF1 block
 mkdir -p blocks/of1
-cp /workspace/skills/of1-snowflake/assets/of1.js blocks/of1/of1.js
+cp /workspace/skills/of1-snowflake/assets/of1.js     blocks/of1/of1.js
 cp /workspace/skills/of1-snowflake/assets/of1-base.css blocks/of1/of1.css
+
+# Overlay-aware header/footer JS — REQUIRED for OF1 + every snowflake page
+# (the stock EDS versions are 170+ lines and fetch /nav.html instead)
+cp /workspace/skills/of1-snowflake/assets/header.js blocks/header/header.js
+cp /workspace/skills/of1-snowflake/assets/footer.js blocks/footer/footer.js
 ```
+
+**Path note (Claude Code):** replace `/workspace/skills/of1-snowflake/assets/` with `${SKILL_DIR}/assets/` — the orchestrator passes the absolute path of this skill via the dispatch prompt.
+
+**Verify after copy:**
+```bash
+# header.js should be ~20 lines, footer.js ~18 lines, NOT the 170-line boilerplate
+wc -l blocks/header/header.js blocks/footer/footer.js
+# Each MUST contain a fetch() call referencing /fragments/${template}/
+grep -E "fragments/\\$\\{template\\}" blocks/header/header.js blocks/footer/footer.js
+```
+
+If `header.js` or `footer.js` is the long boilerplate version, the copy didn't happen — re-run the `cp` commands above before committing.
 
 ---
 
@@ -400,10 +423,14 @@ cp /workspace/skills/of1-snowflake/assets/of1-base.css blocks/of1/of1.css
 
 ```bash
 cd "$REPO_DIR"
-git add templates/ styles/ fragments/ .snowflake/ blocks/of1/ scripts/
+git add templates/ styles/ fragments/ .snowflake/ \
+        blocks/of1/ blocks/header/header.js blocks/footer/footer.js \
+        scripts/
 git commit -m "feat: snowflake conversion + OF1 block for ${DOMAIN}"
 git push origin ${BRANCH}
 ```
+
+**Why `blocks/header/header.js` and `blocks/footer/footer.js` specifically:** these two files are overwritten by Step 4 with the overlay-aware versions. They MUST be in the commit, otherwise the EDS boilerplate versions stay live on the branch and the OF1 page renders the stock nav/footer placeholders instead of the branded fragments.
 
 ---
 
