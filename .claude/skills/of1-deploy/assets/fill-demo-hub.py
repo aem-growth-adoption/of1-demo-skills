@@ -191,7 +191,8 @@ def main():
     domain = sys.argv[2]
     
     # Load repo config
-    repo_config = load_json('/shared/of1-demo/repo-config.json')
+    state_dir = os.environ.get('OF1_STATE_DIR', '/shared/of1-demo')
+    repo_config = load_json(f'{state_dir}/repo-config.json')
     owner = repo_config.get('owner', 'aem-growth-adoption')
     repo = repo_config.get('repo', 'of1-demo')
     branch = repo_config.get('branch', domain.split('.')[0])
@@ -209,7 +210,7 @@ def main():
     suggestions = load_json(f'{repo_dir}/of1/config/suggestions.json')
     templates_json = load_json(f'{repo_dir}/of1/config/templates.json')
     
-    step3 = load_text('/shared/of1-demo/step-3-output.md')
+    step3 = load_text(f'{state_dir}/step-3-output.md')
     narrative = extract_narrative(step3)
     focus = extract_focus(step3)
     
