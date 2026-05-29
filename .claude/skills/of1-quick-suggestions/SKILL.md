@@ -22,7 +22,7 @@ Generate domain-specific quick suggestion chips, placeholder text, and search UI
 
 ## Schema Reference
 
-Read `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` § `suggestions.json` for the exact output format expected by the worker.
+Read `of1-demo/knowledge/worker-config-schemas.md` § `suggestions.json` for the exact output format expected by the worker. Path varies by runtime — SLICC: `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md`; Claude Code: sibling to this skill, e.g. `../of1-demo/knowledge/worker-config-schemas.md` from the cloned plugin dir.
 
 ## Process
 

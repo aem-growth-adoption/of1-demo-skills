@@ -22,7 +22,7 @@ Crawl a website to extract product data, user personas, use cases, features, and
 
 ## Schema Reference
 
-Read `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` for the exact output format of each file:
+Read `of1-demo/knowledge/worker-config-schemas.md` for the exact output format of each file (path varies by runtime — SLICC: `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md`; Claude Code: sibling to this skill, e.g. `../of1-demo/knowledge/worker-config-schemas.md` from the cloned plugin dir):
 - § `products.json` — field requirements, vectorized fields, image allowlist
 - § `personas.json` — keyword matching behaviour
 - § `use-cases.json` — same shape as personas

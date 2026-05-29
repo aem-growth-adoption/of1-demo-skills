@@ -37,7 +37,7 @@ Both fan-out orchestrators (`of1-demo` for SLICC, `of1-demo-cc` for Claude Code)
 
 ## Schema Reference
 
-Read `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` for the exact format of:
+Read `of1-demo/knowledge/worker-config-schemas.md` for the exact format of (path varies by runtime — SLICC: `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md`; Claude Code: sibling to this skill, e.g. `../of1-demo/knowledge/worker-config-schemas.md` from the cloned plugin dir):
 - § `templates.json` — routing config, catalog shape, slot definitions, intent taxonomy
 - § `products.json` — image allowlist (templates must only reference product images)
 
