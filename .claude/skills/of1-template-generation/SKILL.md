@@ -8,6 +8,16 @@ user-invocable: false
 
 Generate a complete template library for the OF1 worker. Each template is a slot-based HTML page that the worker fills with personalized content at runtime based on user intent.
 
+## ⚠️ This step generates 25 NEW templates — it does NOT reuse Step 6 output
+
+Step 6 (snowflake) produces **page** templates like `templates/prototype-home.html`, `prototype-adventures.html`, etc. — these are full-page reskins of the live site. They are NOT the templates this step generates.
+
+This step generates the **OF1 worker template library** at `templates/of1-*.html` (e.g., `of1-comparison-table.html`, `of1-recommendation-cards.html`). These are slot-based partials the OF1 worker fills with personalized content at runtime.
+
+**Both file sets coexist in `templates/`.** Do NOT build the gallery from `prototype-*.html`. The gallery MUST be driven by `templates/templates-catalog.json`, which only references `of1-*` templates.
+
+**Hard rule:** if you finish this step with fewer than 25 files matching `templates/of1-*.html`, the step is NOT done. Do not write a `"review"` status. See Step 8 (Validate) below — it is mandatory and must pass before completion.
+
 ## Inputs
 
 - `DOMAIN`: Target domain
@@ -463,7 +473,75 @@ git commit -m "feat: generate 25 OF1 templates (5 intents × 5 variations) for $
 git push origin ${BRANCH}
 ```
 
-### 8. Verify gallery loads
+### 8. Validate output (MANDATORY — must pass before writing status)
+
+Run this check inline. If ANY assertion fails, fix the missing artifacts and re-run — do NOT write the completion status.
+
+```bash
+cd "$REPO_DIR"
+
+python3 << 'EOF'
+import json, glob, sys
+from pathlib import Path
+
+errors = []
+
+# 1. Exactly 25 of1-* templates
+html_files = sorted(glob.glob('templates/of1-*.html'))
+meta_files = sorted(glob.glob('templates/of1-*.metadata.json'))
+css_files  = sorted(glob.glob('styles/of1-*.css'))
+if len(html_files) < 25:
+    errors.append(f"Only {len(html_files)} of1-*.html templates (need 25)")
+if len(meta_files) < 25:
+    errors.append(f"Only {len(meta_files)} of1-*.metadata.json files (need 25)")
+
+# 2. Each html has matching metadata + css
+for h in html_files:
+    name = Path(h).stem
+    if not Path(f'templates/{name}.metadata.json').exists():
+        errors.append(f"{name}: missing .metadata.json")
+    if not Path(f'styles/{name}.css').exists():
+        errors.append(f"{name}: missing styles/{name}.css")
+
+# 3. Catalog exists, has count==25, every entry has slots+htmlContent inlined
+catalog_path = 'templates/templates-catalog.json'
+if not Path(catalog_path).exists():
+    errors.append("templates/templates-catalog.json is missing")
+else:
+    catalog = json.loads(Path(catalog_path).read_text())
+    if catalog.get('count', 0) < 25:
+        errors.append(f"Catalog count is {catalog.get('count')} (need 25)")
+    for t in catalog.get('templates', []):
+        if not t.get('slots'):
+            errors.append(f"Catalog entry {t.get('name')}: missing slots[]")
+        if not t.get('htmlContent'):
+            errors.append(f"Catalog entry {t.get('name')}: missing htmlContent")
+
+# 4. All 5 intents represented
+intents_needed = {'comparison', 'recommendation', 'deep-dive', 'budget', 'discovery'}
+intents_have = set()
+for m in meta_files:
+    intents_have.add(json.loads(Path(m).read_text()).get('intent'))
+missing_intents = intents_needed - intents_have
+if missing_intents:
+    errors.append(f"Missing intents: {missing_intents}")
+
+# 5. of1/config/templates.json (routing config) exists
+if not Path('of1/config/templates.json').exists():
+    errors.append("of1/config/templates.json (routing config) is missing")
+
+if errors:
+    print("VALIDATION FAILED:", file=sys.stderr)
+    for e in errors:
+        print(f"  ✗ {e}", file=sys.stderr)
+    sys.exit(1)
+print(f"✓ {len(html_files)} templates, all 5 intents, catalog inlined")
+EOF
+```
+
+If this script exits non-zero, the step is **not complete**. Go back and generate the missing artifacts. Do not proceed to the next sub-step.
+
+### 9. Verify gallery loads
 
 ```bash
 GALLERY_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/gallery/index.html"
@@ -536,10 +614,20 @@ Slot instructions guide the LLM's content generation. Make them:
 
 ## Completion
 
+**Only write the status file if Step 8 (Validate) passed.** Re-run the validator one more time inline before writing the JSON — this is the final guard against shipping a degraded gallery.
+
 ```bash
 mkdir -p /shared/of1-demo
+
+# Final guard — count templates one more time
+COUNT=$(ls templates/of1-*.html 2>/dev/null | wc -l | tr -d ' ')
+if [ "$COUNT" -lt 25 ]; then
+  echo "ABORT: only ${COUNT} of1-* templates exist — do NOT mark step 7 done" >&2
+  exit 1
+fi
+
 GALLERY_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/gallery/index.html"
-echo "{\"step\":7,\"status\":\"review\",\"deliverable\":\"${GALLERY_URL}\",\"summary\":\"Generated 25 templates (5 intents × 5 variations). Browse the gallery to review layouts and sample content.\"}" > /shared/of1-demo/step-7-status.json
+echo "{\"step\":7,\"status\":\"review\",\"deliverable\":\"${GALLERY_URL}\",\"summary\":\"Generated ${COUNT} OF1 templates (5 intents × 5 variations). Browse the gallery to review layouts and sample content.\"}" > /shared/of1-demo/step-7-status.json
 ```
 
 Do NOT call `sprinkle send` — only the orchestrator reads this file and pushes to the sprinkle.
