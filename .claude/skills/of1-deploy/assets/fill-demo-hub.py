@@ -190,11 +190,22 @@ def main():
     repo_dir = sys.argv[1]
     domain = sys.argv[2]
     
-    # Load repo config
-    repo_config = load_json('/shared/of1-demo/repo-config.json')
-    owner = repo_config.get('owner', 'aem-growth-adoption')
-    repo = repo_config.get('repo', 'of1-demo')
-    branch = repo_config.get('branch', domain.split('.')[0])
+    # Load repo config — REQUIRED. Do NOT silently fall back; a wrong branch
+    # produces broken preview URLs across the entire hub (e.g. wknd vs wknd-cloud).
+    repo_config_path = '/shared/of1-demo/repo-config.json'
+    repo_config = load_json(repo_config_path)
+    if not repo_config:
+        print(f"ERROR: {repo_config_path} is missing or empty. "
+              f"Run of1-branch-setup first to write it.", file=sys.stderr)
+        sys.exit(1)
+    missing = [k for k in ('owner', 'repo', 'branch') if not repo_config.get(k)]
+    if missing:
+        print(f"ERROR: {repo_config_path} is missing required field(s): {missing}",
+              file=sys.stderr)
+        sys.exit(1)
+    owner = repo_config['owner']
+    repo = repo_config['repo']
+    branch = repo_config['branch']
     
     preview_base = f'https://{branch}--{repo}--{owner}.aem.page'
     tenant_id = f'{branch}--{repo}--{owner}'
