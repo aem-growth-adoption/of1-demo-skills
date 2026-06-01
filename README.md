@@ -76,7 +76,7 @@ Then run the orchestrator:
 
 The setup step (`of1-setup`) verifies all of the following:
 
-- **Skills installed** — OF1 demo skills + Adobe EDS/snowflake skills (`adobe/skills@feat/eds-snowflake-da-content`)
+- **Skills installed** — OF1 demo skills + Adobe EDS/snowflake skills (`adobe/skills`) + stardust (`adobe/skills`) + impeccable (`pbakaus/impeccable`)
 - **Playwright** — `playwright-cli` available on PATH
 - **Node.js** — `node` available on PATH
 - **Git credentials** — `~/.git-credentials` present for push access
@@ -86,5 +86,7 @@ The following plugins are also required by the pipeline:
 
 ```bash
 upskill aem-growth-adoption/of1-demo-skills --all --branch skills-v3 --force
-upskill adobe/skills@feat/eds-snowflake-da-content --path plugins/aem/edge-delivery-services --all
+upskill adobe/skills --path plugins/aem/edge-delivery-services --all
+upskill adobe/skills --path plugins/stardust --all
+upskill pbakaus/impeccable --all
 ```

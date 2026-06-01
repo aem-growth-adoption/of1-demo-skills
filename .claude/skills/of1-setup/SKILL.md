@@ -12,7 +12,9 @@ Verify that all required skills, tools, and prerequisites for the demo pipeline 
 
 ```bash
 upskill aem-growth-adoption/of1-demo-skills --all --branch skills-v3 --force 2>/dev/null && echo "of1-demo-skills OK" || echo "WARN: could not install of1-demo-skills"
-upskill adobe/skills@feat/eds-snowflake-da-content --path plugins/aem/edge-delivery-services --all 2>/dev/null && echo "adobe/skills (EDS + snowflake) OK" || echo "WARN: could not install adobe/skills"
+upskill adobe/skills --path plugins/aem/edge-delivery-services --all 2>/dev/null && echo "adobe/skills (EDS + snowflake) OK" || echo "WARN: could not install adobe/skills"
+upskill adobe/skills --path plugins/stardust --all 2>/dev/null && echo "adobe/skills (stardust) OK" || echo "WARN: could not install stardust"
+upskill pbakaus/impeccable --all 2>/dev/null && echo "impeccable OK" || echo "WARN: could not install impeccable"
 ```
 
 ## Step 2: Verify local skills installed
@@ -29,16 +31,16 @@ for SKILL in of1-discovery of1-branch-setup of1-snowflake of1-template-generatio
 done
 ```
 
-## Step 3: Verify stardust plugins available
+## Step 3: Verify upstream plugins available
 
-The stardust plugins (`stardust:extract`, `stardust:prototype`) are invoked via the Skill tool — they don't exist as local files. Verify the snowflake/da-content skills installed (these come from the same package):
+Verify the EDS, stardust, and impeccable skills installed from the upstream packages:
 
 ```bash
-for SKILL in snowflake da-content; do
+for SKILL in snowflake da-content stardust impeccable; do
   if [ -f "/workspace/skills/${SKILL}/SKILL.md" ]; then
-    echo "  ✓ ${SKILL} (EDS plugin)"
+    echo "  ✓ ${SKILL}"
   else
-    echo "  ✗ ${SKILL} MISSING — stardust plugins may not work"
+    echo "  ✗ ${SKILL} MISSING"
     SKILLS_OK=false
   fi
 done
