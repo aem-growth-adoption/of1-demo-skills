@@ -26,8 +26,8 @@ DA_TOKEN="${ADOBE_IMS_TOKEN:-$(jq -r .access_token "$OF1_TOKEN_FILE")}"
 
 ## Inputs
 
-- `DOMAIN` — target domain (e.g. `bmwusa.com`)
-- `BRANCH` — domain without TLD (e.g. `bmwusa`)
+- `DOMAIN` — target domain (e.g. `frescopa.coffee`)
+- `BRANCH` — domain without TLD (e.g. `frescopa`)
 
 ## Process
 

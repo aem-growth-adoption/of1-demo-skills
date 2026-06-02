@@ -31,7 +31,7 @@ This skill runs in both SLICC and Claude Code. Resolve these symbols up-front â€
 
 ## Inputs
 
-- `DOMAIN`: Target domain (e.g., `nvidia.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
+- `DOMAIN`: Target domain (e.g., `frescopa.coffee`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
 
 ## Schema Reference
 

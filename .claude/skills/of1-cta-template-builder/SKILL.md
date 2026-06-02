@@ -31,7 +31,7 @@ This skill runs in both SLICC and Claude Code. Resolve these symbols up-front â€
 
 ## Inputs
 
-- `DOMAIN`: Target domain (e.g., `bmwusa.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
+- `DOMAIN`: Target domain (e.g., `frescopa.coffee`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
 
 ## Schema Reference
 
@@ -155,19 +155,11 @@ Before writing the file, verify:
 - [ ] HTML is valid, self-contained, uses only inline styles
 - [ ] `slots` array contains exactly `["title", "description", "buttonText"]` (NOT href)
 
-## Examples
+## Example
 
-**BMW (bmwusa.com):**
-- Dark bg (#1c1c1c), BMWTypeNext font, blue button (#1c69d4), square corners, uppercase
-- Fallback: "Discover What's Right for You" / "Get personalized recommendations..." / "Explore Now"
-
-**NVIDIA (nvidia.com):**
-- Dark bg (#1a1a1a), green top border (#76b900), green button, sharp corners, uppercase
-- Fallback: "Discover Solutions for You" / "Explore GPUs, AI platforms..." / "Explore Now"
-
-**Amazon Ads (advertising.amazon.com):**
-- Squid ink bg (#232f3e), Amazon Ember font, orange pill button (#ff9900)
-- Fallback: "Discover What Works for Your Brand" / "Get personalized advertising..." / "Get Started"
+**Frescopa (frescopa.coffee):**
+- Deep-wine bg (#58181D), Baskerville heading + Roboto body, teal pill button (#00647D), rounded card with generous padding
+- Fallback: "Find Your Perfect Brew" / "Discover handcrafted coffee and machines tailored to your taste." / "Explore Now"
 
 ## Completion (pipeline mode)
 
