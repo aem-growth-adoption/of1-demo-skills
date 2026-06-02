@@ -179,10 +179,20 @@ These issues have occurred in previous runs:
 ```bash
 mkdir -p /shared/of1-demo
 
-# Serve prototypes for review
-SERVE_URL=$(serve --entry prototype-home.html ${REPO_DIR}/stardust/prototypes/)
+# Trigger EDS preview for the committed prototypes so the hosted URL returns 200
+DA_TOKEN=$(oauth-token adobe)
+for f in deliverables/prototype-*.html; do
+  [ -f "$f" ] || continue
+  SLUG="deliverables/$(basename "$f" .html)"
+  curl -s -X POST \
+    -H "Authorization: Bearer ${DA_TOKEN}" \
+    -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
+    -o /dev/null \
+    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${SLUG}"
+done
 
-echo "{\"step\":5,\"status\":\"review\",\"deliverable\":\"${SERVE_URL}\",\"summary\":\"Generated N pixel-perfect HTML prototypes with real images, correct tokens, and matching layout.\"}" > /shared/of1-demo/step-5-status.json
+DELIVERABLE_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/prototype-home.html"
+echo "{\"step\":5,\"status\":\"review\",\"deliverable\":\"${DELIVERABLE_URL}\",\"summary\":\"Generated N pixel-perfect HTML prototypes with real images, correct tokens, and matching layout.\"}" > /shared/of1-demo/step-5-status.json
 ```
 
 Also write summary to `/shared/of1-demo/step-5-output.md`.
