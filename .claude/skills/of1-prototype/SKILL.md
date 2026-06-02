@@ -14,15 +14,6 @@ Generate pixel-perfect, self-contained HTML reproductions of key pages from the 
 |-----|---------|
 | `OF1_STATE_DIR` | state + IPC dir; receives `step-5-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
-| `ADOBE_IMS_TOKEN` | raw DA token (preferred) |
-| `OF1_TOKEN_FILE` | path to a `{"access_token":"…"}` JSON (fallback) |
-
-Resolve `DA_TOKEN` once at the top:
-
-```bash
-DA_TOKEN="${ADOBE_IMS_TOKEN:-$(jq -r .access_token "$OF1_TOKEN_FILE")}"
-[ -n "$DA_TOKEN" ] || { echo "FAIL: no DA token available" >&2; exit 1; }
-```
 
 `playwright-cli` calls below use the legacy `visit`/`--output` shape — SLICC runs that natively, CC uses the shim installed by `of1-setup`.
 
@@ -107,8 +98,6 @@ jq -r '.images[] | select(.alt | test("Bali"; "i")) | .src' stardust/current/pag
 # "https://${DOMAIN}/content/dam/wknd/adventures/bali-surf-camp.jpg"
 ```
 
-Live sites use CDN paths, content-fragment hashes, and per-page redirects that generated patterns miss. One wknd.site run had 6 cards with constructed-but-wrong URLs (all 404s) — fixed with a single `jq` lookup.
-
 #### 4d. Announcement bar structure
 
 If the site has a promo/announcement bar above the nav, keep it as a **separate element** from the header — NOT nested inside `<header>`:
@@ -173,21 +162,9 @@ $OF1_DEMO_REPO/
 
 ## Completion
 
-Trigger EDS preview for each committed prototype so the hosted URLs return 200 (the orchestrator opens them as `<a target="_blank">`; URLs must be reachable):
+Build a `deliverables` array — one entry per prototype, so the orchestrator can render one Open button per page (e.g. Open Home, Open Adventures, Open Magazine). The static HTML files committed in step 5 are served directly from the code bus at `/deliverables/*` — no EDS preview trigger needed.
 
-```bash
-for f in deliverables/prototype-*.html; do
-  [ -f "$f" ] || continue
-  SLUG="deliverables/$(basename "$f" .html)"
-  curl -s -X POST \
-    -H "Authorization: Bearer ${DA_TOKEN}" \
-    -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
-    -o /dev/null \
-    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${SLUG}"
-done
-```
-
-Build a `deliverables` array — one entry per prototype, so the orchestrator can render one Open button per page (e.g. Open Home, Open Adventures, Open Magazine). URLs MUST point at `/deliverables/prototype-*.html` (standalone HTML committed above), NOT `/${BRANCH}/prototype-*` (the EDS overlay URL produced later by step 6 — snowflake).
+URLs MUST point at `/deliverables/prototype-*.html` (standalone HTML committed above), NOT `/${BRANCH}/prototype-*` (the EDS overlay URL produced later by step 6 — snowflake).
 
 ```bash
 DELIVERABLES=$(python3 - <<PYEOF
