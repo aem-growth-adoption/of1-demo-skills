@@ -6,167 +6,137 @@ user-invocable: false
 
 # OF1 Extraction
 
-Extract design tokens, typography, colors, logo, page structure, and screenshots from the target website by invoking the `stardust:extract` plugin, then commit deliverables for EDS hosting.
+Delegate site-extraction to the `stardust:extract` skill, then publish the resulting brand-review HTML to the of1-demo repo for EDS hosting.
 
-## ⚡ Speed Priority — Target: 5 minutes
+## Env — orchestrator exports these (see `of1-setup`)
 
-- Invoke `stardust:extract` to do the heavy lifting — do NOT reimplement extraction logic
-- ONE git commit + push at the end
+| Var | Purpose |
+|-----|---------|
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-4-status.json` |
+| `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
+| `SKILL_DIR`     | absolute path to this skill's directory (used to find `assets/fill-brand-review.py`) |
 
----
+Read `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` from `repo-config.json`:
 
-## Platform context
-
-This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
-
-| Symbol | SLICC default | Claude Code override |
-|---|---|---|
-| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
-| `$SKILL_DIR` | `/workspace/skills/of1-extraction` | `<plugin-dir>/of1-extraction` (absolute path to this skill, set by orchestrator) |
-
-`$REPO_DIR`, `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
-
----
+```bash
+REPO_CONFIG=$(cat "$OF1_STATE_DIR/repo-config.json")
+OWNER=$(jq -r .owner   <<<"$REPO_CONFIG")
+REPO=$(jq -r .repo     <<<"$REPO_CONFIG")
+BRANCH=$(jq -r .branch <<<"$REPO_CONFIG")
+DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
+```
 
 ## Inputs
 
-- `DOMAIN`: Target domain (e.g., `frescopa.coffee`)
-- Discovery output from Step 3 (demo focus, persona, key pages)
-- Repo config from `"$STATE_DIR/repo-config.json"`
+- `DOMAIN` (e.g. `frescopa.coffee`)
+- Discovery output from step 3 (`$OF1_STATE_DIR/step-3-output.md`) — demo focus, persona, key pages
+- `repo-config.json` (from step 2)
 
 ## Process
 
-### Step 1: Read repo config
+### 1. Invoke `stardust:extract` (DO NOT crawl by hand)
 
-```bash
-REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
-OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
-REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
-BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
-REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
-DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
-```
+This step's whole job is to delegate to `stardust:extract`. **Do NOT use `playwright-cli`, `curl`, `wget`, or any other scraping mechanism here** — the stardust skill owns crawling, token extraction, screenshot capture, and brand-review authoring. Reimplementing it in this skill is the most common failure mode.
 
-### Step 2: Invoke stardust:extract
-
-Use the Skill tool to invoke `stardust:extract` with the target URL. This crawls the site and produces:
-
-- `stardust/current/PRODUCT.md` — brand context
-- `stardust/current/DESIGN.md` — design direction
-- `stardust/current/DESIGN.json` — design tokens (colors, typography, spacing, shapes)
-- `stardust/current/assets/logo.svg` — brand logo
-- `stardust/current/assets/screenshots/*.png` — full-page screenshots
-- `stardust/current/brand-review.html` — visual reference page
-- `stardust/state.json` — extraction state
-
-Invoke with the key pages identified in discovery (typically homepage + 2-3 category/product pages):
+Invoke the `stardust:extract` skill via the platform's sub-skill mechanism (in Claude Code, the `Skill` tool; in SLICC, the equivalent skill-invocation primitive). The argument is the homepage URL plus a page cap matching the discovery output (typically 5 — homepage + 2-3 category/product pages):
 
 ```
 Skill: stardust:extract
-Args: https://{DOMAIN} --cap 5
+Args:  https://${DOMAIN} --cap 5
 ```
 
-Wait for extraction to complete. It will write all outputs under `stardust/current/`.
+Wait for the extraction to finish. On success it writes all of the following under `$OF1_DEMO_REPO/`:
 
-### Step 3: Verify extraction outputs
+- `PRODUCT.md` — brand context
+- `stardust/state.json` — extraction state
+- `stardust/current/DESIGN.md` — design direction
+- `stardust/current/DESIGN.json` — design tokens (colors, typography, spacing, shapes)
+- `stardust/current/brand-review.html` — visual reference page
+- `stardust/current/assets/logo.svg` — brand logo
+- `stardust/current/assets/screenshots/*.png` — full-page screenshots per key page
+
+### 2. Verify extraction outputs
 
 ```bash
-cd "$REPO_DIR"
-ls stardust/current/DESIGN.json && echo "Design tokens OK"
-ls stardust/current/DESIGN.md && echo "Design doc OK"
-ls stardust/current/assets/logo.svg && echo "Logo OK"
-ls stardust/current/assets/screenshots/*.png && echo "Screenshots OK"
-ls stardust/current/brand-review.html && echo "Brand review OK"
+cd "$OF1_DEMO_REPO"
+test -f stardust/current/DESIGN.json     || { echo "FAIL: DESIGN.json missing"; exit 1; }
+test -f stardust/current/DESIGN.md       || { echo "FAIL: DESIGN.md missing"; exit 1; }
+test -f stardust/current/assets/logo.svg || { echo "FAIL: logo.svg missing"; exit 1; }
+ls stardust/current/assets/screenshots/*.png >/dev/null 2>&1 \
+  || { echo "FAIL: no screenshots"; exit 1; }
+echo "✓ Extraction outputs present"
 ```
 
-If any critical file is missing, re-run extraction with `--refresh` for the failing page.
+If anything is missing, re-run `stardust:extract` with `--refresh` for the failing page.
 
-### Step 4: Generate brand review page (USE THE TOOL)
-
-**⚡ FAST PATH — Use `fill-brand-review.py` to generate the review page automatically:**
+### 3. Generate `deliverables/brand-review.html`
 
 ```bash
-cd "$REPO_DIR"
-
-# Generate brand review from DESIGN.json + screenshots + logo (takes <1 second)
+cd "$OF1_DEMO_REPO"
 python3 "$SKILL_DIR/assets/fill-brand-review.py" . "$DOMAIN"
 ```
 
-This reads `stardust/current/DESIGN.json`, finds screenshots and logo, and writes `deliverables/brand-review.html` with correct absolute paths. No need to hand-write HTML.
+This reads `stardust/current/DESIGN.json` + screenshots + logo and writes `deliverables/brand-review.html` with absolute paths that resolve on the EDS preview URL.
 
-**Only generate the brand-review.html manually if the tool doesn't produce adequate output.**
-
-If the tool is unavailable, fall back to:
-```bash
-mkdir -p deliverables/assets/screenshots
-cp stardust/current/brand-review.html deliverables/brand-review.html
-cp stardust/current/assets/screenshots/*.png deliverables/assets/screenshots/
-sed -i '' 's|assets/screenshots/|/deliverables/assets/screenshots/|g' deliverables/brand-review.html
-```
-
-### Step 5: Commit and push (ONE operation)
+### 4. Commit and push (one operation)
 
 ```bash
-cd "$REPO_DIR"
+cd "$OF1_DEMO_REPO"
 git add PRODUCT.md stardust/ deliverables/
 git commit -m "feat: extraction - design tokens and brand identity for ${DOMAIN}"
-git push origin ${BRANCH}
+git push origin "$BRANCH"
 ```
 
----
+If `git add stardust/` shows nothing, the directory is in `.gitignore`. Force-add the deliverable files:
 
-## ⚠️ .gitignore Note
-
-The `stardust/` directory may be in `.gitignore`. If `git add stardust/` shows nothing:
 ```bash
 git add -f stardust/current/DESIGN.json stardust/current/DESIGN.md stardust/current/assets/
 ```
 
----
+## Notes
 
-## Expected Output Structure
+**Private fonts** — when the site uses private fonts (e.g. Sentinel, Gotham Narrow), use the closest system-font fallback AND note the substitution in `DESIGN.json`. Don't invent a different typeface.
+
+Logo SVG completeness, deliverable image paths, and image format rules are documented in `of1-demo/knowledge/common-pitfalls.md` (§ 2-3).
+
+## Expected output structure
 
 ```
-{REPO_DIR}/
+$OF1_DEMO_REPO/
 ├── PRODUCT.md                              ← Brand context (from stardust:extract)
 ├── stardust/
-│   ├── state.json                          ← Extraction state
+│   ├── state.json
 │   └── current/
-│       ├── DESIGN.md                       ← Design direction
+│       ├── DESIGN.md
 │       ├── DESIGN.json                     ← Colors, typography, spacing, shapes
-│       ├── brand-review.html               ← Visual reference page
+│       ├── brand-review.html
 │       └── assets/
-│           ├── logo.svg                    ← Full brand logo SVG
+│           ├── logo.svg
 │           └── screenshots/
-│               ├── {page1}.png             ← Full-page screenshot per key page
+│               ├── {page1}.png
 │               └── {page2}.png
 └── deliverables/
-    ├── brand-review.html                   ← Copy for EDS serving
+    ├── brand-review.html                   ← Copy for EDS serving (paths rewritten)
     └── assets/
         └── screenshots/                    ← Copies for EDS serving
             ├── {page1}.png
             └── {page2}.png
 ```
 
----
-
-## Lessons Learned
-
-Logo SVG completeness, deliverable image paths, and image format rules are documented in `of1-demo/knowledge/common-pitfalls.md` (§ 2-3). Extraction-specific gotcha:
-
-**Private fonts** — When the site uses private fonts (e.g. Sentinel, Gotham Narrow), use the closest system-font fallback AND note the substitution in `DESIGN.json` — do not invent a different typeface.
-
----
-
 ## Completion
 
 ```bash
-mkdir -p "$STATE_DIR"
-
-PREVIEW_BASE="https://${BRANCH}--${REPO}--${OWNER}.aem.page"
-echo "{\"step\":4,\"status\":\"review\",\"deliverable\":\"${PREVIEW_BASE}/deliverables/brand-review.html\",\"summary\":\"Extracted design tokens, typography, colors, logo SVG, page screenshots. Brand review ready.\"}" > "$STATE_DIR/step-4-status.json"
+REPORT_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/brand-review.html"
+cat > "$OF1_STATE_DIR/step-4-status.json" <<EOF
+{
+  "step": 4,
+  "status": "review",
+  "deliverables": [
+    { "url": "${REPORT_URL}", "label": "Brand review" }
+  ],
+  "summary": "Extracted design tokens, typography, colors, logo SVG, page screenshots."
+}
+EOF
 ```
 
-Also write a brief output summary to `"$STATE_DIR/step-4-output.md"`.
-
-In Claude Code the orchestrator's `Agent` return is the source of truth — the status file is optional. Do NOT call `sprinkle send`.
+The orchestrator (CC: agent-return parsing; SLICC: sprinkle polling) handles the approve/done transition.
