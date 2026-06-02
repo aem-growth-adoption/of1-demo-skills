@@ -616,6 +616,15 @@ Slot instructions guide the LLM's content generation. Make them:
 
 **Only write the status file if Step 8 (Validate) passed.** Re-run the validator one more time inline before writing the JSON — this is the final guard against shipping a degraded gallery.
 
+### ⚠️ The deliverable URL MUST be the gallery page — NOT the catalog JSON
+
+The gallery is a human-browsable HTML page at `/gallery/index.html`. It fetches `/templates/templates-catalog.json` internally, but that JSON file is NOT the deliverable. Sending `/templates/templates-catalog.json` to the sprinkle opens a raw JSON blob in the user's browser — broken UX.
+
+- ✅ Correct: `https://${BRANCH}--${REPO}--${OWNER}.aem.page/gallery/index.html`
+- ❌ Wrong:   `https://${BRANCH}--${REPO}--${OWNER}.aem.page/templates/templates-catalog.json`
+
+Trigger an EDS preview for `/gallery/index.html` after pushing so it returns 200 before sending the status.
+
 ```bash
 mkdir -p /shared/of1-demo
 
@@ -626,7 +635,24 @@ if [ "$COUNT" -lt 25 ]; then
   exit 1
 fi
 
+# Trigger preview so the gallery URL returns 200
+DA_TOKEN=$(oauth-token adobe)
+curl -s -o /dev/null -X POST \
+  -H "Authorization: Bearer ${DA_TOKEN}" \
+  -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
+  "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/gallery/index"
+
 GALLERY_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/gallery/index.html"
+
+# Sanity check the URL is the gallery page and not the catalog JSON
+case "$GALLERY_URL" in
+  *gallery/index.html) ;;
+  *)
+    echo "ABORT: deliverable URL must end with /gallery/index.html, got: ${GALLERY_URL}" >&2
+    exit 1
+    ;;
+esac
+
 echo "{\"step\":7,\"status\":\"review\",\"deliverable\":\"${GALLERY_URL}\",\"summary\":\"Generated ${COUNT} OF1 templates (5 intents × 5 variations). Browse the gallery to review layouts and sample content.\"}" > /shared/of1-demo/step-7-status.json
 ```
 
