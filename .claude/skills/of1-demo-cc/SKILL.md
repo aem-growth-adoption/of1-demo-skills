@@ -73,28 +73,32 @@ The dependency graph and parallelism rules:
 
 Step 7 (template generation) used to be a single ~22-minute agent. It is now split into 6 dispatches:
 
-- **Pre-fan-out (inline, orchestrator turn):** capture the EDS-rendered visual reference. The 5 intent agents need to see the *actual* rendered design system (full snowflake + OF1 + EDS stylesheet stack), not just the standalone prototype HTML.
+- **Pre-fan-out (inline, orchestrator turn):** capture **every** prototype page's EDS-rendered visual reference. The 5 intent agents need to see the *actual* rendered design system across all page types (home → hero patterns, listing → card grids, detail → fact lists / tabs), not just one screenshot of home.
 - **7a — 7e (parallel intent agents):** each runs the `of1-template-generation` skill with `OF1_TG_MODE=intent` and `OF1_TG_INTENT` set to one of `comparison`, `recommendation`, `deep-dive`, `budget`, `discovery`. Each writes only its own `templates/of1-{intent}-*.{html,metadata.json,sample.json}` + `styles/of1-{intent}-*.css` files. No git operations.
-- **7-assemble (sequential after 7a–7e):** runs the same skill with `OF1_TG_MODE=assemble`. Generates `styles/of1-base.css` from `DESIGN.json` (deterministic), assembles the fully-inlined catalog, runs `fill-template.py`, installs the gallery, and commits everything in one push.
+- **7-assemble (sequential after 7a–7e):** runs the same skill with `OF1_TG_MODE=assemble`. Writes `styles/of1-base.css` directly from the prototype CSS files (no script — see the template-generation skill's "Mode: assemble § 1"), assembles the fully-inlined catalog, runs `fill-template.py`, installs the gallery, and commits everything in one push.
 
-### Pre-fan-out: capture EDS visual reference (inline)
+### Pre-fan-out: capture EDS visual references for ALL prototypes (inline)
 
-After Step 6 returns `done` and before dispatching 7a–7e, capture a screenshot of the live EDS-rendered prototype-home. This gives the 5 intent agents a single visual ground truth they all share.
+After Step 6 returns `done` and before dispatching 7a–7e, screenshot every page in `deliverables/prototype-*.html` as rendered by EDS. The 5 intent agents read these from disk — `prototype-home` gives hero/section rhythm, listing pages give card grids, detail pages give fact lists and tabbed content. Templates that draw from all three feel native to the site; templates that only see home tend to look like generic landing pages.
 
 ```bash
-EDS_HOME_URL="https://${BRANCH}--of1-demo--aem-growth-adoption.aem.page/${BRANCH}/prototype-home"
-REF_PATH="${OF1_REPO}/deliverables/eds-prototype-home.png"
+PROTOTYPE_PAGES=$(ls "${OF1_REPO}/deliverables/"prototype-*.html 2>/dev/null \
+  | xargs -n1 basename | sed 's/\.html$//')
 
-playwright-cli open "$EDS_HOME_URL"
-# Wait for full render — EDS pulls fragments + lazy CSS
-sleep 6
-# tab-select the freshly opened tab if you have other tabs open
-playwright-cli screenshot --full-page --filename "$REF_PATH"
+for PAGE in $PROTOTYPE_PAGES; do
+  URL="https://${BRANCH}--of1-demo--aem-growth-adoption.aem.page/${BRANCH}/${PAGE}"
+  REF="${OF1_REPO}/deliverables/eds-${PAGE}.png"
+  playwright-cli open "$URL"
+  # Wait for full render — EDS pulls fragments + lazy CSS
+  sleep 6
+  playwright-cli screenshot --full-page --filename "$REF"
 
-# Sanity check — file exists and is a non-trivial PNG (>50KB)
-[ -s "$REF_PATH" ] && [ "$(stat -f%z "$REF_PATH" 2>/dev/null || stat -c%s "$REF_PATH")" -gt 51200 ] \
-  && echo "EDS reference saved: $REF_PATH" \
-  || echo "WARN: EDS screenshot looks empty/missing — intent agents will fall back to prototype-only reference"
+  if [ -s "$REF" ] && [ "$(stat -f%z "$REF" 2>/dev/null || stat -c%s "$REF")" -gt 51200 ]; then
+    echo "EDS reference saved: $REF"
+  else
+    echo "WARN: EDS screenshot for ${PAGE} looks empty/missing — intent agents will fall back to that prototype's HTML/CSS alone"
+  fi
+done
 ```
 
 Do NOT commit this PNG. It's local reference material for the intent agents; deliverables that need to be public are committed by `7-assemble`. If the screenshot fails (preview not ready, playwright timeout), the intent agents fall back to the prototype HTML + CSS files alone — degraded fidelity but still functional.
@@ -153,7 +157,7 @@ Each `Agent` dispatch MUST pass an explicit `model` parameter. The default (inhe
 | 5 — prototype | `opus` | Pixel-perfect HTML generation requiring visual judgment against extracted tokens. |
 | 6 — snowflake | `sonnet` | Runs `snowflake-split.py`, copies substrate, installs OF1 block. Scripted. |
 | 7a–7e — template intents | `sonnet` | Structured generation following a clear pattern + EDS visual reference. 5 parallel agents, this is the biggest cost block — Sonnet here is the single largest saving. |
-| 7-assemble | `sonnet` | Runs `gen-base-css.py`, `assemble-catalog.py`, `fill-template.py`. Fully scripted + one commit. |
+| 7-assemble | `sonnet` | Writes `of1-base.css` directly from prototype CSS (no script), then runs `assemble-catalog.py` + `fill-template.py` + one commit. The base-CSS authoring is light synthesis but cascades into 25 templates — bump to `opus` here if quality dips. |
 | 8 — OF1 styling | `sonnet` | CSS generation matching prototype-home tokens. Has clear reference; not deep reasoning. |
 | 9a — brand voice | `sonnet` | Synthesis from existing extraction JSON. |
 | 9b — content metadata | `sonnet` | Scrape product pages + run `download-images.py`. Structured. |
@@ -252,7 +256,7 @@ After step 12 approved AND steps 7 + 8 done, deploy:
 
 ```bash
 TENANT_ID="${BRANCH}--of1-demo--aem-growth-adoption"
-curl -s -X POST "https://of1-worker.adobeaem.workers.dev/api/tenants/${TENANT_ID}/sync" \
+curl -s -X POST "https://of1-gen-web-service.franklin-prod.workers.dev/api/tenants/${TENANT_ID}/sync" \
   -H "Authorization: Bearer $DA_TOKEN"
 ```
 

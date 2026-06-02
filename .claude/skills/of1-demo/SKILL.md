@@ -59,7 +59,7 @@ Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everyt
 | 5 — prototype | `claude-opus-4-6` | Pixel-perfect HTML generation requiring visual judgment. |
 | 6 — snowflake | `claude-sonnet-4-6` | Runs `snowflake-split.py`, copies substrate, installs OF1 block. |
 | 7a–7e — template intents | `claude-sonnet-4-6` | Structured generation following a clear pattern + EDS visual reference. 5 parallel scoops — biggest cost saving. |
-| 7-assemble | `claude-sonnet-4-6` | Runs `gen-base-css.py`, `assemble-catalog.py`, `fill-template.py`. Fully scripted + one commit. |
+| 7-assemble | `claude-sonnet-4-6` | Writes `of1-base.css` directly from prototype CSS (no script), then runs `assemble-catalog.py` + `fill-template.py` + one commit. The base-CSS authoring is light synthesis but cascades into 25 templates — bump to opus here if quality dips. |
 | 8 — OF1 styling | `claude-sonnet-4-6` | CSS generation matching prototype-home. Clear reference; not deep reasoning. |
 | 9a — brand voice | `claude-sonnet-4-6` | Synthesis from existing extraction JSON. |
 | 9b — content metadata | `claude-sonnet-4-6` | Scrape product pages + run `download-images.py`. Structured. |
