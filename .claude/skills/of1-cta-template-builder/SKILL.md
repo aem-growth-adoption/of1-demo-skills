@@ -16,18 +16,31 @@ Analyze a website's visual design system (fonts, colors, button styles, spacing)
 
 ---
 
+## Platform context
+
+This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
+
+| Symbol | SLICC default | Claude Code override |
+|---|---|---|
+| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
+| Schema reference path | `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` | `<plugin-dir>/of1-demo/knowledge/worker-config-schemas.md` (sibling to this skill) |
+
+`$REPO_DIR`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
+
+---
+
 ## Inputs
 
 - `DOMAIN`: Target domain (e.g., `bmwusa.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
 
 ## Schema Reference
 
-Read `of1-demo/knowledge/worker-config-schemas.md` § `cta-template.json` for the exact output format expected by the worker. Path varies by runtime — SLICC: `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md`; Claude Code: sibling to this skill, e.g. `../of1-demo/knowledge/worker-config-schemas.md` from the cloned plugin dir.
+Read worker-config-schemas.md § `cta-template.json` for the exact output format expected by the worker. Use the schema reference path from Platform context.
 
 ## Process preamble (pipeline mode)
 
 ```bash
-REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
 REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
 DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 
@@ -161,8 +174,8 @@ Before writing the file, verify:
 When running as part of the OF1 pipeline, write your status after completing:
 
 ```bash
-mkdir -p /shared/of1-demo
-echo '{"step":11,"status":"done","summary":"CTA template generated: [brief visual description]"}' > /shared/of1-demo/step-11-status.json
+mkdir -p "$STATE_DIR"
+echo '{"step":11,"status":"done","summary":"CTA template generated: [brief visual description]"}' > "$STATE_DIR/step-11-status.json"
 ```
 
 Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.

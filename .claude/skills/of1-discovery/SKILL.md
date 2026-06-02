@@ -17,13 +17,29 @@ Crawl the target site to understand what it offers, then propose a demo focus an
 
 ---
 
+## Platform context
+
+This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
+
+| Symbol | SLICC default | Claude Code override |
+|---|---|---|
+| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
+| `playwright-cli` action verbs | `visit`, `navigate` | `open` |
+| `playwright-cli` output flag | `--output <path>` | `--filename <path>` |
+
+`$REPO_DIR`, `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` come from `$STATE_DIR/repo-config.json` (written by `of1-branch-setup`).
+
+**Note on literal commands in code blocks:** Code blocks below use the SLICC form (`playwright-cli visit ... --output ...`). When running in Claude Code, apply the renames above as you go — the alternative would be cluttering every snippet with both forms, and the table is the single source of truth.
+
+---
+
 ## Inputs
 
 You will be given a `DOMAIN` (e.g., `bmwusa.com`).
 
 Read the repo config from step 2:
 ```bash
-REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
 OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
 REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
 BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
@@ -75,7 +91,7 @@ Based on what you found, propose:
 
 ### 4. Write structured output for downstream steps
 
-Write `/shared/of1-demo/step-3-output.md` — this is consumed by steps 4, 5, and 7:
+Write `$STATE_DIR/step-3-output.md` — this is consumed by steps 4, 5, and 7:
 
 ```markdown
 # Discovery: {DOMAIN}
@@ -164,14 +180,14 @@ Then ask the user:
 
 ## Completion
 
-Write a status file — do NOT call `sprinkle send` directly (only the of1-demo orchestrator scoop may do that):
+Write a status file — do NOT call `sprinkle send` directly (only the of1-demo orchestrator scoop may do that). In Claude Code the orchestrator's `Agent` return is the source of truth and this file is optional.
 
 ```bash
-mkdir -p /shared/of1-demo
-echo '{"step":3,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/deliverables/discovery.html","summary":"Demo focus: [focus]. Persona: [persona]. Pages: [N] key pages identified."}' > /shared/of1-demo/step-3-status.json
+mkdir -p "$STATE_DIR"
+echo '{"step":3,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/deliverables/discovery.html","summary":"Demo focus: [focus]. Persona: [persona]. Pages: [N] key pages identified."}' > "$STATE_DIR/step-3-status.json"
 ```
 
 On approval (user confirms via sprinkle), the orchestrator will handle the `done` update. If you receive explicit approval in chat, write:
 ```bash
-echo '{"step":3,"status":"done"}' > /shared/of1-demo/step-3-status.json
+echo '{"step":3,"status":"done"}' > "$STATE_DIR/step-3-status.json"
 ```

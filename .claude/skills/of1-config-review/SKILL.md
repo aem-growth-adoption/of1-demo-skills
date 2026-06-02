@@ -8,6 +8,17 @@ user-invocable: true
 
 Generate the config-review.html deliverable for an OF1 demo using the proper template and fill script.
 
+## Platform context
+
+This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
+
+| Symbol | SLICC default | Claude Code override |
+|---|---|---|
+| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
+| `$SKILL_DIR` | `/workspace/skills/of1-config-review` | `<plugin-dir>/of1-config-review` (absolute path to this skill, set by orchestrator) |
+
+`$REPO_DIR`, `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
+
 ## When to Use
 
 - After ANY change to `of1/config/*.json` files (products, suggestions, brand-voice, personas, use-cases, features, cta-template)
@@ -17,14 +28,14 @@ Generate the config-review.html deliverable for an OF1 demo using the proper tem
 ## Prerequisites
 
 - Config JSON files must already exist under `of1/config/` in the repo
-- The skills must be installed (fill script at `/workspace/skills/of1-config-review/assets/`)
+- The fill script must be available at `$SKILL_DIR/assets/fill-config-review.py`
 
 ## Execution — EXACT Recipe
 
 ### Step 1: Read repo config
 
 ```bash
-REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
 OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
 REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
 BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
@@ -35,12 +46,12 @@ DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 ### Step 2: Run the fill script
 
 ```bash
-cd "$REPO_DIR" && python3 /workspace/skills/of1-config-review/assets/fill-config-review.py . "$DOMAIN"
+cd "$REPO_DIR" && python3 "$SKILL_DIR/assets/fill-config-review.py" . "$DOMAIN"
 ```
 
 The script:
 - Reads: `of1/config/{products,brand-voice,personas,suggestions,use-cases,features,cta-template}.json`
-- Uses template: `/workspace/skills/of1-config-review/assets/config-review.html`
+- Uses template: `$SKILL_DIR/assets/config-review.html`
 - Writes: `deliverables/config-review.html`
 
 ### Step 3: Commit and push
@@ -76,8 +87,8 @@ The config-review.html is a self-contained dark-themed dashboard showing:
 When running as step 12 in the pipeline:
 
 ```bash
-mkdir -p /shared/of1-demo
-echo '{"step":12,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/deliverables/config-review.html","summary":"Review all config before deploy: products, brand voice, personas, CTA, suggestions."}' > /shared/of1-demo/step-12-status.json
+mkdir -p "$STATE_DIR"
+echo '{"step":12,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/deliverables/config-review.html","summary":"Review all config before deploy: products, brand voice, personas, CTA, suggestions."}' > "$STATE_DIR/step-12-status.json"
 ```
 
 Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.

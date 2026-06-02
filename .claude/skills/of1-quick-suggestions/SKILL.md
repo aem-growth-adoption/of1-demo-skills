@@ -16,20 +16,33 @@ Generate domain-specific quick suggestion chips, placeholder text, and search UI
 
 ---
 
+## Platform context
+
+This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
+
+| Symbol | SLICC default | Claude Code override |
+|---|---|---|
+| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
+| Schema reference path | `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` | `<plugin-dir>/of1-demo/knowledge/worker-config-schemas.md` (sibling to this skill) |
+
+`$REPO_DIR`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
+
+---
+
 ## Inputs
 
 - `DOMAIN`: Target domain (e.g., `nvidia.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
 
 ## Schema Reference
 
-Read `of1-demo/knowledge/worker-config-schemas.md` § `suggestions.json` for the exact output format expected by the worker. Path varies by runtime — SLICC: `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md`; Claude Code: sibling to this skill, e.g. `../of1-demo/knowledge/worker-config-schemas.md` from the cloned plugin dir.
+Read worker-config-schemas.md § `suggestions.json` for the exact output format expected by the worker. Use the schema reference path from Platform context.
 
 ## Process
 
 ### Step 1: Read context
 
 ```bash
-REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
 REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
 DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 
@@ -39,7 +52,7 @@ mkdir -p of1/config
 
 Read discovery output for product/category knowledge:
 ```bash
-cat /shared/of1-demo/step-3-output.md 2>/dev/null
+cat "$STATE_DIR/step-3-output.md" 2>/dev/null
 ```
 
 If config files already exist (from a previous run or if step 9 finished first), read them for richer suggestions:
@@ -104,8 +117,8 @@ The OF1 block randomly picks 5 suggestions to display on each page load, so gene
 When running as part of the OF1 pipeline (step 10), write a status file after generating `suggestions.json`:
 
 ```bash
-mkdir -p /shared/of1-demo
-echo '{"step":10,"status":"done","summary":"Generated [N] suggestion chips covering [intents covered]."}' > /shared/of1-demo/step-10-status.json
+mkdir -p "$STATE_DIR"
+echo '{"step":10,"status":"done","summary":"Generated [N] suggestion chips covering [intents covered]."}' > "$STATE_DIR/step-10-status.json"
 ```
 
 Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.

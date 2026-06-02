@@ -17,25 +17,62 @@ Convert prototype HTML pages into EDS overlay pages using the snowflake methodol
 
 ---
 
+## Platform context
+
+This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
+
+| Symbol | SLICC default | Claude Code override |
+|---|---|---|
+| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
+| `$SKILL_DIR` | `/workspace/skills/of1-snowflake` | `<plugin-dir>/of1-snowflake` (absolute path to this skill, set by orchestrator) |
+| `$DA_TOKEN` | `$(oauth-token adobe)` | `$ADOBE_IMS_TOKEN`, or `$(jq -r .access_token "$OF1_TOKEN_FILE")` |
+| `playwright-cli` action verbs | `visit`, `navigate` | `open` |
+| `playwright-cli` output flag | `--output <path>` | `--filename <path>` |
+
+`$REPO_DIR`, `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN`, `$CONTENT_PREFIX` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
+
+Multi-line operations:
+
+### Platform: DA upload (single file)
+- **SLICC:** `cp <local> /mnt/da/<owner>/<repo>/<branch>/<file>.html` (mount handles auth)
+- **Claude Code:** `cat <local> | curl -s -X PUT -H "Authorization: Bearer $DA_TOKEN" -H "Content-Type: text/html" --data-binary @- "https://admin.da.live/source/<owner>/<repo>/<branch>/<file>.html"`
+
+### Platform: DA list (files in a branch directory)
+- **SLICC:** `ls /mnt/da/<branch>/*.html` returns local paths
+- **Claude Code:** `curl -s -H "Authorization: Bearer $DA_TOKEN" "https://admin.da.live/list/<owner>/<repo>/<branch>"` returns JSON; iterate `.[] | select(.ext == "html") | .name`
+
+### Platform: Static serve (returns a URL)
+- **SLICC:** `SERVE_URL=$(serve --entry <file> <dir>)`
+- **Claude Code:** `(cd <dir> && python3 -m http.server <port>) &`; `SERVE_URL="http://localhost:<port>/<file>"`
+
+### Platform: `playwright-cli` tab targeting
+- **SLICC:** pass `--tab=<id>` on the action call
+- **Claude Code:** run `playwright-cli tab-select <id>` first, then call the action without `--tab`
+
+**Note on literal commands in code blocks:** Code blocks below use the SLICC form by default. When running in Claude Code, apply the renames above as you go.
+
+---
+
 ## Inputs
 
 - `DOMAIN`: Target domain (e.g., `frescopa.coffee`)
 - Prototypes in `stardust/prototypes/*.html` or `deliverables/prototype-*.html` (from step 5)
 - Design tokens in `stardust/current/DESIGN.json` (from step 4)
-- Repo config from `/shared/of1-demo/repo-config.json`
+- Repo config from `"$STATE_DIR/repo-config.json"`
 
 ## Step 0: Read Config
 
 ```bash
-REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
 OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
 REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
 BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
 REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
 DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 CONTENT_PREFIX=$(echo "$REPO_CONFIG" | jq -r '.contentPrefix // .branch')
-DA_CONTENT_PATH="/mnt/da/${BRANCH}"
 ```
+
+Note: in SLICC the `/mnt/da/${BRANCH}` mount is also available for filesystem-style DA access; in Claude Code use the DA list/upload curl forms from Platform context.
 
 ---
 
@@ -214,7 +251,7 @@ cd "$REPO_DIR"
 # Run the tool for each prototype — generates templates, CSS, fragments, and DA docs automatically
 for PROTO in stardust/prototypes/prototype-*.html deliverables/prototype-*.html; do
   [ -f "$PROTO" ] || continue
-  python3 /workspace/skills/of1-snowflake/assets/snowflake-split.py "$PROTO" \
+  python3 "$SKILL_DIR/assets/snowflake-split.py" "$PROTO" \
     --output-dir "$REPO_DIR" \
     --branch "$BRANCH" \
     --owner "$OWNER" \
@@ -381,7 +418,9 @@ grep -q "applyTemplateOverlay\|loadTemplate\|overlay" ${REPO_DIR}/scripts/script
 
 If already installed (which it should be in the of1-demo repo), skip to Step 4.
 
-If NOT installed, read `/workspace/skills/snowflake/knowledge/architecture.md` for the full substrate code.
+If NOT installed, read the snowflake plugin's architecture doc:
+- **SLICC:** `/workspace/skills/snowflake/knowledge/architecture.md`
+- **Claude Code:** `<plugin-dir>/aem-edge-delivery-services/skills/snowflake/knowledge/architecture.md` (sibling skill in the AEM EDS plugin)
 
 ---
 
@@ -396,16 +435,14 @@ cd "$REPO_DIR"
 
 # OF1 block
 mkdir -p blocks/of1
-cp /workspace/skills/of1-snowflake/assets/of1.js     blocks/of1/of1.js
-cp /workspace/skills/of1-snowflake/assets/of1-base.css blocks/of1/of1.css
+cp "$SKILL_DIR/assets/of1.js"      blocks/of1/of1.js
+cp "$SKILL_DIR/assets/of1-base.css" blocks/of1/of1.css
 
 # Overlay-aware header/footer JS — REQUIRED for OF1 + every snowflake page
 # (the stock EDS versions are 170+ lines and fetch /nav.html instead)
-cp /workspace/skills/of1-snowflake/assets/header.js blocks/header/header.js
-cp /workspace/skills/of1-snowflake/assets/footer.js blocks/footer/footer.js
+cp "$SKILL_DIR/assets/header.js" blocks/header/header.js
+cp "$SKILL_DIR/assets/footer.js" blocks/footer/footer.js
 ```
-
-**Path note (Claude Code):** replace `/workspace/skills/of1-snowflake/assets/` with `${SKILL_DIR}/assets/` — the orchestrator passes the absolute path of this skill via the dispatch prompt.
 
 **Verify after copy:**
 ```bash
@@ -439,57 +476,47 @@ git push origin ${BRANCH}
 **⚡ FAST PATH — Use `da-upload.sh` for one-command upload + preview + verify:**
 
 ```bash
-bash /workspace/skills/of1-snowflake/assets/da-upload.sh \
+bash "$SKILL_DIR/assets/da-upload.sh" \
   --branch "$BRANCH" --owner "$OWNER" --repo "$REPO" \
-  ${REPO_DIR}/.snowflake/projects/*/da/*.html
+  "$REPO_DIR"/.snowflake/projects/*/da/*.html
 ```
 
-This handles mount-first-then-API fallback, triggers preview, and verifies each page returns 200. If all succeed, skip to Step 9 (screenshot diff).
+This handles mount-first-then-API fallback (when running in SLICC) or pure-API upload (Claude Code), triggers preview, and verifies each page returns 200. If all succeed, skip to Step 9 (screenshot diff).
 
 **Only use the manual approach below if the tool fails.**
 
 ### ⚠️ Manual approach — READ THIS BEFORE DOING ANYTHING WITH DA
 
-| Action | Method | Notes |
-|--------|--------|-------|
-| Write content to DA | **Option A:** `cp file /mnt/da/{BRANCH}/page.html` | Mount handles auth automatically |
-| Write content to DA | **Option B:** `cat file \| curl -s -X PUT -H "Authorization: Bearer $DA_TOKEN" -H "Content-Type: text/html" --data-binary @- "https://admin.da.live/source/{OWNER}/{REPO}/{BRANCH}/page.html"` | API fallback if mount has permission issues |
-| Get IMS token | `oauth-token adobe` | Instant, no browser flow needed |
-| Trigger preview | `curl -X POST admin.hlx.page/preview/...` | Include both auth headers |
-| ~~Use da-auth-helper~~ | ~~`npx da-auth-helper`~~ | **DOESN'T EXIST in this env** |
-| ~~Read ~/.aem/da-token.json~~ | ~~`cat ~/.aem/...`~~ | **FILE DOESN'T EXIST** |
+For DA upload, use the platform's DA upload form from Platform context. Don't try alternative auth strategies — `npx da-auth-helper` and `~/.aem/da-token.json` are myths in both runtimes.
 
 ### Upload content:
 
 ```bash
-# The mount at /mnt/da/ = root of da://aem-growth-adoption/of1-demo
-# Content for this demo lives in /mnt/da/{BRANCH}/ subfolder
-# IMPORTANT: Use ${BRANCH} (e.g., "frescopa-2"), NOT the domain name!
+# Resolve DA_TOKEN from Platform context.
+# Upload all DA docs via the platform's DA upload form.
 
-DA_TOKEN=$(oauth-token adobe)
-mkdir -p "${DA_CONTENT_PATH}" 2>/dev/null
-
-# Upload all DA docs — try mount first, fall back to API
-for PROJECT_DIR in ${REPO_DIR}/.snowflake/projects/*/da/; do
-  for DOC in ${PROJECT_DIR}*.html; do
+for PROJECT_DIR in "$REPO_DIR"/.snowflake/projects/*/da/; do
+  for DOC in "$PROJECT_DIR"*.html; do
     [ -f "$DOC" ] || continue
     BASENAME=$(basename "$DOC")
-    # Try mount first
-    if cp "$DOC" "${DA_CONTENT_PATH}/${BASENAME}" 2>/dev/null; then
-      echo "✓ mount: ${DA_CONTENT_PATH}/${BASENAME}"
-    else
-      # Fallback to API
-      cat "$DOC" | curl -s -X PUT \
-        -H "Authorization: Bearer ${DA_TOKEN}" \
-        -H "Content-Type: text/html" \
-        --data-binary @- \
-        "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/${BASENAME}"
-      echo "✓ API: ${BASENAME}"
-    fi
+    cat "$DOC" | curl -s -X PUT \
+      -H "Authorization: Bearer ${DA_TOKEN}" \
+      -H "Content-Type: text/html" \
+      --data-binary @- \
+      "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/${BASENAME}"
+    echo "✓ uploaded: ${BASENAME}"
   done
 done
 
-# Create OF1 page
+# SLICC-only fast path: if /mnt/da is mounted, `cp` is faster than curl PUT for many files.
+# Skip this block in Claude Code.
+if [ -d "/mnt/da/${BRANCH}" ]; then
+  for PROJECT_DIR in "$REPO_DIR"/.snowflake/projects/*/da/; do
+    cp -f "$PROJECT_DIR"*.html "/mnt/da/${BRANCH}/" 2>/dev/null
+  done
+fi
+
+# Create OF1 page (uses the curl PUT form — works in both runtimes)
 cat <<EOF | curl -s -X PUT \
   -H "Authorization: Bearer ${DA_TOKEN}" \
   -H "Content-Type: text/html" \
@@ -568,12 +595,24 @@ echo "✓ of1.html"
 
 ## Step 7: Trigger Preview
 
-```bash
-DA_TOKEN=$(oauth-token adobe)
+Build the list of page slugs using the platform's DA list form, then trigger preview for each.
 
-for DOC in ${DA_CONTENT_PATH}/*.html; do
-  [ -f "$DOC" ] || continue
-  PAGE_SLUG=$(basename "$DOC" .html)
+**SLICC** (mount):
+```bash
+PAGE_SLUGS=$(ls /mnt/da/${BRANCH}/*.html 2>/dev/null | xargs -n1 basename | sed 's/\.html$//')
+```
+
+**Claude Code** (DA list API):
+```bash
+PAGE_SLUGS=$(curl -s -H "Authorization: Bearer $DA_TOKEN" \
+  "https://admin.da.live/list/${OWNER}/${REPO}/${BRANCH}" \
+  | jq -r '.[] | select(.ext == "html") | .name')
+```
+
+Then in both runtimes:
+
+```bash
+for PAGE_SLUG in $PAGE_SLUGS; do
   RESP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
     -H "Authorization: Bearer ${DA_TOKEN}" \
     -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
@@ -589,9 +628,7 @@ Note: The content prefix in the preview URL is `${BRANCH}` (same as the branch n
 ## Step 8: Verify Pages Render
 
 ```bash
-for DOC in ${DA_CONTENT_PATH}/*.html; do
-  [ -f "$DOC" ] || continue
-  PAGE_SLUG=$(basename "$DOC" .html)
+for PAGE_SLUG in $PAGE_SLUGS; do
   CODE=$(curl -s -o /dev/null -w "%{http_code}" \
     "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/${PAGE_SLUG}")
   echo "${BRANCH}/${PAGE_SLUG}: ${CODE}"
@@ -606,17 +643,17 @@ Expected: all return `200`.
 
 For each content page (skip of1), compare EDS preview against the prototype:
 
-1. **Open the EDS preview page in a browser tab:**
+1. **Open the EDS preview page in a browser tab** (apply playwright-cli tab-targeting per Platform context):
    ```bash
    playwright-cli navigate "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/${PAGE_SLUG}" --tab <tab_id>
    ```
 
 2. **Screenshot both:**
    ```bash
-   playwright-cli screenshot --tab <eds_tab_id> /tmp/preview-${PAGE_SLUG}.png
-   # For the prototype, open the file or use serve:
-   serve --entry ${PAGE_SLUG}.html ${REPO_DIR}/stardust/prototypes
-   playwright-cli screenshot --tab <proto_tab_id> /tmp/proto-${PAGE_SLUG}.png
+   playwright-cli screenshot --tab <eds_tab_id> --output /tmp/preview-${PAGE_SLUG}.png
+   # For the prototype, serve it using the platform's static-serve form, then screenshot:
+   #   (Platform context → "Static serve")
+   playwright-cli screenshot --tab <proto_tab_id> --output /tmp/proto-${PAGE_SLUG}.png
    ```
 
 3. **Compare visually** — open both screenshots side by side:
@@ -669,7 +706,7 @@ Snowflake-specific pitfalls (the ones unique to the prototype → EDS transform)
 - `scripts/scripts.js` — substrate (overlay engine, should already exist)
 - All pages return 200 on EDS preview
 - Code pushed to branch `${BRANCH}`
-- DA content uploaded via mount to `/mnt/da/${BRANCH}/`
+- DA content uploaded to `da://${OWNER}/${REPO}/${BRANCH}/` (mount in SLICC, admin.da.live API in Claude Code)
 
 ---
 
@@ -724,7 +761,7 @@ This ensures the overlay engine loads the branded header/footer fragments, decor
 ### 3. Create OF1 DA content
 
 ```bash
-DA_TOKEN=$(oauth-token adobe)
+# DA_TOKEN comes from Platform context.
 
 OF1_HTML='<html><body><header></header><main><div><table><tr><th colspan="2">of1</th></tr><tr><td><p>api-endpoint</p></td><td><p>https://of1-gen-web-service.franklin-prod.workers.dev</p></td></tr><tr><td><p>domain</p></td><td><p>'${BRANCH}'--'${REPO}'--'${OWNER}'</p></td></tr></table></div><div><table><tr><th colspan="2">Metadata</th></tr><tr><td><p>template</p></td><td><p>of1</p></td></tr><tr><td><p>nav</p></td><td><p>/'${BRANCH}'/nav</p></td></tr><tr><td><p>footer</p></td><td><p>/'${BRANCH}'/footer</p></td></tr></table></div></main><footer></footer></body></html>'
 
@@ -774,15 +811,14 @@ curl -s -X POST -H "Authorization: Bearer ${DA_TOKEN}" -H "x-content-source-auth
 ## Completion
 
 ```bash
-mkdir -p /shared/of1-demo
+mkdir -p "$STATE_DIR"
 
 PREVIEW_BASE="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}"
 
+# Build the deliverables list by iterating $PAGE_SLUGS (set in Step 7 from the platform's DA list form).
 DELIVERABLES="["
 FIRST=true
-for DOC in ${DA_CONTENT_PATH}/*.html; do
-  [ -f "$DOC" ] || continue
-  PAGE_SLUG=$(basename "$DOC" .html)
+for PAGE_SLUG in $PAGE_SLUGS; do
   URL="${PREVIEW_BASE}/${PAGE_SLUG}"
   if [ "$FIRST" = true ]; then
     DELIVERABLES="${DELIVERABLES}{\"url\":\"${URL}\",\"label\":\"${PAGE_SLUG}\"}"
@@ -793,7 +829,7 @@ for DOC in ${DA_CONTENT_PATH}/*.html; do
 done
 DELIVERABLES="${DELIVERABLES}]"
 
-echo "{\"step\":6,\"status\":\"review\",\"deliverables\":${DELIVERABLES},\"summary\":\"Snowflake overlay conversion complete. All pages published to AEM preview.\"}" > /shared/of1-demo/step-6-status.json
+echo "{\"step\":6,\"status\":\"review\",\"deliverables\":${DELIVERABLES},\"summary\":\"Snowflake overlay conversion complete. All pages published to AEM preview.\"}" > "$STATE_DIR/step-6-status.json"
 ```
 
 Do NOT call `sprinkle send` — only the orchestrator reads this file and pushes to the sprinkle.

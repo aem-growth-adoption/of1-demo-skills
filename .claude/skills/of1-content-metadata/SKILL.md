@@ -16,13 +16,30 @@ Crawl a website to extract product data, user personas, use cases, features, and
 
 ---
 
+## Platform context
+
+This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
+
+| Symbol | SLICC default | Claude Code override |
+|---|---|---|
+| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
+| `$SKILL_DIR` | `/workspace/skills/of1-content-metadata` | `<plugin-dir>/of1-content-metadata` (absolute path to this skill, set by orchestrator) |
+| `$DA_TOKEN` | `$(oauth-token adobe)` | `$ADOBE_IMS_TOKEN`, or `$(jq -r .access_token "$OF1_TOKEN_FILE")` |
+| Schema reference path | `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` | `<plugin-dir>/of1-demo/knowledge/worker-config-schemas.md` (sibling to this skill) |
+
+`$REPO_DIR`, `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
+
+Image upload uses `download-images.py` (8 concurrent workers, sniffs content type from magic bytes). It uses the DA mount in SLICC and falls back to `admin.da.live` PUT in Claude Code, picking the token from `$DA_TOKEN`/`$ADOBE_IMS_TOKEN` or `~/.hlx/.da-token.json` automatically.
+
+---
+
 ## Inputs
 
 - `DOMAIN`: Target domain (e.g., `nvidia.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
 
 ## Schema Reference
 
-Read `of1-demo/knowledge/worker-config-schemas.md` for the exact output format of each file (path varies by runtime — SLICC: `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md`; Claude Code: sibling to this skill, e.g. `../of1-demo/knowledge/worker-config-schemas.md` from the cloned plugin dir):
+Read worker-config-schemas.md for the exact output format of each file (use the schema reference path from Platform context):
 - § `products.json` — field requirements, vectorized fields, image allowlist
 - § `personas.json` — keyword matching behaviour
 - § `use-cases.json` — same shape as personas
@@ -34,7 +51,7 @@ Read `of1-demo/knowledge/worker-config-schemas.md` for the exact output format o
 ### Step 0: Read context (pipeline mode)
 
 ```bash
-REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
 OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
 REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
 BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
@@ -47,7 +64,7 @@ mkdir -p of1/config
 
 If discovery output exists, read it to focus on the right product category:
 ```bash
-cat /shared/of1-demo/step-3-output.md 2>/dev/null
+cat "$STATE_DIR/step-3-output.md" 2>/dev/null
 ```
 
 ### Step 1: Understand scope
@@ -291,7 +308,7 @@ print(f"Manifest: {len(manifest)} products with images")
 EOF
 
 # Parallel download + upload + rewrite products.json with DA URLs in one shot
-python3 /workspace/skills/of1-content-metadata/assets/download-images.py \
+python3 "$SKILL_DIR/assets/download-images.py" \
   --input /tmp/image-manifest.json \
   --owner "$OWNER" --repo "$REPO" --branch "$BRANCH" \
   --output /tmp/image-mapping.json \
@@ -359,7 +376,7 @@ EOF
 - **DO NOT** leave `{customer-domain}/...` URLs in products.json — download to DA
 - **DO NOT** leave any external CDN URL in products.json — ALWAYS download to DA
 - **DO NOT** skip this step thinking "the URLs work fine" — they break in production
-- **DO NOT** use the git repo `/assets/` folder for images — use the DA mount at `/mnt/da/`
+- **DO NOT** use the git repo `/assets/` folder for images — use DA (via the mount in SLICC or admin.da.live in Claude Code; `download-images.py` handles both)
 
 
 ### Step 10: Confirm
@@ -391,8 +408,8 @@ Skill-specific:
 When running as part of the OF1 pipeline (step 9), this skill runs alongside `brand-voice-extractor`. Both must complete before step 9 is marked done. After writing all JSON files, write your half of the status:
 
 ```bash
-mkdir -p /shared/of1-demo
-echo '{"step":9,"status":"done","summary":"Content metadata: [N] products, [M] personas, [P] use cases, [Q] features, [R] FAQs."}' > /shared/of1-demo/step-9-content-status.json
+mkdir -p "$STATE_DIR"
+echo '{"step":9,"status":"done","summary":"Content metadata: [N] products, [M] personas, [P] use cases, [Q] features, [R] FAQs."}' > "$STATE_DIR/step-9-content-status.json"
 ```
 
 The orchestrator waits for both `step-9-content-status.json` and `step-9-brand-status.json` before marking step 9 complete.

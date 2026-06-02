@@ -8,16 +8,40 @@ user-invocable: false
 
 Commit config files, trigger sync to the OF1 worker, generate the demo hub, and verify.
 
+## Platform context
+
+This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
+
+| Symbol | SLICC default | Claude Code override |
+|---|---|---|
+| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
+| `$SKILL_DIR` | `/workspace/skills/of1-deploy` | `<plugin-dir>/of1-deploy` (absolute path to this skill, set by orchestrator) |
+| `$DA_TOKEN` | `$(oauth-token adobe)` | `$ADOBE_IMS_TOKEN`, or `$(jq -r .access_token "$OF1_TOKEN_FILE")` |
+| `playwright-cli` action verbs | `visit`, `navigate` | `open` |
+| `playwright-cli` output flag | `--output <path>` | `--filename <path>` |
+
+`$REPO_DIR`, `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
+
+### Platform: DA list (files in a branch directory)
+- **SLICC:** `ls /mnt/da/<branch>/*.html`
+- **Claude Code:** `curl -s -H "Authorization: Bearer $DA_TOKEN" "https://admin.da.live/list/<owner>/<repo>/<branch>"` — filter `.[] | select(.ext == "html") | .name`
+
+### Platform: `playwright-cli` tab targeting
+- **SLICC:** pass `--tab=<id>` on the action call
+- **Claude Code:** run `playwright-cli tab-select <id>` first, then call the action without `--tab`
+
+**Note on literal commands in code blocks:** Code blocks below use SLICC forms by default. When running in Claude Code, apply the renames as you go.
+
 ## Inputs
 
 - `DOMAIN`: Target domain
-- Repo config from `/shared/of1-demo/repo-config.json`
+- Repo config from `"$STATE_DIR/repo-config.json"`
 - All config files in `of1/config/` (products.json, personas.json, use-cases.json, features.json, faqs.json, brand-voice.json, suggestions.json, cta-template.json)
 
 ## Read repo config
 
 ```bash
-REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
 OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
 REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
 BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
@@ -85,11 +109,19 @@ cp stardust/prototypes/*.html deliverables/ 2>/dev/null || true
 **USE THE FILL SCRIPT — do NOT write custom HTML:**
 
 ```bash
-# REQUIRED: Create the DA pages list BEFORE running the fill script
+# REQUIRED: Create the DA pages list BEFORE running the fill script.
+# Use the platform's DA list form (Platform context).
+
+# SLICC:
 ls /mnt/da/${BRANCH}/*.html > /tmp/da-pages.txt 2>/dev/null
 
+# Claude Code:
+# curl -s -H "Authorization: Bearer $DA_TOKEN" \
+#   "https://admin.da.live/list/${OWNER}/${REPO}/${BRANCH}" \
+#   | jq -r '.[] | select(.ext == "html") | .name + ".html"' > /tmp/da-pages.txt
+
 # Generate the demo hub from the template
-python3 /workspace/skills/of1-deploy/assets/fill-demo-hub.py . "${DOMAIN}"
+python3 "$SKILL_DIR/assets/fill-demo-hub.py" . "${DOMAIN}"
 ```
 
 This reads all config, finds prototypes, discovers EDS pages from DA, and writes `deliverables/index.html` using the OF1 dark theme template. Do NOT hand-write the hub HTML.
@@ -270,7 +302,7 @@ EOF
 - ALL image URLs must be from `content.da.live` — NEVER from the customer's CDN
 - Image URLs return 200 (spot-check 3-4 URLs with curl)
 
-**If it fails:** Download the missing images from the customer site, upload to DA (`/mnt/da/{branch}/media/`), and update products.json with the `content.da.live` URLs. NEVER use customer CDN URLs directly — they can break, have CORS issues, or expose the demo to rate limiting.
+**If it fails:** Download the missing images from the customer site, upload to DA at `<owner>/<repo>/<branch>/media/` (via the mount in SLICC or admin.da.live in Claude Code — see `of1-snowflake/SKILL.md` § Platform context for the DA upload form), and update products.json with the `content.da.live` URLs. NEVER use customer CDN URLs directly — they can break, have CORS issues, or expose the demo to rate limiting.
 
 ### Check 4: Template catalog has 25 entries
 
@@ -402,6 +434,6 @@ Pre-launch checklist: 5/5 passed ✓
 Write a status file — do NOT call `sprinkle send` directly (only the of1-demo orchestrator scoop may do that):
 
 ```bash
-mkdir -p /shared/of1-demo
-echo '{"step":13,"status":"done","deliverable":"'${PREVIEW_BASE}'/deliverables/index.html","summary":"Deployed + all 5 pre-launch checks passed."}' > /shared/of1-demo/step-13-status.json
+mkdir -p "$STATE_DIR"
+echo '{"step":13,"status":"done","deliverable":"'${PREVIEW_BASE}'/deliverables/index.html","summary":"Deployed + all 5 pre-launch checks passed."}' > "$STATE_DIR/step-13-status.json"
 ```

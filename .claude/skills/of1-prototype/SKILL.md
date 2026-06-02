@@ -15,19 +15,51 @@ Generate pixel-perfect, self-contained HTML reproductions of key pages from the 
 
 ---
 
+## Platform context
+
+This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
+
+| Symbol | SLICC default | Claude Code override |
+|---|---|---|
+| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
+| `$DA_TOKEN` | `$(oauth-token adobe)` | `$ADOBE_IMS_TOKEN`, or `$(jq -r .access_token "$OF1_TOKEN_FILE")` |
+| `playwright-cli` action verbs | `visit`, `navigate` | `open` |
+| `playwright-cli` output flag | `--output <path>` | `--filename <path>` |
+| `playwright-cli eval` | `eval "<expr>"` | `eval "() => (<expr>)"` |
+
+Multi-line operations:
+
+### Platform: DA upload (single file)
+- **SLICC:** `cat <local> > /mnt/da/<owner>/<repo>/<branch>/<path>`
+- **Claude Code:** `curl -X PUT -H "Authorization: Bearer $DA_TOKEN" -H "Content-Type: text/html" --data-binary @<local> "https://admin.da.live/source/<owner>/<repo>/<branch>/<path>"`
+
+### Platform: Static serve (returns a URL the user can open)
+- **SLICC:** `SERVE_URL=$(serve --entry <file> <dir>)` — returns a public URL
+- **Claude Code:** `(cd <dir> && python3 -m http.server <port>) &` then `SERVE_URL="http://localhost:<port>/<file>"` — local only
+
+### Platform: `playwright-cli` tab targeting
+- **SLICC:** pass `--tab=<id>` on the action call
+- **Claude Code:** run `playwright-cli tab-select <id>` first, then call the action without `--tab`
+
+Where this skill body says `serve <file>` or `upload <local> to DA at <branch-path>`, use the platform's form above.
+
+**Note on literal commands in code blocks:** Code blocks below use SLICC forms by default (`playwright-cli visit`, `--output`, etc.). When running in Claude Code, apply the renames above as you go — the alternative would be cluttering every snippet with both forms.
+
+---
+
 ## Inputs
 
 - `DOMAIN`: Target domain
 - Extraction outputs at `stardust/current/` (DESIGN.json, logo.svg, screenshots — from step 4)
 - Key pages from discovery (typically: homepage + 2 category/product pages)
-- Repo config from `/shared/of1-demo/repo-config.json`
+- Repo config from `$STATE_DIR/repo-config.json`
 
 ## Process
 
 ### Step 1: Read config + existing data
 
 ```bash
-REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
 OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
 REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
 BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
@@ -93,7 +125,23 @@ Check the prototype HTML for these class names and rename them:
 
 **Why this matters:** EDS wraps content in `<div class="header-wrapper"><div class="header block">...</div></div>`. If the prototype uses `<header class="header">`, the snowflake step will inherit this collision and the nav will render incorrectly.
 
-#### 4c. Announcement bar structure
+#### 4c. Image URLs — never construct, always look up
+
+When fixing card images or any image that `stardust:prototype` left blank or wrong, **pull the URL from the captured page JSON** — never construct it from a path pattern.
+
+Step 4 (extraction) writes one JSON file per crawled page at `stardust/current/pages/<page>.json`. Each file lists the `images` array with the exact URLs as they appeared in the live DOM. That is the canonical source.
+
+```bash
+# ✅ CORRECT — look up the captured URL
+jq -r '.images[] | select(.alt | test("Bali"; "i")) | .src' stardust/current/pages/adventures.json
+
+# ❌ WRONG — constructing from a guessed pattern
+# "https://${DOMAIN}/content/dam/wknd/adventures/bali-surf-camp.jpg"
+```
+
+Reason: live sites often use CDN paths, content-fragment hashes, or per-page redirects that a generated pattern will miss. A wknd.site run had 6 cards with constructed-but-wrong URLs (all 404s) — the fix was a single `jq` lookup against the captured page JSON.
+
+#### 4d. Announcement bar structure
 
 If the site has an announcement/promo bar above the nav, ensure it's a **separate element** from the header — NOT nested inside `<header>`:
 
@@ -171,14 +219,14 @@ Cross-cutting rules (logo completeness, EDS class collisions, announcement-bar p
 ## Completion
 
 ```bash
-mkdir -p /shared/of1-demo
+mkdir -p "$STATE_DIR"
 
-# Serve prototypes for review
-SERVE_URL=$(serve --entry prototype-home.html ${REPO_DIR}/stardust/prototypes/)
+# Serve prototypes for review — use the static-serve form from Platform context.
+# Resolve SERVE_URL via that form, pointing at prototype-home.html in ${REPO_DIR}/stardust/prototypes/.
 
-echo "{\"step\":5,\"status\":\"review\",\"deliverable\":\"${SERVE_URL}\",\"summary\":\"Generated N pixel-perfect HTML prototypes with real images, correct tokens, and matching layout.\"}" > /shared/of1-demo/step-5-status.json
+echo "{\"step\":5,\"status\":\"review\",\"deliverable\":\"${SERVE_URL}\",\"summary\":\"Generated N pixel-perfect HTML prototypes with real images, correct tokens, and matching layout.\"}" > "$STATE_DIR/step-5-status.json"
 ```
 
-Also write summary to `/shared/of1-demo/step-5-output.md`.
+Also write summary to `$STATE_DIR/step-5-output.md`.
 
-Do NOT call `sprinkle send`.
+In Claude Code the orchestrator's `Agent` return is the source of truth — the status file is optional. Do NOT call `sprinkle send`.

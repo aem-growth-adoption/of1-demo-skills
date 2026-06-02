@@ -16,20 +16,33 @@ Analyze a website to extract its brand voice, tone, and personality, then genera
 
 ---
 
+## Platform context
+
+This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
+
+| Symbol | SLICC default | Claude Code override |
+|---|---|---|
+| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
+| Schema reference path | `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` | `<plugin-dir>/of1-demo/knowledge/worker-config-schemas.md` (sibling to this skill) |
+
+`$REPO_DIR`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
+
+---
+
 ## Inputs
 
 - `DOMAIN`: Target domain (e.g., `nvidia.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
 
 ## Schema Reference
 
-Read `of1-demo/knowledge/worker-config-schemas.md` § `brand-voice.json` for the exact output format expected by the worker. Path varies by runtime — SLICC: `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md`; Claude Code: sibling to this skill, e.g. `../of1-demo/knowledge/worker-config-schemas.md` from the cloned plugin dir.
+Read worker-config-schemas.md § `brand-voice.json` for the exact output format expected by the worker. Use the schema reference path from Platform context.
 
 ## Process
 
 ### Step 1: Read context (pipeline mode)
 
 ```bash
-REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
 REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
 DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 
@@ -39,7 +52,7 @@ mkdir -p of1/config
 
 If discovery output exists, read it for page URLs:
 ```bash
-cat /shared/of1-demo/step-3-output.md 2>/dev/null
+cat "$STATE_DIR/step-3-output.md" 2>/dev/null
 ```
 
 ### Step 2: Crawl key pages
@@ -135,8 +148,8 @@ These directly shape how the LLM writes generated sections. The more specific an
 When running as part of the OF1 pipeline (step 9), this skill runs alongside `content-metadata`. Both must complete before step 9 is marked done. After writing `brand-voice.json`, write your half of the status:
 
 ```bash
-mkdir -p /shared/of1-demo
-echo '{"step":9,"status":"done","summary":"Brand voice extracted: [personality adjectives]. [N] vocabulary terms, [M] avoid words."}' > /shared/of1-demo/step-9-brand-status.json
+mkdir -p "$STATE_DIR"
+echo '{"step":9,"status":"done","summary":"Brand voice extracted: [personality adjectives]. [N] vocabulary terms, [M] avoid words."}' > "$STATE_DIR/step-9-brand-status.json"
 ```
 
 The orchestrator waits for both `step-9-brand-status.json` and `step-9-content-status.json` before marking step 9 complete.

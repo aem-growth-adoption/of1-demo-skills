@@ -15,18 +15,31 @@ Extract design tokens, typography, colors, logo, page structure, and screenshots
 
 ---
 
+## Platform context
+
+This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
+
+| Symbol | SLICC default | Claude Code override |
+|---|---|---|
+| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
+| `$SKILL_DIR` | `/workspace/skills/of1-extraction` | `<plugin-dir>/of1-extraction` (absolute path to this skill, set by orchestrator) |
+
+`$REPO_DIR`, `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
+
+---
+
 ## Inputs
 
 - `DOMAIN`: Target domain (e.g., `frescopa.coffee`)
 - Discovery output from Step 3 (demo focus, persona, key pages)
-- Repo config from `/shared/of1-demo/repo-config.json`
+- Repo config from `"$STATE_DIR/repo-config.json"`
 
 ## Process
 
 ### Step 1: Read repo config
 
 ```bash
-REPO_CONFIG=$(cat /shared/of1-demo/repo-config.json)
+REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
 OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
 REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
 BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
@@ -76,7 +89,7 @@ If any critical file is missing, re-run extraction with `--refresh` for the fail
 cd "$REPO_DIR"
 
 # Generate brand review from DESIGN.json + screenshots + logo (takes <1 second)
-python3 /workspace/skills/of1-extraction/assets/fill-brand-review.py . "$DOMAIN"
+python3 "$SKILL_DIR/assets/fill-brand-review.py" . "$DOMAIN"
 ```
 
 This reads `stardust/current/DESIGN.json`, finds screenshots and logo, and writes `deliverables/brand-review.html` with correct absolute paths. No need to hand-write HTML.
@@ -148,12 +161,12 @@ Logo SVG completeness, deliverable image paths, and image format rules are docum
 ## Completion
 
 ```bash
-mkdir -p /shared/of1-demo
+mkdir -p "$STATE_DIR"
 
 PREVIEW_BASE="https://${BRANCH}--${REPO}--${OWNER}.aem.page"
-echo "{\"step\":4,\"status\":\"review\",\"deliverable\":\"${PREVIEW_BASE}/deliverables/brand-review.html\",\"summary\":\"Extracted design tokens, typography, colors, logo SVG, page screenshots. Brand review ready.\"}" > /shared/of1-demo/step-4-status.json
+echo "{\"step\":4,\"status\":\"review\",\"deliverable\":\"${PREVIEW_BASE}/deliverables/brand-review.html\",\"summary\":\"Extracted design tokens, typography, colors, logo SVG, page screenshots. Brand review ready.\"}" > "$STATE_DIR/step-4-status.json"
 ```
 
-Also write a brief output summary to `/shared/of1-demo/step-4-output.md`.
+Also write a brief output summary to `"$STATE_DIR/step-4-output.md"`.
 
-Do NOT call `sprinkle send`.
+In Claude Code the orchestrator's `Agent` return is the source of truth — the status file is optional. Do NOT call `sprinkle send`.

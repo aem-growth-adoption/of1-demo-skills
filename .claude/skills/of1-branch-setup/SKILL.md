@@ -8,31 +8,53 @@ user-invocable: false
 
 Create the domain branch on the shared `aem-growth-adoption/of1-demo` repo for the demo.
 
+## Platform context
+
+This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
+
+| Symbol | SLICC default | Claude Code override |
+|---|---|---|
+| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
+| `$REPO_DIR` | `/workspace/of1-demo` (cloned by SLICC setup) | `$OF1_DEMO_REPO` (project-local clone path) |
+| `$DA_TOKEN` | `$(oauth-token adobe)` | `$ADOBE_IMS_TOKEN`, or `$(jq -r .access_token "$OF1_TOKEN_FILE")` |
+| Schema reference path | `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` | `<plugin-dir>/of1-demo/knowledge/worker-config-schemas.md` (sibling to this skill) |
+
+Multi-line operations:
+
+### Platform: DA list (files in a directory)
+- **SLICC:** `ls /mnt/da/<branch>/*.html` (filesystem mount)
+- **Claude Code:** `curl -s -H "Authorization: Bearer $DA_TOKEN" "https://admin.da.live/list/<owner>/<repo>/<branch>"` (returns JSON; filter `.html` entries)
+
+### Platform: DA delete (single file)
+- **SLICC:** `rm -f /mnt/da/<branch>/<file>.html`
+- **Claude Code:** `curl -s -X DELETE -H "Authorization: Bearer $DA_TOKEN" "https://admin.da.live/source/<owner>/<repo>/<branch>/<file>.html"`
+
+## Schema Reference
+
+Read worker-config-schemas.md § `of1-endpoint.json` for the exact output format expected by the worker. Use the schema reference path from Platform context.
+
 ## Inputs
 
 - `DOMAIN`: The target domain (e.g., `bmwusa.com`)
 - `BRANCH`: Domain without TLD (e.g., `bmwusa`)
 
-## Schema Reference
-
-Read `of1-demo/knowledge/worker-config-schemas.md` § `of1-endpoint.json` for the exact output format expected by the worker. Path varies by runtime — SLICC: `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md`; Claude Code: sibling to this skill, e.g. `../of1-demo/knowledge/worker-config-schemas.md` from the cloned plugin dir.
-
 ## Process
 
 ### 1. Ensure repo is cloned
 
+In SLICC the setup skill clones the repo to `$REPO_DIR` before this step runs. In Claude Code the user / `of1-setup-cc` skill points `$OF1_DEMO_REPO` at an existing clone. Either way, verify it exists:
+
 ```bash
-cd /workspace/of1-demo || {
-  cd /workspace
-  git clone https://github.com/aem-growth-adoption/of1-demo.git
-  cd of1-demo
+cd "$REPO_DIR" || {
+  echo "FAIL: $REPO_DIR is not a valid git clone. Resolve via Platform context." >&2
+  exit 1
 }
 ```
 
 ### 2. Fetch and check if branch already exists
 
 ```bash
-cd /workspace/of1-demo
+cd "$REPO_DIR"
 git fetch origin
 
 BRANCH_EXISTS_REMOTE=$(git ls-remote --heads origin ${BRANCH} | wc -l | tr -d ' ')
@@ -64,7 +86,7 @@ git checkout -b ${BRANCH} origin/main
 Whether continuing on an existing branch or starting fresh, remove stale pipeline outputs so scoops don't get confused by old data. **DO NOT delete boilerplate core files** (`styles/styles.css`, `scripts/`, `blocks/header/`, `blocks/footer/`, `blocks/fragment/`, `head.html`, etc.) — only demo-specific outputs:
 
 ```bash
-cd /workspace/of1-demo
+cd "$REPO_DIR"
 
 # Remove prior pipeline outputs ONLY (NOT boilerplate core files)
 rm -rf stardust/ deliverables/ templates/ fragments/ .snowflake/ drafts/ gallery/ of1/config/ tools/ output/
@@ -72,8 +94,8 @@ rm -rf styles/of1-*.css styles/prototype-*.css
 rm -f PRODUCT.md
 
 # Remove shared state from prior run
-rm -rf /shared/of1-demo/step-*
-rm -f /shared/of1-demo/discovery.html
+rm -rf "$STATE_DIR"/step-*
+rm -f "$STATE_DIR/discovery.html"
 
 # Commit the cleanup if there were tracked files
 git add -A
@@ -92,42 +114,45 @@ fi
 
 **Why this matters:** Previous runs leave behind `deliverables/`, `stardust/`, `of1/config/`, and DA content. Scoops that find existing files waste 5-30 minutes trying to decide whether to reuse them, adapt to them, or overwrite them. A clean slate eliminates this confusion — but deleting boilerplate core files breaks the site entirely.
 
-### 3. Check for existing DA content
+### 3. Clean existing DA content for this branch
 
-```bash
-if [ -d /mnt/da ] && ls /mnt/da/${BRANCH}/ >/dev/null 2>&1; then
-  echo "DA content already exists at /mnt/da/${BRANCH}/"
-fi
+**ALWAYS clean DA content for fresh runs** (regardless of branch choice). Old DA content with mismatched slot names is the #1 cause of the snowflake step failing.
+
+Use the platform's DA list + delete forms (see Platform context). Pseudocode:
+
+```
+for each .html file at <da>/<owner>/<repo>/<branch>/:
+  delete <da>/<owner>/<repo>/<branch>/<file>.html
 ```
 
-**ALWAYS clean DA content for fresh runs** (regardless of branch choice). Old DA content with mismatched slot names is the #1 cause of the snowflake step failing:
+Concrete by platform:
 
+**SLICC:**
 ```bash
-DA_TOKEN=$(oauth-token adobe)
-
 if [ -d "/mnt/da/${BRANCH}" ]; then
-  # Remove all existing DA pages for this branch
   for f in /mnt/da/${BRANCH}/*.html; do
     [ -f "$f" ] || continue
-    BASENAME=$(basename "$f")
-    rm -f "$f" 2>/dev/null || \
-      curl -s -X DELETE -H "Authorization: Bearer ${DA_TOKEN}" \
-        "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/${BASENAME}"
+    rm -f "$f"
   done
   echo "✓ Cleaned DA content at /mnt/da/${BRANCH}/"
 fi
-
-# Ensure the DA directory exists
 mkdir -p "/mnt/da/${BRANCH}" 2>/dev/null
 ```
 
-**If DA is not mounted:**
+**Claude Code:**
+```bash
+OWNER="aem-growth-adoption"
+REPO="of1-demo"
+LIST=$(curl -s -H "Authorization: Bearer $DA_TOKEN" \
+  "https://admin.da.live/list/${OWNER}/${REPO}/${BRANCH}")
+echo "$LIST" | jq -r '.[] | select(.ext == "html") | .name' | while read -r name; do
+  curl -s -X DELETE -H "Authorization: Bearer $DA_TOKEN" \
+    "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/${name}.html" >/dev/null
+done
+echo "✓ Cleaned DA content for ${BRANCH}"
+```
 
-Inform the user:
-> DA.live is not mounted. Run:
-> ```
-> mount --source da://aem-growth-adoption/of1-demo /mnt/da
-> ```
+The DA directory is auto-created on the first write — no explicit `mkdir` needed in Claude Code.
 
 ### 4. Write repo-config.json
 
@@ -166,7 +191,6 @@ Inform the user:
 #### Minimal valid output
 
 ```bash
-STATE_DIR="${OF1_STATE_DIR:-/shared/of1-demo}"
 mkdir -p "$STATE_DIR"
 cat > "$STATE_DIR/repo-config.json" <<EOF
 {
@@ -183,14 +207,12 @@ cat > "$STATE_DIR/repo-config.json" <<EOF
 EOF
 ```
 
-`${REPO_DIR}` is `/workspace/of1-demo` in SLICC, `$OF1_DEMO_REPO` (project-local absolute path) in Claude Code — set by the respective setup skill.
-
 ### 5. Write of1-endpoint.json
 
 The worker needs this to build CTA links in personalize mode. The URL is deterministic from the branch name — create it now so it's available as soon as config is synced:
 
 ```bash
-cd /workspace/of1-demo
+cd "$REPO_DIR"
 mkdir -p of1/config
 cat > of1/config/of1-endpoint.json <<EOF
 {
@@ -208,8 +230,8 @@ git push origin ${BRANCH}
 
 ## Completion
 
-Write a status file — do NOT call `sprinkle send` directly (only the of1-demo orchestrator scoop may do that):
+Write a status file — do NOT call `sprinkle send` directly (only the of1-demo orchestrator scoop may do that). In Claude Code the orchestrator's `Agent` return is the source of truth and this file is optional.
 
 ```bash
-echo '{"step":2,"status":"done"}' > /shared/of1-demo/step-2-status.json
+echo '{"step":2,"status":"done"}' > "$STATE_DIR/step-2-status.json"
 ```
