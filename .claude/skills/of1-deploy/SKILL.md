@@ -272,7 +272,47 @@ EOF
 
 **If it fails:** Download the missing images from the customer site, upload to DA (`/mnt/da/{branch}/media/`), and update products.json with the `content.da.live` URLs. NEVER use customer CDN URLs directly — they can break, have CORS issues, or expose the demo to rate limiting.
 
-### Check 4: Sprinkle quick links all work
+### Check 4: Template catalog has 25 entries
+
+The gallery and the OF1 worker both read `templates/templates-catalog.json`. If Step 7 was short-circuited (an intent agent failed silently, the catalog assembler accidentally globbed Step 6's `prototype-*.html` page templates instead of the worker `of1-*.html` templates, etc.), the demo will work but the gallery will look empty and the worker will fall back to a tiny pool of templates.
+
+```bash
+python3 << 'EOF'
+import json, sys
+from pathlib import Path
+
+p = Path('templates/templates-catalog.json')
+if not p.exists():
+    print("✗ templates/templates-catalog.json is missing — Step 7 did not run", file=sys.stderr)
+    sys.exit(1)
+
+catalog = json.loads(p.read_text())
+of1_entries = [t for t in catalog.get('templates', []) if t.get('name', '').startswith('of1-')]
+
+if len(of1_entries) < 25:
+    print(f"✗ Only {len(of1_entries)} of1-* templates in catalog (need 25)", file=sys.stderr)
+    print("  Step 7 needs to be re-run with the full of1-template-generation skill.", file=sys.stderr)
+    sys.exit(1)
+
+intents = {t.get('intent') for t in of1_entries}
+needed = {'comparison', 'recommendation', 'deep-dive', 'budget', 'discovery'}
+missing = needed - intents
+if missing:
+    print(f"✗ Catalog missing intents: {missing}", file=sys.stderr)
+    sys.exit(1)
+
+print(f"✓ Catalog has {len(of1_entries)} of1-* templates across all 5 intents")
+EOF
+```
+
+**Pass criteria:**
+- `templates/templates-catalog.json` exists
+- It contains at least 25 entries whose `name` starts with `of1-`
+- All 5 intents (comparison, recommendation, deep-dive, budget, discovery) are represented
+
+**If it fails:** Re-run Step 7 (`of1-template-generation`). The gallery without 25 templates is a degraded demo — do not mark Step 13 done.
+
+### Check 5: Sprinkle quick links all work
 
 Verify all quick link URLs return 200:
 
@@ -315,14 +355,15 @@ fi
 
 ### Checklist Summary
 
-Only mark Step 13 as `"done"` if ALL 4 checks pass:
+Only mark Step 13 as `"done"` if ALL 5 checks pass:
 
 | # | Check | Pass? |
 |---|-------|-------|
 | 1 | OF1 page loads with styled search UI | |
 | 2 | OF1 nav/footer matches prototype-home | |
 | 3 | All products have ≥2 images | |
-| 4 | All quick link URLs return 200 | |
+| 4 | Template catalog has 25 of1-* entries across all 5 intents | |
+| 5 | All quick link URLs return 200 | |
 
 If any check fails, fix the issue (commit + push + re-preview if needed), then re-run the failed check.
 
@@ -336,7 +377,7 @@ If any check fails, fix the issue (commit + push + re-preview if needed), then r
 - `deliverables/prototype-*.html` — Pixel-perfect HTML prototypes
 - Config synced to worker via EDS → R2
 - Test generation verified
-- Pre-launch checklist passed (all 4 checks ✓)
+- Pre-launch checklist passed (all 5 checks ✓)
 
 ## Completion
 
@@ -355,12 +396,12 @@ All deliverables:
 - DA.live: https://da.live/#/${OWNER}/${REPO}
 - Worker tenant: ${TENANT_ID} (synced + verified)
 
-Pre-launch checklist: 4/4 passed ✓
+Pre-launch checklist: 5/5 passed ✓
 ```
 
 Write a status file — do NOT call `sprinkle send` directly (only the of1-demo orchestrator scoop may do that):
 
 ```bash
 mkdir -p /shared/of1-demo
-echo '{"step":13,"status":"done","deliverable":"'${PREVIEW_BASE}'/deliverables/index.html","summary":"Deployed + all 4 pre-launch checks passed."}' > /shared/of1-demo/step-13-status.json
+echo '{"step":13,"status":"done","deliverable":"'${PREVIEW_BASE}'/deliverables/index.html","summary":"Deployed + all 5 pre-launch checks passed."}' > /shared/of1-demo/step-13-status.json
 ```

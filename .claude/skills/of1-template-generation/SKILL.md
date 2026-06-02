@@ -500,9 +500,18 @@ echo "Gallery: HTTP ${HTTP_CODE} — ${GALLERY_URL}"
 ### Completion (assemble mode)
 
 ```bash
+# Final guard — re-count templates one more time before writing status.
+# A degraded gallery (<25 of1-* templates) is the single most visible failure
+# mode of this pipeline; do not let it ship silently.
+COUNT=$(ls templates/of1-*.html 2>/dev/null | wc -l | tr -d ' ')
+if [ "$COUNT" -lt 25 ]; then
+  echo "ABORT: only ${COUNT} of1-* templates exist — do NOT mark step 7 done" >&2
+  exit 1
+fi
+
 mkdir -p "${STATE_DIR}"
 GALLERY_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/gallery/index.html"
-echo "{\"step\":7,\"status\":\"review\",\"deliverable\":\"${GALLERY_URL}\",\"summary\":\"Assembled 25 templates from 5 parallel intent agents. Browse the gallery to review layouts and sample content.\"}" \
+echo "{\"step\":7,\"status\":\"review\",\"deliverable\":\"${GALLERY_URL}\",\"summary\":\"Assembled ${COUNT} templates from 5 parallel intent agents. Browse the gallery to review layouts and sample content.\"}" \
   > "${STATE_DIR}/step-7-status.json"
 ```
 
