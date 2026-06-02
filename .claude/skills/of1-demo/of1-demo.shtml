@@ -11,9 +11,9 @@
     --of1-accent: #FF3D00;
     --of1-secondary: #1A1AFF;
     --of1-teal: #00E5A0;
-    --of1-fg-dim: rgba(245, 240, 232, 0.55);
-    --of1-fg-faint: rgba(245, 240, 232, 0.06);
-    --of1-fg-muted: rgba(245, 240, 232, 0.5);
+    --of1-fg-dim: rgba(245, 240, 232, 0.78);
+    --of1-fg-faint: rgba(245, 240, 232, 0.08);
+    --of1-fg-muted: rgba(245, 240, 232, 0.7);
     --of1-review: rgba(255, 200, 50, 0.9);
     --of1-failed: #FF2D2D;
     --of1-border: rgba(245, 240, 232, 0.1);
@@ -28,8 +28,8 @@
     background: var(--of1-bg);
     color: var(--of1-fg);
     font-family: var(--of1-body-font);
-    font-size: 11px;
-    line-height: 1.5;
+    font-size: 13px;
+    line-height: 1.6;
     padding: 16px 14px;
     min-height: 100%;
     box-sizing: border-box;
@@ -71,7 +71,7 @@
   .of1-header__domain {
     display: inline-block;
     margin-top: 8px;
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--of1-fg-dim);
     background: var(--of1-fg-faint);
@@ -86,7 +86,7 @@
 
   .of1-header__reset {
     font-family: var(--of1-body-font);
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.15em;
@@ -119,7 +119,7 @@
   .of1-domain-input input {
     flex: 1;
     font-family: var(--of1-body-font);
-    font-size: 11px;
+    font-size: 13px;
     background: var(--of1-fg-faint);
     border: 1px solid var(--of1-border);
     border-radius: var(--of1-radius-pill);
@@ -139,7 +139,7 @@
 
   .of1-domain-input button {
     font-family: var(--of1-body-font);
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.15em;
@@ -174,7 +174,7 @@
     gap: 10px;
     padding: 10px 12px;
     border-radius: var(--of1-radius-card);
-    font-size: 11px;
+    font-size: 13px;
     color: var(--of1-fg);
     transition: all 0.25s ease;
     position: relative;
@@ -268,7 +268,7 @@
   .of1-card__name span { letter-spacing: 0.02em; }
 
   .of1-card__num {
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 600;
     color: var(--of1-fg-muted);
     letter-spacing: 0.05em;
@@ -284,7 +284,7 @@
 
   .of1-card__run {
     font-family: var(--of1-body-font);
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.12em;
@@ -322,7 +322,7 @@
 
   .of1-card__retry {
     font-family: var(--of1-body-font);
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.12em;
@@ -344,7 +344,7 @@
   /* ─── Elapsed Time Badge ─────────────────────────────────── */
 
   .of1-card__elapsed {
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--of1-fg-muted);
     background: var(--of1-fg-faint);
@@ -377,7 +377,7 @@
     gap: 6px;
     margin-top: 8px;
     padding: 5px 10px;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--of1-review);
     background: transparent;
@@ -401,7 +401,7 @@
     background: transparent;
     border: 1px solid rgba(255, 200, 50, 0.25);
     font-family: var(--of1-body-font);
-    font-size: 10px;
+    font-size: 12px;
     cursor: pointer;
   }
 
@@ -427,7 +427,7 @@
 
   .of1-card__btn {
     padding: 5px 14px;
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 600;
     font-family: var(--of1-body-font);
     text-transform: uppercase;
@@ -463,7 +463,7 @@
   /* ─── Review Summary ─────────────────────────────────────── */
 
   .of1-card__summary {
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 400;
     color: var(--of1-fg);
     margin-top: 8px;
@@ -478,7 +478,7 @@
   /* ─── Error Detail ──────────────────────────────────────── */
 
   .of1-card__error {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--of1-failed);
     margin-top: 6px;
     word-break: break-word;
@@ -488,7 +488,7 @@
   /* ─── Step Description ─────────────────────────────────────── */
 
   .of1-card__desc {
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 400;
     color: var(--of1-fg-muted);
     margin-top: 3px;
@@ -560,7 +560,7 @@
   }
 
   .of1-track__label {
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.12em;
@@ -589,7 +589,7 @@
   .of1-parallel-group .of1-card__num { display: none; }
 
   .of1-parallel-label {
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.15em;
@@ -610,7 +610,7 @@
   /* ─── Group Label ────────────────────────────────────────── */
 
   .of1-group-label {
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.15em;
@@ -672,7 +672,7 @@
   }
 
   .of1-quicklinks__title {
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.15em;
@@ -701,7 +701,7 @@
     align-items: center;
     gap: 5px;
     font-family: var(--of1-body-font);
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 500;
     letter-spacing: 0.02em;
     padding: 4px 10px;
