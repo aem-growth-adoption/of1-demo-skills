@@ -63,7 +63,7 @@ For each page, note:
 ### 3. Propose demo focus
 
 - **Demo focus**: which product line or category to feature (pick the richest/most visual one)
-- **Demo narrative**: a user persona and their journey (e.g. "a gamer researching GPUs for a new build")
+- **Demo narrative**: a user persona and their journey (e.g. "a coffee enthusiast researching their next espresso machine")
 - **Key pages to reproduce**: 2–3 pages that best represent the site, with full URLs
 - **Rationale**: why this focus works for a compelling demo
 
