@@ -179,7 +179,7 @@ These issues have occurred in previous runs:
 ```bash
 mkdir -p /shared/of1-demo
 
-# Trigger EDS preview for the committed prototypes so the hosted URL returns 200
+# Trigger EDS preview for the committed prototypes so the hosted URLs return 200
 DA_TOKEN=$(oauth-token adobe)
 for f in deliverables/prototype-*.html; do
   [ -f "$f" ] || continue
@@ -191,8 +191,27 @@ for f in deliverables/prototype-*.html; do
     "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${SLUG}"
 done
 
-DELIVERABLE_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/prototype-home.html"
-echo "{\"step\":5,\"status\":\"review\",\"deliverable\":\"${DELIVERABLE_URL}\",\"summary\":\"Generated N pixel-perfect HTML prototypes with real images, correct tokens, and matching layout.\"}" > /shared/of1-demo/step-5-status.json
+# Build a deliverables array — one entry per prototype, so the sprinkle
+# renders an Open button per page (e.g. Open Home, Open Adventures, Open Magazine).
+DELIVERABLES=$(python3 - <<'PYEOF'
+import json, os, re
+from pathlib import Path
+base = f"https://{os.environ['BRANCH']}--{os.environ['REPO']}--{os.environ['OWNER']}.aem.page"
+out = []
+# Put prototype-home first if present
+files = sorted(Path('deliverables').glob('prototype-*.html'))
+files.sort(key=lambda p: 0 if p.stem == 'prototype-home' else 1)
+for p in files:
+    slug = p.stem  # prototype-home → "Home"
+    label = slug.replace('prototype-', '').replace('-', ' ').title()
+    out.append({"url": f"{base}/{p.as_posix()}", "label": label})
+print(json.dumps(out))
+PYEOF
+)
+
+cat > /shared/of1-demo/step-5-status.json <<EOF
+{"step":5,"status":"review","deliverables":${DELIVERABLES},"summary":"Generated $(ls deliverables/prototype-*.html 2>/dev/null | wc -l | tr -d ' ') pixel-perfect HTML prototypes with real images, correct tokens, and matching layout."}
+EOF
 ```
 
 Also write summary to `/shared/of1-demo/step-5-output.md`.

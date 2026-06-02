@@ -898,11 +898,15 @@
       }
 
       if (status === 'done') {
-        var doneUrl = st.deliverable || (st.deliverables && st.deliverables[0] && st.deliverables[0].url) || '';
         h += '<div class="of1-card__actions">';
-        if (doneUrl) {
+        if (st.deliverables && st.deliverables.length) {
+          st.deliverables.forEach(function (d) {
+            var label = d.label ? 'Open ' + d.label : (step.openLabel ? 'Open ' + step.openLabel : 'Open');
+            h += '<a class="of1-card__run of1-card__open" href="' + d.url + '" target="_blank" rel="noopener" style="font-size:8px">' + label + OPEN_LINK_ICON + '</a>';
+          });
+        } else if (st.deliverable) {
           var openText = step.openLabel ? 'Open ' + step.openLabel : 'Open';
-          h += '<a class="of1-card__run of1-card__open" href="' + doneUrl + '" target="_blank" rel="noopener" style="font-size:8px">' + openText + OPEN_LINK_ICON + '</a>';
+          h += '<a class="of1-card__run of1-card__open" href="' + st.deliverable + '" target="_blank" rel="noopener" style="font-size:8px">' + openText + OPEN_LINK_ICON + '</a>';
         }
         h += '<button class="of1-card__run" data-step="' + (i + 1) + '" style="opacity:0.5;font-size:8px">Re-run</button>';
         h += '</div>';
