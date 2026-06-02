@@ -952,15 +952,15 @@
 
     // Quick Links
     var QUICKLINKS = [
-      { label: 'Repo', step: 2 },
-      { label: 'Discovery', step: 3 },
-      { label: 'Extraction', step: 4 },
-      { label: 'Prototype', step: 5 },
-      { label: 'Preview', step: 6 },
-      { label: 'Gallery', step: 7 },
-      { label: 'OF1 Page', step: 8 },
-      { label: 'Config Review', step: 13 },
-      { label: 'Demo Hub', step: 13 }
+      { label: 'Open GitHub Branch', step: 2 },
+      { label: 'Open Discovery', step: 3 },
+      { label: 'Open Brand Review', step: 4 },
+      { label: 'Open Prototypes', step: 5 },
+      { label: 'Open Home Preview', step: 6 },
+      { label: 'Open Template Gallery', step: 7 },
+      { label: 'Open OF1 Page', step: 8 },
+      { label: 'Open Config Review', step: 12 },
+      { label: 'Open Demo Hub', step: 13 }
     ];
 
     var linkIcon = '<svg class="of1-quicklink__icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
