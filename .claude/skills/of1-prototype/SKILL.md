@@ -221,8 +221,8 @@ Cross-cutting rules (logo completeness, EDS class collisions, announcement-bar p
 ```bash
 mkdir -p "$STATE_DIR"
 
-# Trigger EDS preview for each committed prototype so the hosted URL returns 200
-# (sprinkle / orchestrator open these as <a target="_blank">; the URL must be reachable).
+# Trigger EDS preview for each committed prototype so the hosted URLs return 200
+# (sprinkle / orchestrator open these as <a target="_blank">; the URLs must be reachable).
 # Uses $DA_TOKEN from Platform context (SLICC: oauth-token adobe; Claude Code: $ADOBE_IMS_TOKEN).
 for f in deliverables/prototype-*.html; do
   [ -f "$f" ] || continue
@@ -234,8 +234,28 @@ for f in deliverables/prototype-*.html; do
     "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${SLUG}"
 done
 
-DELIVERABLE_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/prototype-home.html"
-echo "{\"step\":5,\"status\":\"review\",\"deliverable\":\"${DELIVERABLE_URL}\",\"summary\":\"Generated N pixel-perfect HTML prototypes with real images, correct tokens, and matching layout.\"}" > "$STATE_DIR/step-5-status.json"
+# Build a deliverables array — one entry per prototype, so the sprinkle (or
+# Claude Code orchestrator, once it learns the protocol) can render one Open
+# button per page (e.g. Open Home, Open Adventures, Open Magazine).
+DELIVERABLES=$(python3 - <<'PYEOF'
+import json, os
+from pathlib import Path
+base = f"https://{os.environ['BRANCH']}--{os.environ['REPO']}--{os.environ['OWNER']}.aem.page"
+out = []
+# Put prototype-home first if present
+files = sorted(Path('deliverables').glob('prototype-*.html'))
+files.sort(key=lambda p: 0 if p.stem == 'prototype-home' else 1)
+for p in files:
+    slug = p.stem  # prototype-home → "Home"
+    label = slug.replace('prototype-', '').replace('-', ' ').title()
+    out.append({"url": f"{base}/{p.as_posix()}", "label": label})
+print(json.dumps(out))
+PYEOF
+)
+
+cat > "$STATE_DIR/step-5-status.json" <<EOF
+{"step":5,"status":"review","deliverables":${DELIVERABLES},"summary":"Generated $(ls deliverables/prototype-*.html 2>/dev/null | wc -l | tr -d ' ') pixel-perfect HTML prototypes with real images, correct tokens, and matching layout."}
+EOF
 ```
 
 Also write summary to `$STATE_DIR/step-5-output.md`.
