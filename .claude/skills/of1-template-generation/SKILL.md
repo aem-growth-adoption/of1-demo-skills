@@ -594,6 +594,15 @@ echo "Gallery: HTTP ${HTTP_CODE} — ${GALLERY_URL}"
 
 ### Completion (assemble mode)
 
+#### ⚠️ The deliverable URL MUST be the gallery page — NOT the catalog JSON
+
+The gallery is a human-browsable HTML page at `/gallery/index.html`. It fetches `/templates/templates-catalog.json` internally, but that JSON file is NOT the deliverable — sending it to the sprinkle / orchestrator opens a raw JSON blob in the user's browser. Broken UX.
+
+- ✅ Correct: `https://${BRANCH}--${REPO}--${OWNER}.aem.page/gallery/index.html`
+- ❌ Wrong:   `https://${BRANCH}--${REPO}--${OWNER}.aem.page/templates/templates-catalog.json`
+
+`gallery/index.html` is committed to the repo and served from the code bus — no `admin.hlx.page/preview` call needed. The push itself makes it reachable.
+
 ```bash
 # Final guard — re-count templates one more time before writing status.
 # A degraded gallery (<25 of1-* templates) is the single most visible failure
@@ -606,6 +615,17 @@ fi
 
 mkdir -p "${STATE_DIR}"
 GALLERY_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/gallery/index.html"
+
+# Sanity check — the URL must be the gallery page, not the catalog JSON.
+# Tripwire against accidental edits that re-introduce the catalog-vs-gallery confusion.
+case "$GALLERY_URL" in
+  *gallery/index.html) ;;
+  *)
+    echo "ABORT: deliverable URL must end with /gallery/index.html, got: ${GALLERY_URL}" >&2
+    exit 1
+    ;;
+esac
+
 echo "{\"step\":7,\"status\":\"review\",\"deliverable\":\"${GALLERY_URL}\",\"summary\":\"Assembled ${COUNT} templates from 5 parallel intent agents. Browse the gallery to review layouts and sample content.\"}" \
   > "${STATE_DIR}/step-7-status.json"
 ```
