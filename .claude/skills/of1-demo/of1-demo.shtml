@@ -318,6 +318,19 @@
     color: var(--of1-fg-dim);
   }
 
+  a.of1-card__open {
+    border-color: var(--of1-teal);
+    color: var(--of1-teal);
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  a.of1-card__open:hover {
+    background: var(--of1-teal);
+    color: var(--of1-bg);
+    box-shadow: 0 0 12px rgba(0, 229, 160, 0.3);
+  }
+
   /* ─── Retry Button ───────────────────────────────────────── */
 
   .of1-card__retry {
@@ -875,7 +888,13 @@
       }
 
       if (status === 'done') {
-        h += '<div class="of1-card__actions"><button class="of1-card__run" data-step="' + (i + 1) + '" style="opacity:0.5;font-size:8px">Re-run</button></div>';
+        var doneUrl = st.deliverable || (st.deliverables && st.deliverables[0] && st.deliverables[0].url) || '';
+        h += '<div class="of1-card__actions">';
+        if (doneUrl) {
+          h += '<a class="of1-card__run of1-card__open" href="' + doneUrl + '" target="_blank" rel="noopener">Open</a>';
+        }
+        h += '<button class="of1-card__run" data-step="' + (i + 1) + '" style="opacity:0.5;font-size:8px">Re-run</button>';
+        h += '</div>';
       }
 
       h += '</div></div>';
@@ -952,15 +971,15 @@
 
     // Quick Links
     var QUICKLINKS = [
-      { label: 'Open GitHub Branch', step: 2 },
-      { label: 'Open Discovery', step: 3 },
-      { label: 'Open Brand Review', step: 4 },
-      { label: 'Open Prototypes', step: 5 },
-      { label: 'Open Home Preview', step: 6 },
-      { label: 'Open Template Gallery', step: 7 },
-      { label: 'Open OF1 Page', step: 8 },
-      { label: 'Open Config Review', step: 12 },
-      { label: 'Open Demo Hub', step: 13 }
+      { label: 'Repo', step: 2 },
+      { label: 'Discovery', step: 3 },
+      { label: 'Extraction', step: 4 },
+      { label: 'Prototype', step: 5 },
+      { label: 'Preview', step: 6 },
+      { label: 'Gallery', step: 7 },
+      { label: 'OF1 Page', step: 8 },
+      { label: 'Config Review', step: 12 },
+      { label: 'Demo Hub', step: 13 }
     ];
 
     var linkIcon = '<svg class="of1-quicklink__icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
