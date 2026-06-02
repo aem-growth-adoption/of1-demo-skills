@@ -158,10 +158,19 @@ Then ask the user:
 ## Completion
 
 ```bash
-DELIVERABLE="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/discovery.html"
+REPORT_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/discovery.html"
 cat > "$OF1_STATE_DIR/step-3-status.json" <<EOF
-{"step":3,"status":"review","deliverable":"${DELIVERABLE}","summary":"Demo focus: [focus]. Persona: [persona]. [N] key pages identified."}
+{
+  "step": 3,
+  "status": "review",
+  "deliverables": [
+    { "url": "${REPORT_URL}", "label": "Discovery report" }
+  ],
+  "summary": "Demo focus: [focus]. Persona: [persona]. [N] key pages identified."
+}
 EOF
 ```
+
+The `deliverables` field is an array of `{url, label?}` objects so steps that produce multiple artifacts (prototypes, snowflake pages) can list them all. `label` is optional but recommended.
 
 The orchestrator (CC: agent-return parsing; SLICC: sprinkle polling) handles the approve/revise flow and the eventual `done` transition.
