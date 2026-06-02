@@ -156,13 +156,9 @@ The system prompt MUST include:
 - Instruction to write a completion marker on finish (NOT `sprinkle send` — the step scoop must NOT call sprinkle commands):
   Write output to `/shared/of1-demo/step-N-output.md` and a status file to `/shared/of1-demo/step-N-status.json` with content `{"step":N,"status":"done"}` (or `"review"` or `"failed"`).
 
-**When status is `"review"`, the status JSON MUST include a `deliverable` URL** so the sprinkle renders an open button for the user. Before pushing to the sprinkle, use `serve` to host the reviewable artifact:
-```bash
-serve --entry <file.html> /path/to/dir
-# → returns a chrome-extension://... URL
-```
-Then include it: `{"step":N,"status":"review","deliverable":"chrome-extension://...","summary":"..."}`.
-Review steps without a deliverable URL will show the summary but no open button — always include one.
+**When status is `"review"`, the status JSON MUST include a `deliverable` URL** so the sprinkle renders an open link for the user. The sprinkle renders these as `<a target="_blank">` and the user's browser opens them directly, so the URL must be publicly reachable from a browser tab — typically the EDS preview URL `https://{branch}--{repo}--{owner}.aem.page/...`. Do NOT use `serve --entry` (chrome-extension:// URLs won't open from outside SLICC) — commit the artifact to git and use its hosted URL. Trigger an EDS preview after pushing so the URL returns 200 before the status is sent.
+
+Review steps without a deliverable URL will show the summary but no open link — always include one.
 
 **After spawning the step scoop, YOU must immediately poll for the status file and push to the sprinkle when it appears.** Use a loop:
 
@@ -362,21 +358,6 @@ Sometimes a scoop completes its work but forgets to write the status file (it sh
 
 For step 9 see "Step 9 split detail" above — the polling loop merges the two sub-status files into a single `step-9-status.json` before pushing to the sprinkle.
 
-### `open-deliverable:<step>:<encoded-url>`
-The user clicked a single deliverable button. Decode the URL and open it:
-```bash
-open <decoded-url>
-```
-
-### `open-deliverables:<step>:<encoded-json-array>`
-The user clicked a multi-deliverable button. Decode the JSON array and open each URL:
-```bash
-open <url1>
-open <url2>
-open <url3>
-```
-No sprinkle update needed for either — just open the file(s).
-
 ### `approve:<step>:<domain>`
 User approved step N. The sprinkle auto-marks it done. No action needed unless the next step should auto-start.
 
@@ -424,7 +405,7 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 | 2 | `https://github.com/{owner}/{repo}/tree/{branch}` |
 | 3 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/discovery.html` |
 | 4 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/brand-review.html` |
-| 5 | `serve --entry prototype-home.html` result |
+| 5 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/prototype-home.html` |
 | 6 | `https://{branch}--{repo}--{owner}.aem.page/{branch}/prototype-home` |
 | 7 | `https://{branch}--{repo}--{owner}.aem.page/gallery/index.html` |
 | 8 | `https://{branch}--{repo}--{owner}.aem.page/{branch}/of1` |

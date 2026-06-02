@@ -397,14 +397,6 @@
     color: #fff;
   }
 
-  button.of1-card__deliverable {
-    background: transparent;
-    border: 1px solid rgba(255, 200, 50, 0.25);
-    font-family: var(--of1-body-font);
-    font-size: 12px;
-    cursor: pointer;
-  }
-
   .of1-card__deliverable-text {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -866,14 +858,15 @@
           h += '<div class="of1-card__summary">' + st.summary + '</div>';
         }
         if (st.deliverables && st.deliverables.length) {
-          var urls = JSON.stringify(st.deliverables.map(function(d) { return d.url; }));
-          h += '<button class="of1-card__deliverable" onclick="window.__of1openAll(' + (i + 1) + ', ' + urls.replace(/"/g, '&quot;') + ')">';
-          h += '<span class="of1-card__deliverable-text">' + (step.reviewNote || 'Open all') + '</span>';
-          h += EXTERNAL_ICON + '</button>';
+          st.deliverables.forEach(function (d) {
+            h += '<a class="of1-card__deliverable" href="' + d.url + '" target="_blank" rel="noopener">';
+            h += '<span class="of1-card__deliverable-text">' + (d.label || truncateUrl(d.url, 35)) + '</span>';
+            h += EXTERNAL_ICON + '</a>';
+          });
         } else if (st.deliverable) {
-          h += '<button class="of1-card__deliverable" data-url="' + st.deliverable + '" onclick="window.__of1open(' + (i + 1) + ', this.dataset.url)">';
+          h += '<a class="of1-card__deliverable" href="' + st.deliverable + '" target="_blank" rel="noopener">';
           h += '<span class="of1-card__deliverable-text">' + (step.reviewNote || truncateUrl(st.deliverable, 35)) + '</span>';
-          h += EXTERNAL_ICON + '</button>';
+          h += EXTERNAL_ICON + '</a>';
         }
         h += '<div class="of1-card__actions">';
         h += '<button class="of1-card__btn of1-card__btn--approve" onclick="window.__of1action(\'approve\',' + (i + 1) + ')">Approve</button>';
@@ -980,7 +973,7 @@
       var availClass = hasLink ? ' of1-quicklink--available' : '';
       if (hasLink) {
         var url = st.deliverable || (st.deliverables && st.deliverables[0] && st.deliverables[0].url) || '';
-        qlHtml += '<button class="of1-quicklink' + availClass + '" data-step="' + ql.step + '" data-url="' + url + '">' + ql.label + linkIcon + '</button>';
+        qlHtml += '<a class="of1-quicklink' + availClass + '" href="' + url + '" target="_blank" rel="noopener">' + ql.label + linkIcon + '</a>';
       } else {
         qlHtml += '<span class="of1-quicklink">' + ql.label + linkIcon + '</span>';
       }
@@ -1124,14 +1117,6 @@
 
   // Action handler for approve/revise buttons
   var lastAction = 0;
-  window.__of1open = function (step, url) {
-    slicc.lick({ action: 'open-deliverable:' + step + ':' + encodeURIComponent(url || '') });
-  };
-
-  window.__of1openAll = function (step, urls) {
-    slicc.lick({ action: 'open-deliverables:' + step + ':' + encodeURIComponent(JSON.stringify(urls)) });
-  };
-
   window.__of1action = function (action, step) {
     var now = Date.now();
     if (now - lastAction < 1000) return;
@@ -1147,17 +1132,6 @@
       slicc.focus();
     }
   };
-
-  // Quick link clicks
-  document.getElementById('of1-quicklinks').addEventListener('click', function (e) {
-    var btn = e.target.closest('.of1-quicklink--available');
-    if (!btn) return;
-    var step = parseInt(btn.getAttribute('data-step'), 10);
-    var url = btn.getAttribute('data-url');
-    if (url) {
-      slicc.lick({ action: 'open-deliverable:' + step + ':' + encodeURIComponent(url) });
-    }
-  });
 
   // Updates from cone
   slicc.on('update', function (data) {

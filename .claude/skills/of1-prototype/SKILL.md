@@ -221,10 +221,21 @@ Cross-cutting rules (logo completeness, EDS class collisions, announcement-bar p
 ```bash
 mkdir -p "$STATE_DIR"
 
-# Serve prototypes for review — use the static-serve form from Platform context.
-# Resolve SERVE_URL via that form, pointing at prototype-home.html in ${REPO_DIR}/stardust/prototypes/.
+# Trigger EDS preview for each committed prototype so the hosted URL returns 200
+# (sprinkle / orchestrator open these as <a target="_blank">; the URL must be reachable).
+# Uses $DA_TOKEN from Platform context (SLICC: oauth-token adobe; Claude Code: $ADOBE_IMS_TOKEN).
+for f in deliverables/prototype-*.html; do
+  [ -f "$f" ] || continue
+  SLUG="deliverables/$(basename "$f" .html)"
+  curl -s -X POST \
+    -H "Authorization: Bearer ${DA_TOKEN}" \
+    -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
+    -o /dev/null \
+    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${SLUG}"
+done
 
-echo "{\"step\":5,\"status\":\"review\",\"deliverable\":\"${SERVE_URL}\",\"summary\":\"Generated N pixel-perfect HTML prototypes with real images, correct tokens, and matching layout.\"}" > "$STATE_DIR/step-5-status.json"
+DELIVERABLE_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/prototype-home.html"
+echo "{\"step\":5,\"status\":\"review\",\"deliverable\":\"${DELIVERABLE_URL}\",\"summary\":\"Generated N pixel-perfect HTML prototypes with real images, correct tokens, and matching layout.\"}" > "$STATE_DIR/step-5-status.json"
 ```
 
 Also write summary to `$STATE_DIR/step-5-output.md`.
