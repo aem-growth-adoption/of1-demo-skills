@@ -6,130 +6,98 @@ user-invocable: false
 
 # OF1 Prototype
 
-Generate pixel-perfect, self-contained HTML reproductions of key pages from the target website by invoking the `stardust:prototype` plugin. These prototypes are the source-of-truth for the snowflake overlay conversion in Step 6.
+Generate pixel-perfect, self-contained HTML reproductions of key pages from the target website by invoking the `stardust:prototype` skill. These prototypes are the source-of-truth for the snowflake overlay conversion in step 6.
 
-## ⚡ Speed Priority — Target: 8 minutes
+## Env — orchestrator exports these (see `of1-setup`)
 
-- Invoke `stardust:prototype` to do the heavy lifting — do NOT reimplement prototype logic
-- ONE git commit + push at the end
+| Var | Purpose |
+|-----|---------|
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-5-status.json` |
+| `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
+| `ADOBE_IMS_TOKEN` | raw DA token (preferred) |
+| `OF1_TOKEN_FILE` | path to a `{"access_token":"…"}` JSON (fallback) |
 
----
+Resolve `DA_TOKEN` once at the top:
 
-## Platform context
+```bash
+DA_TOKEN="${ADOBE_IMS_TOKEN:-$(jq -r .access_token "$OF1_TOKEN_FILE")}"
+[ -n "$DA_TOKEN" ] || { echo "FAIL: no DA token available" >&2; exit 1; }
+```
 
-This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
-
-| Symbol | SLICC default | Claude Code override |
-|---|---|---|
-| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
-| `$DA_TOKEN` | `$(oauth-token adobe)` | `$ADOBE_IMS_TOKEN`, or `$(jq -r .access_token "$OF1_TOKEN_FILE")` |
-| `playwright-cli` action verbs | `visit`, `navigate` | `open` |
-| `playwright-cli` output flag | `--output <path>` | `--filename <path>` |
-| `playwright-cli eval` | `eval "<expr>"` | `eval "() => (<expr>)"` |
-
-Multi-line operations:
-
-### Platform: DA upload (single file)
-- **SLICC:** `cat <local> > /mnt/da/<owner>/<repo>/<branch>/<path>`
-- **Claude Code:** `curl -X PUT -H "Authorization: Bearer $DA_TOKEN" -H "Content-Type: text/html" --data-binary @<local> "https://admin.da.live/source/<owner>/<repo>/<branch>/<path>"`
-
-### Platform: Static serve (returns a URL the user can open)
-- **SLICC:** `SERVE_URL=$(serve --entry <file> <dir>)` — returns a public URL
-- **Claude Code:** `(cd <dir> && python3 -m http.server <port>) &` then `SERVE_URL="http://localhost:<port>/<file>"` — local only
-
-### Platform: `playwright-cli` tab targeting
-- **SLICC:** pass `--tab=<id>` on the action call
-- **Claude Code:** run `playwright-cli tab-select <id>` first, then call the action without `--tab`
-
-Where this skill body says `serve <file>` or `upload <local> to DA at <branch-path>`, use the platform's form above.
-
-**Note on literal commands in code blocks:** Code blocks below use SLICC forms by default (`playwright-cli visit`, `--output`, etc.). When running in Claude Code, apply the renames above as you go — the alternative would be cluttering every snippet with both forms.
-
----
+`playwright-cli` calls below use the legacy `visit`/`--output` shape — SLICC runs that natively, CC uses the shim installed by `of1-setup`.
 
 ## Inputs
 
-- `DOMAIN`: Target domain
-- Extraction outputs at `stardust/current/` (DESIGN.json, logo.svg, screenshots — from step 4)
-- Key pages from discovery (typically: homepage + 2 category/product pages)
-- Repo config from `$STATE_DIR/repo-config.json`
+- `DOMAIN` (e.g. `frescopa.coffee`)
+- Extraction outputs at `stardust/current/` (DESIGN.json, logo.svg, screenshots, per-page JSON — from step 4)
+- Discovery key pages (typically homepage + 2 category/product pages)
+- `repo-config.json` (from step 2)
 
 ## Process
 
-### Step 1: Read config + existing data
+### 1. Read repo config
 
 ```bash
-REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
-OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
-REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
-BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
-REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
-DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
+REPO_CONFIG=$(cat "$OF1_STATE_DIR/repo-config.json")
+OWNER=$(jq -r .owner   <<<"$REPO_CONFIG")
+REPO=$(jq -r .repo     <<<"$REPO_CONFIG")
+BRANCH=$(jq -r .branch <<<"$REPO_CONFIG")
+DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 ```
 
-### Step 2: Invoke stardust:prototype
+### 2. Invoke `stardust:prototype` (DO NOT generate prototypes by hand)
 
-Use the Skill tool to invoke `stardust:prototype`. This reads the extraction output from `stardust/current/` and generates pixel-perfect HTML prototypes for each extracted page.
+This step's whole job is to delegate to `stardust:prototype`. **Do NOT hand-author HTML, do NOT shell out to playwright/curl/wget to build pages yourself** — the stardust skill owns design-token application, image insertion, layout fidelity, and the visual-diff loop. Reimplementing it here is the most common failure mode.
+
+Invoke `stardust:prototype` via the platform's sub-skill primitive (CC: the `Skill` tool; SLICC: the equivalent):
 
 ```
 Skill: stardust:prototype
 ```
 
-The plugin will:
-1. Read design tokens from `stardust/current/DESIGN.json`
-2. Read logo from `stardust/current/assets/logo.svg`
-3. Use real images extracted from the live site (exact URLs)
-4. Generate self-contained HTML files with all CSS inlined
-5. Run screenshot diff loops to verify visual fidelity
-6. Write prototypes to `stardust/prototypes/`
+The skill reads `stardust/current/{DESIGN.json,assets/logo.svg,pages/*.json}`, generates self-contained HTML with all CSS inlined, runs visual-diff loops against the captured screenshots, and writes prototypes to `stardust/prototypes/prototype-*.html`.
 
-### Step 3: Verify prototype outputs
+### 3. Verify outputs
 
 ```bash
-cd "$REPO_DIR"
-ls stardust/prototypes/prototype-*.html && echo "Prototypes OK"
+cd "$OF1_DEMO_REPO"
+ls stardust/prototypes/prototype-*.html >/dev/null 2>&1 \
+  || { echo "FAIL: no prototypes generated"; exit 1; }
+echo "✓ Prototypes present: $(ls stardust/prototypes/prototype-*.html | wc -l | tr -d ' ') page(s)"
 ```
 
-If any expected page is missing, check `stardust/state.json` for extraction status and re-invoke if needed.
+If a page is missing, check `stardust/state.json` and re-invoke for that page.
 
-### Step 4: Post-generation fixes (CRITICAL)
+### 4. Post-generation fixes
 
-After `stardust:prototype` generates the prototypes, verify and fix these common issues:
+After stardust:prototype generates the prototypes, verify and fix these four common issues before committing.
 
 #### 4a. Logo completeness
 
-Check that the logo SVG in the prototype is the FULL brand logotype:
+`stardust/current/assets/logo.svg` should be the FULL brand logotype, downloaded directly from the site (typically from `/icons/logo.svg` or extracted from the DOM). If it's truncated, re-download:
+
 ```bash
-# The logo in stardust/current/assets/logo.svg should be the complete file
-# downloaded directly from the site (e.g., from /icons/logo.svg or extracted from DOM)
-# Verify it renders the full wordmark — not just a partial path
+curl -s "https://${DOMAIN}/icons/logo.svg" > stardust/current/assets/logo.svg
 ```
 
-If the logo is truncated or incomplete:
-1. Download the real logo SVG directly from the site: `curl -s "https://${DOMAIN}/icons/logo.svg"` (or find it via playwright)
-2. Save to `stardust/current/assets/logo.svg`
-3. Update both header AND footer logo in the prototypes
-
-**Footer logo:** Must use the SAME complete SVG as the header, but with fill colors changed for the dark footer background (e.g., `fill="#F4E9DC"` instead of `fill="#58181d"`).
+Update both the header AND footer logo references in the prototypes. The footer logo uses the SAME complete SVG as the header, with fill colors changed for the dark footer background (e.g. `fill="#F4E9DC"` instead of `fill="#58181d"`).
 
 #### 4b. CSS class naming — avoid EDS collisions
 
-Check the prototype HTML for these class names and rename them:
+EDS wraps content in `<div class="header-wrapper"><div class="header block">…</div></div>`. If a prototype uses `<header class="header">`, snowflake (step 6) inherits the collision and the nav renders wrong. Rename:
 
-| If prototype uses | Rename to | Why |
-|-------------------|-----------|-----|
-| `class="header"` on `<header>` | `class="site-header"` | EDS reserves `.header` for its block wrapper |
-| `class="footer"` on `<footer>` | `class="site-footer"` | EDS reserves `.footer` for its block wrapper |
-| `.header {` in CSS | `.site-header {` | Same collision — CSS targets EDS wrapper too |
-| `.footer {` in CSS | `.site-footer {` | Same collision |
+| If prototype uses | Rename to |
+|---|---|
+| `class="header"` on `<header>` | `class="site-header"` |
+| `class="footer"` on `<footer>` | `class="site-footer"` |
+| `.header { … }` in CSS | `.site-header { … }` |
+| `.footer { … }` in CSS | `.site-footer { … }` |
 
-**Why this matters:** EDS wraps content in `<div class="header-wrapper"><div class="header block">...</div></div>`. If the prototype uses `<header class="header">`, the snowflake step will inherit this collision and the nav will render incorrectly.
+#### 4c. Image URLs — look up, never construct
 
-#### 4c. Image URLs — never construct, always look up
+When fixing card images that stardust:prototype left blank or wrong, pull the URL from the captured page JSON — **never construct it from a path pattern**.
 
-When fixing card images or any image that `stardust:prototype` left blank or wrong, **pull the URL from the captured page JSON** — never construct it from a path pattern.
-
-Step 4 (extraction) writes one JSON file per crawled page at `stardust/current/pages/<page>.json`. Each file lists the `images` array with the exact URLs as they appeared in the live DOM. That is the canonical source.
+Step 4 wrote one JSON file per crawled page at `stardust/current/pages/<page>.json`, each listing the `images` array with the exact URLs as they appeared in the live DOM. That's the canonical source.
 
 ```bash
 # ✅ CORRECT — look up the captured URL
@@ -139,91 +107,75 @@ jq -r '.images[] | select(.alt | test("Bali"; "i")) | .src' stardust/current/pag
 # "https://${DOMAIN}/content/dam/wknd/adventures/bali-surf-camp.jpg"
 ```
 
-Reason: live sites often use CDN paths, content-fragment hashes, or per-page redirects that a generated pattern will miss. A wknd.site run had 6 cards with constructed-but-wrong URLs (all 404s) — the fix was a single `jq` lookup against the captured page JSON.
+Live sites use CDN paths, content-fragment hashes, and per-page redirects that generated patterns miss. One wknd.site run had 6 cards with constructed-but-wrong URLs (all 404s) — fixed with a single `jq` lookup.
 
 #### 4d. Announcement bar structure
 
-If the site has an announcement/promo bar above the nav, ensure it's a **separate element** from the header — NOT nested inside `<header>`:
+If the site has a promo/announcement bar above the nav, keep it as a **separate element** from the header — NOT nested inside `<header>`:
 
 ```html
 <!-- ✅ CORRECT -->
-<div class="announcement-bar">FREE SHIPPING FROM $35...</div>
+<div class="announcement-bar">FREE SHIPPING FROM $35…</div>
 <header class="site-header">
-  <a href="/" class="header-logo"><svg>...</svg></a>
-  <nav>...</nav>
+  <a href="/" class="header-logo"><svg>…</svg></a>
+  <nav>…</nav>
 </header>
 
-<!-- ❌ WRONG — will break in EDS snowflake -->
+<!-- ❌ WRONG — breaks in EDS snowflake -->
 <header class="header">
-  <div class="announcement">...</div>
-  <nav>...</nav>
+  <div class="announcement">…</div>
+  <nav>…</nav>
 </header>
 ```
 
-### Step 5: Copy to deliverables + commit
+### 5. Copy to deliverables + commit
 
 ```bash
-cd "$REPO_DIR"
+cd "$OF1_DEMO_REPO"
 mkdir -p deliverables
 cp stardust/prototypes/prototype-*.html deliverables/
 
 git add deliverables/prototype-*.html stardust/prototypes/ stardust/current/assets/
 git commit -m "feat: pixel-perfect HTML prototypes for ${DOMAIN}"
-git push origin ${BRANCH}
+git push origin "$BRANCH"
 ```
 
-**NOTE:** `stardust/` may be in `.gitignore`. Always commit to `deliverables/` — that's what gets served on EDS and reviewed.
+`stardust/` may be in `.gitignore` — always commit to `deliverables/`, that's what gets served on EDS and reviewed.
 
----
+## CRITICAL: pixel-perfect copy — no redesign, no placeholders
 
-## CRITICAL: Pixel-Perfect Copy — No Redesign, No Placeholders
+stardust:prototype already enforces this, but for clarity:
 
-The `stardust:prototype` plugin already enforces this, but for clarity:
-
-- **Use real images** from the live site (exact URLs extracted during crawl)
+- **Use real images** from the live site (exact URLs from the captured page JSON)
 - **Inline the brand logo SVG** in the nav/header
 - **Match design tokens exactly** (colors, fonts, spacing)
 - **No placeholder images**, colored boxes, gradient divs, or emoji
 - **No redesign** — faithful reproduction only
 
----
+## Notes
 
-## Lessons Learned
+Cross-cutting rules (logo completeness, EDS class collisions, announcement-bar placement, image format) are also documented in `of1-demo/knowledge/common-pitfalls.md`. Prototype-specific gotchas: heroes set to `100vh` are usually way too tall (sites typically use 200–400 px — check the live site's actual height); don't invent box-shadows that aren't on the original ("pixel-perfect copy" means matching, not improving).
 
-Cross-cutting rules (logo completeness, EDS class collisions, announcement-bar placement, image format/placeholders) are in `of1-demo/knowledge/common-pitfalls.md`. Prototype-specific gotchas:
-
-| Mistake | Impact | Prevention |
-|---------|--------|------------|
-| Heroes set to `100vh` | Way too tall — sites typically use 200-400px | Check actual height from live site; do not assume full viewport |
-| Cards with invented box-shadows | Over-designed vs. the original | Only add shadows if the live site has them; pixel-perfect copy means matching, not improving |
-
----
-
-## Expected Output Structure
+## Expected output structure
 
 ```
-{REPO_DIR}/
+$OF1_DEMO_REPO/
 ├── stardust/
 │   └── prototypes/                     ← Generated by stardust:prototype
 │       ├── prototype-home.html
 │       ├── prototype-{page2}.html
 │       └── prototype-{page3}.html
 └── deliverables/
-    ├── prototype-home.html             ← Committed copies for review
+    ├── prototype-home.html             ← Committed copies served via EDS
     ├── prototype-{page2}.html
     └── prototype-{page3}.html
 ```
 
----
-
 ## Completion
 
-```bash
-mkdir -p "$STATE_DIR"
+Trigger EDS preview for each committed prototype so the hosted URLs return 200 (the orchestrator opens them as `<a target="_blank">`; URLs must be reachable):
 
-# Trigger EDS preview for each committed prototype so the hosted URLs return 200
-# (sprinkle / orchestrator open these as <a target="_blank">; the URLs must be reachable).
-# Uses $DA_TOKEN from Platform context (SLICC: oauth-token adobe; Claude Code: $ADOBE_IMS_TOKEN).
+```bash
 for f in deliverables/prototype-*.html; do
   [ -f "$f" ] || continue
   SLUG="deliverables/$(basename "$f" .html)"
@@ -233,34 +185,36 @@ for f in deliverables/prototype-*.html; do
     -o /dev/null \
     "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${SLUG}"
 done
+```
 
-# Build a deliverables array — one entry per prototype, so the sprinkle (or
-# Claude Code orchestrator, once it learns the protocol) can render one Open
-# button per page (e.g. Open Home, Open Adventures, Open Magazine).
-# IMPORTANT: deliverable URLs MUST point at /deliverables/prototype-*.html
-# (the standalone HTML committed in step 5), NOT /${BRANCH}/prototype-*
-# (which is the EDS overlay URL produced later by step 6 — snowflake).
-# Heredoc is UNQUOTED so bash expands ${BRANCH}/${REPO}/${OWNER} inline; no
-# os.environ lookup needed (and BRANCH/REPO/OWNER aren't exported here).
+Build a `deliverables` array — one entry per prototype, so the orchestrator can render one Open button per page (e.g. Open Home, Open Adventures, Open Magazine). URLs MUST point at `/deliverables/prototype-*.html` (standalone HTML committed above), NOT `/${BRANCH}/prototype-*` (the EDS overlay URL produced later by step 6 — snowflake).
+
+```bash
 DELIVERABLES=$(python3 - <<PYEOF
 import json
 from pathlib import Path
 base = "https://${BRANCH}--${REPO}--${OWNER}.aem.page"
-out = []
 files = sorted(Path('deliverables').glob('prototype-*.html'))
 files.sort(key=lambda p: 0 if p.stem == 'prototype-home' else 1)
-for p in files:
-    label = p.stem.replace('prototype-', '').replace('-', ' ').title()
-    out.append({"url": f"{base}/deliverables/{p.name}", "label": label})
+out = [
+    {"url": f"{base}/deliverables/{p.name}",
+     "label": p.stem.replace('prototype-', '').replace('-', ' ').title()}
+    for p in files
+]
 print(json.dumps(out))
 PYEOF
 )
 
-cat > "$STATE_DIR/step-5-status.json" <<EOF
-{"step":5,"status":"review","deliverables":${DELIVERABLES},"summary":"Generated $(ls deliverables/prototype-*.html 2>/dev/null | wc -l | tr -d ' ') pixel-perfect HTML prototypes with real images, correct tokens, and matching layout."}
+COUNT=$(ls deliverables/prototype-*.html 2>/dev/null | wc -l | tr -d ' ')
+
+cat > "$OF1_STATE_DIR/step-5-status.json" <<EOF
+{
+  "step": 5,
+  "status": "review",
+  "deliverables": ${DELIVERABLES},
+  "summary": "Generated ${COUNT} pixel-perfect HTML prototypes with real images, correct tokens, and matching layout."
+}
 EOF
 ```
 
-Also write summary to `$STATE_DIR/step-5-output.md`.
-
-In Claude Code the orchestrator's `Agent` return is the source of truth — the status file is optional. Do NOT call `sprinkle send`.
+The orchestrator (CC: agent-return parsing; SLICC: sprinkle polling) handles the approve/done transition.
