@@ -8,53 +8,34 @@ user-invocable: false
 
 Crawl the target site to understand what it offers, then propose a demo focus and narrative.
 
-## ⚡ Speed Priority — Target: 3 minutes
+## Env — orchestrator exports these (see `of1-setup`)
 
-- Homepage + MAX 3 nav pages (4 pages total) — do NOT over-crawl
-- Take screenshots as you go (reused by extraction)
-- Write structured output for downstream steps
-- Do NOT visit product detail pages, about pages, or sustainability pages — stick to top-level category/listing pages
+| Var | Purpose |
+|-----|---------|
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-3-output.md`, screenshots, and `step-3-status.json` |
+| `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 
----
+Read `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` from the contract `of1-branch-setup` wrote:
 
-## Platform context
-
-This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
-
-| Symbol | SLICC default | Claude Code override |
-|---|---|---|
-| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
-| `playwright-cli` action verbs | `visit`, `navigate` | `open` |
-| `playwright-cli` output flag | `--output <path>` | `--filename <path>` |
-
-`$REPO_DIR`, `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` come from `$STATE_DIR/repo-config.json` (written by `of1-branch-setup`).
-
-**Note on literal commands in code blocks:** Code blocks below use the SLICC form (`playwright-cli visit ... --output ...`). When running in Claude Code, apply the renames above as you go — the alternative would be cluttering every snippet with both forms, and the table is the single source of truth.
-
----
-
-## Inputs
-
-You will be given a `DOMAIN` (e.g., `bmwusa.com`).
-
-Read the repo config from step 2:
 ```bash
-REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
-OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
-REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
-BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
-REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
+REPO_CONFIG=$(cat "$OF1_STATE_DIR/repo-config.json")
+OWNER=$(jq -r .owner   <<<"$REPO_CONFIG")
+REPO=$(jq -r .repo     <<<"$REPO_CONFIG")
+BRANCH=$(jq -r .branch <<<"$REPO_CONFIG")
+DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 ```
+
+`playwright-cli` calls below use the legacy verb/flag shape (`visit`, `--output`). SLICC environments run that natively; CC environments install the modern `@playwright/cli` binary plus the shim in `of1-setup/scripts/playwright-cli-shim.sh` (which translates legacy syntax to the modern binary). Either way, write code as if the legacy syntax just works.
 
 ## Process
 
+The crawl is bounded to ~4 pages: homepage + at most 3 nav pages. Don't visit product detail pages, about pages, or sustainability pages — stick to top-level category/listing pages.
+
 ### 1. Crawl the homepage
 
-Use Playwright (headed Chrome) to visit `https://{DOMAIN}`:
-
 ```bash
-playwright-cli visit "https://{DOMAIN}" --headed
-playwright-cli screenshot --full-page --output /tmp/discovery-home.png
+playwright-cli visit "https://${DOMAIN}" --headed
+playwright-cli screenshot --full-page --output "$OF1_STATE_DIR/discovery-home.png"
 ```
 
 Analyze:
@@ -64,16 +45,16 @@ Analyze:
 - Target audience
 - Key CTAs and conversion paths
 
-### 2. Crawl UP TO 3 navigation pages (MAX 4 total including homepage)
+### 2. Crawl UP TO 3 navigation pages (max 4 total including homepage)
 
-Follow top navigation links to the most visual/product-rich pages. **STOP after 3 subpages** — you do NOT need to visit every category. Pick the 2-3 most product-rich or visual pages from the main nav. For each page:
+Follow top-nav links to the most visual/product-rich pages. Pick the 2–3 best — you don't need every category.
 
 ```bash
-playwright-cli visit "https://{DOMAIN}/{path}" --headed
-playwright-cli screenshot --full-page --output /tmp/discovery-{slug}.png
+playwright-cli visit "https://${DOMAIN}/{path}" --headed
+playwright-cli screenshot --full-page --output "$OF1_STATE_DIR/discovery-{slug}.png"
 ```
 
-Note:
+For each page, note:
 - Page type (product listing / detail / category / about / blog)
 - What products/services are featured
 - Page structure (hero, grid, features, FAQ, etc.)
@@ -81,17 +62,16 @@ Note:
 
 ### 3. Propose demo focus
 
-Based on what you found, propose:
-- **Demo focus**: Which product line or category to feature (pick the richest/most visual one)
-- **Demo narrative**: A user persona and their journey (e.g., "a gamer researching GPUs for a new build")
-- **Key pages to reproduce**: Which 2-3 pages best represent the site (include full URLs)
-- **Rationale**: Why this focus works for a compelling demo
+- **Demo focus**: which product line or category to feature (pick the richest/most visual one)
+- **Demo narrative**: a user persona and their journey (e.g. "a gamer researching GPUs for a new build")
+- **Key pages to reproduce**: 2–3 pages that best represent the site, with full URLs
+- **Rationale**: why this focus works for a compelling demo
 
 ## Deliverables
 
-### 4. Write structured output for downstream steps
+### 4. Structured output for downstream steps
 
-Write `$STATE_DIR/step-3-output.md` — this is consumed by steps 4, 5, and 7:
+Write `$OF1_STATE_DIR/step-3-output.md` — consumed by steps 4, 5, and 7:
 
 ```markdown
 # Discovery: {DOMAIN}
@@ -123,9 +103,9 @@ Write `$STATE_DIR/step-3-output.md` — this is consumed by steps 4, 5, and 7:
 - ...
 ```
 
-### 5. Generate discovery report HTML
+### 5. Discovery report HTML
 
-Generate a self-contained HTML report at `deliverables/discovery.html` using the OF1 dark theme:
+Generate a self-contained HTML report at `$OF1_DEMO_REPO/deliverables/discovery.html` using the OF1 dark theme:
 
 ```css
 --bg: #1C1917;
@@ -138,20 +118,17 @@ Generate a self-contained HTML report at `deliverables/discovery.html` using the
 --heading-font: 'Cormorant Garamond', serif;
 ```
 
-Include:
-- Site overview, proposed demo, key pages, page structure analysis
-- Screenshots taken during crawl (embed as base64 or reference from `/tmp/`)
-
-Load Google Fonts (JetBrains Mono + Cormorant Garamond) from CDN.
+Include the site overview, proposed demo, key pages, page-structure analysis, and the screenshots from `$OF1_STATE_DIR/discovery-*.png` (embed as base64 or reference by absolute path). Load Google Fonts (JetBrains Mono + Cormorant Garamond) from CDN.
 
 Commit and push:
+
 ```bash
-cd "$REPO_DIR"
+cd "$OF1_DEMO_REPO"
 mkdir -p deliverables
 # ... write discovery.html ...
 git add deliverables/discovery.html
-git commit -m "docs: discovery report for {DOMAIN}"
-git push origin ${BRANCH}
+git commit -m "docs: discovery report for ${DOMAIN}"
+git push origin "$BRANCH"
 ```
 
 ### 6. Present in chat
@@ -170,7 +147,7 @@ git push origin ${BRANCH}
 **Key pages:** [2-3 URLs to reproduce]
 **Why:** [rationale]
 
-**Full report:** https://{BRANCH}--{REPO}--{OWNER}.aem.page/deliverables/discovery.html
+**Full report:** https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/discovery.html
 ```
 
 Then ask the user:
@@ -180,14 +157,11 @@ Then ask the user:
 
 ## Completion
 
-Write a status file — do NOT call `sprinkle send` directly (only the of1-demo orchestrator scoop may do that). In Claude Code the orchestrator's `Agent` return is the source of truth and this file is optional.
-
 ```bash
-mkdir -p "$STATE_DIR"
-echo '{"step":3,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/deliverables/discovery.html","summary":"Demo focus: [focus]. Persona: [persona]. Pages: [N] key pages identified."}' > "$STATE_DIR/step-3-status.json"
+DELIVERABLE="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/discovery.html"
+cat > "$OF1_STATE_DIR/step-3-status.json" <<EOF
+{"step":3,"status":"review","deliverable":"${DELIVERABLE}","summary":"Demo focus: [focus]. Persona: [persona]. [N] key pages identified."}
+EOF
 ```
 
-On approval (user confirms via sprinkle), the orchestrator will handle the `done` update. If you receive explicit approval in chat, write:
-```bash
-echo '{"step":3,"status":"done"}' > "$STATE_DIR/step-3-status.json"
-```
+The orchestrator (CC: agent-return parsing; SLICC: sprinkle polling) handles the approve/revise flow and the eventual `done` transition.
