@@ -20,9 +20,9 @@ If `DOMAIN` is missing, ask the user once using `AskUserQuestion`, then proceed.
 
 ## Phase 0 — Verify dependencies (inline)
 
-Invoke the `of1-setup-cc` skill via the **Skill tool** (not Agent — this is light and must run in your context to read the verified state). If it fails, surface the exact error and stop.
+Invoke the `of1-setup` skill via the **Skill tool** (not Agent — this is light and must run in your context to read the verified state). If it fails, surface the exact error and stop.
 
-After it succeeds, read `<STATE_DIR>/setup-cc.json` to get `stateDir` and `of1Repo` absolute paths. Use these for all subsequent steps.
+After it succeeds, read `<STATE_DIR>/setup.json` to get `stateDir` and `of1Repo` absolute paths. Use these for all subsequent steps.
 
 ## Phase 1 — Initialize task list
 
@@ -195,7 +195,7 @@ Read the skill file and follow it as written:
 - Skills that read `OF1_STATE_DIR` should pick up `<stateDir>` — export it at the top of your work: `export OF1_STATE_DIR="<stateDir>"`.
 - Replace `/mnt/da/<branch>/` with the admin.da.live API path:
     `cat file | curl -s -X PUT -H "Authorization: Bearer $DA_TOKEN" -H "Content-Type: text/html" --data-binary @- "https://admin.da.live/source/aem-growth-adoption/of1-demo/<branch>/page.html"`
-- Replace `oauth-token adobe` with: `DA_TOKEN=$(jq -r .access_token "$TOKEN_FILE")` (read `TOKEN_FILE` from `<stateDir>/setup-cc.json`). If `tokenFromEnv:true`, use `DA_TOKEN="$ADOBE_IMS_TOKEN"` directly.
+- Replace `oauth-token adobe` with: `DA_TOKEN=$(jq -r .access_token "$TOKEN_FILE")` (read `TOKEN_FILE` from `<stateDir>/setup.json`). If `tokenFromEnv:true`, use `DA_TOKEN="$ADOBE_IMS_TOKEN"` directly.
 - Replace `upskill ...` with: STOP — that means a dependency is missing; report failure.
 - Replace `serve --entry <file>` with: `python3 -m http.server` from the file's parent dir, return the local URL.
 - **playwright-cli (Playwright agent CLI, not SLICC)**: same binary name, slightly different shape. Apply these renames:
@@ -275,7 +275,7 @@ The orchestrator writes/reads under `<stateDir>/` (replaces SLICC's `/shared/of1
 
 | File | Owner | Purpose |
 |------|-------|---------|
-| `setup-cc.json` | of1-setup-cc | Verified paths + token source |
+| `setup.json` | of1-setup | Verified paths + token source |
 | `repo-config.json` | Step 2 | owner, repo, branch, repoDir, domain, daSource |
 | `step-<N>-summary.json` | Each step Agent (returned in prompt response, you write to disk) | Step result, for resuming/debug |
 | `pipeline.log` | Orchestrator | Append-only log of dispatches and returns |

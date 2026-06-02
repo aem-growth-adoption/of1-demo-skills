@@ -6,7 +6,7 @@
 #   1. npm install -g @playwright/cli@latest
 #   2. playwright-cli install-browser
 #   3. mv "$(which playwright-cli)" "$(which playwright-cli).real"
-#   4. ln -s <repo>/.claude/skills/of1-setup-cc/scripts/playwright-cli-shim.sh \
+#   4. ln -s <repo>/.claude/skills/of1-setup/scripts/playwright-cli-shim.sh \
 #         /usr/local/bin/playwright-cli
 #
 # Or set REAL_PWCLI env var to the absolute path of the real binary.

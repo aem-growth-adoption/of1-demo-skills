@@ -42,7 +42,7 @@ Read worker-config-schemas.md § `of1-endpoint.json` for the exact output format
 
 ### 1. Ensure repo is cloned
 
-In SLICC the setup skill clones the repo to `$REPO_DIR` before this step runs. In Claude Code the user / `of1-setup-cc` skill points `$OF1_DEMO_REPO` at an existing clone. Either way, verify it exists:
+The user clones the repo before invoking the pipeline; `of1-setup` resolves the path and exposes it via `$OF1_DEMO_REPO` (and `$REPO_DIR` if the SLICC orchestrator aliases it). Either way, verify it exists:
 
 ```bash
 cd "$REPO_DIR" || {

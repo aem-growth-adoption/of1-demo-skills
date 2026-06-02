@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
-# of1-setup-cc verifier. Checks all prerequisites for the OF1 demo pipeline.
-# Exit 0 = all good; exit 1 = something blocking is missing.
-# Side effect: writes <stateDir>/setup-cc.json with resolved paths on success.
+# of1-setup verifier — checks all prerequisites for the OF1 demo pipeline.
+# Runtime-agnostic: works in both Claude Code and SLICC. The orchestrator
+# exports OF1_STATE_DIR / OF1_DEMO_REPO / token env vars before invoking.
+# Contract documented in ../SKILL.md.
 #
-# Env overrides:
-#   OF1_DEMO_REPO     REQUIRED path to a local clone of aem-growth-adoption/of1-demo.
-#                     The verifier does not search for it — the orchestrator asks the
-#                     user where to clone if unset, then sets this env var.
-#   ADOBE_IMS_TOKEN   raw token value (highest priority; preferred for CC)
-#   OF1_TOKEN_FILE    path to a token file (shape: {"access_token":"..."})
-#   OF1_STATE_DIR     default: $PWD/.of1/state
-#   STRICT            if =1, warnings become errors (default: 0)
+# Exit 0 = all good; exit 1 = something blocking is missing.
+# Side effect on success:
+#   <stateDir>/setup.json          — resolved paths + token source
+#   <stateDir>/step-1-status.json  — SLICC sprinkle IPC ack (harmless in CC)
 #
 # Token resolution order:
 #   1. $ADOBE_IMS_TOKEN (env var with the raw value)
@@ -28,6 +25,26 @@ ok()   { LOG+=("✓ $1"); }
 warn() { LOG+=("⚠ $1"); WARN=$((WARN+1)); [ "${STRICT:-0}" = "1" ] && FAIL=$((FAIL+1)); }
 fail() { LOG+=("✗ $1"); FAIL=$((FAIL+1)); }
 
+# ---------- 0. Detect runtime (cc | slicc) ----------
+# Honor explicit OF1_RUNTIME from the orchestrator; otherwise infer from the
+# path this script was loaded from. SLICC installs skills under /workspace.
+
+if [ -n "${OF1_RUNTIME:-}" ]; then
+  RUNTIME="$OF1_RUNTIME"
+else
+  case "${BASH_SOURCE[0]:-$0}" in
+    /workspace/skills/*) RUNTIME="slicc" ;;
+    *)                   RUNTIME="cc" ;;
+  esac
+fi
+ok "Runtime: $RUNTIME"
+
+# fix_cmd <cc-command> <slicc-command>
+# Returns the install command appropriate for the detected runtime.
+fix_cmd() {
+  if [ "$RUNTIME" = "slicc" ]; then echo "$2"; else echo "$1"; fi
+}
+
 # ---------- 1. OF1 step skills (project- or user-scoped) ----------
 
 REQUIRED_SKILLS=(
@@ -37,39 +54,51 @@ REQUIRED_SKILLS=(
   of1-cta-template-builder of1-config-review of1-deploy
 )
 
+# Search locations: CC plugin/user/project scopes plus SLICC's /workspace/skills.
+# Each runtime only has its own; the other paths quietly miss.
+SKILL_ROOTS=(
+  "$HOME/.claude/plugins"
+  "$HOME/.claude/skills"
+  "$PWD/.claude/skills"
+  "/workspace/skills"
+)
+
+find_skill() {
+  local name="$1"
+  for root in "${SKILL_ROOTS[@]}"; do
+    [ -d "$root" ] || continue
+    local hit
+    hit=$(find "$root" -path "*/skills/$name/SKILL.md" 2>/dev/null | head -1)
+    [ -n "$hit" ] && { echo "$hit"; return 0; }
+  done
+  return 1
+}
+
 MISSING=()
 for S in "${REQUIRED_SKILLS[@]}"; do
-  found=$(find "$HOME/.claude" "$PWD/.claude" -path "*/skills/$S/SKILL.md" 2>/dev/null | head -1)
-  [ -n "$found" ] || MISSING+=("$S")
+  find_skill "$S" >/dev/null || MISSING+=("$S")
 done
 if [ ${#MISSING[@]} -eq 0 ]; then
   ok "All 13 OF1 step skills present"
 else
-  fail "Missing OF1 step skills: ${MISSING[*]} — fix: /plugin install of1-demo-skills@<marketplace>"
+  fail "Missing OF1 step skills: ${MISSING[*]} — fix: $(fix_cmd '/plugin install of1-demo-skills@<marketplace>' 'upskill aem-growth-adoption/of1-demo-skills --all')"
 fi
 
 # ---------- 2. Adobe EDS skills: stardust + snowflake + impeccable ----------
-# IMPORTANT: ignore matches inside the of1-demo content repo — those are legacy
-# and should be removed (per project owner). Only count plugin/global installs.
-
-find_skill_global() {
-  local name="$1"
-  find "$HOME/.claude/plugins" "$HOME/.claude/skills" 2>/dev/null \
-    -path "*/skills/$name/SKILL.md" 2>/dev/null | head -1
-}
+# Ignore matches inside the of1-demo content repo (legacy/being removed).
 
 for S in stardust snowflake impeccable; do
-  p=$(find_skill_global "$S")
-  if [ -n "$p" ]; then
+  p=$(find_skill "$S" || true)
+  if [ -n "${p:-}" ]; then
     ok "$S → $p"
   else
     case "$S" in
       snowflake)
-        fail "Adobe EDS skill 'snowflake' not installed — fix: /plugin marketplace update adobe-skills && /plugin install aem-edge-delivery-services@adobe-skills" ;;
-      stardust|impeccable)
-        fail "Adobe EDS skill '$S' not installed — fix: /plugin install $S@adobe-skills (or @impeccable for impeccable)" ;;
-      *)
-        fail "Adobe EDS skill '$S' not installed globally" ;;
+        fail "Adobe EDS skill 'snowflake' not installed — fix: $(fix_cmd '/plugin install aem-edge-delivery-services@adobe-skills' 'upskill adobe/skills --path plugins/aem/edge-delivery-services --all')" ;;
+      stardust)
+        fail "Adobe EDS skill 'stardust' not installed — fix: $(fix_cmd '/plugin install stardust@adobe-skills' 'upskill adobe/skills --path plugins/stardust --all')" ;;
+      impeccable)
+        fail "Adobe EDS skill 'impeccable' not installed — fix: $(fix_cmd '/plugin install impeccable@impeccable' 'upskill pbakaus/impeccable --all')" ;;
     esac
   fi
 done
@@ -84,14 +113,13 @@ for T in node python3 jq git curl; do
   fi
 done
 
-# playwright-cli is SLICC-specific. In CC we accept either:
-#   - a real playwright-cli binary (SLICC bundle reused), OR
-#   - the standard `playwright` binary as a degraded fallback (with a warning;
-#     OF1 step skills will need adapters to use `playwright` subcommands).
+# OF1 step skills call `playwright-cli visit/screenshot/snapshot`. Prefer the
+# SLICC-native `playwright-cli` binary; in CC, the standard `playwright` binary
+# is accepted as a degraded fallback (shim at scripts/playwright-cli-shim.sh).
 if command -v playwright-cli >/dev/null 2>&1; then
-  ok "playwright-cli → $(command -v playwright-cli) (SLICC-native commands available)"
+  ok "playwright-cli → $(command -v playwright-cli)"
 elif command -v playwright >/dev/null 2>&1; then
-  warn "playwright-cli not found; only 'playwright' is installed at $(command -v playwright). OF1 step skills call 'playwright-cli visit/screenshot/snapshot' which don't exist in standard Playwright — a Node.js shim or step-skill adaptation is required before discovery/extraction/prototype steps can run."
+  warn "playwright-cli not found; only 'playwright' is installed at $(command -v playwright). Install the shim at scripts/playwright-cli-shim.sh or step skills calling visit/screenshot/snapshot will fail."
 else
   fail "Neither playwright-cli nor playwright installed — fix: npm i -g playwright; npx playwright install chromium"
 fi
@@ -157,12 +185,18 @@ echo ""
 
 if [ $FAIL -gt 0 ]; then
   echo "RESULT: FAIL ($FAIL blocker(s), $WARN warning(s))"
+  # SLICC sprinkle IPC ack (CC ignores)
+  if [ -d "$STATE_DIR" ]; then
+    REASONS=$(printf '%s\n' "${LOG[@]}" | grep '^✗' | sed 's/^✗ //' | head -3 | paste -sd '; ' -)
+    printf '{"step":1,"status":"failed","error":%s}\n' "$(printf '%s' "$REASONS" | jq -Rs .)" \
+      > "$STATE_DIR/step-1-status.json"
+  fi
   exit 1
 fi
 
-# Success — write state file
+# Success — write state files
 mkdir -p "$STATE_DIR"
-cat > "$STATE_DIR/setup-cc.json" <<EOF
+cat > "$STATE_DIR/setup.json" <<EOF
 {
   "ok": true,
   "stateDir": "$STATE_DIR",
@@ -177,6 +211,10 @@ cat > "$STATE_DIR/setup-cc.json" <<EOF
 }
 EOF
 
+# SLICC sprinkle IPC ack (CC ignores)
+echo '{"step":1,"status":"done","summary":"prerequisites verified"}' \
+  > "$STATE_DIR/step-1-status.json"
+
 echo "RESULT: OK ($WARN warning(s))"
-echo "Wrote $STATE_DIR/setup-cc.json"
+echo "Wrote $STATE_DIR/setup.json"
 exit 0

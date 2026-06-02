@@ -1,101 +1,48 @@
 ---
 name: of1-setup
-description: Install and verify all dependencies for the OF1 demo pipeline — skills, tools, and prerequisites.
-user-invocable: false
+description: Verify all OF1 demo pipeline dependencies are installed. Read-only — reports what's missing, does not install.
 ---
 
-# OF1 Setup — Install Dependencies
+# OF1 Setup — Verify Dependencies
 
-Verify that all required skills, tools, and prerequisites for the demo pipeline are in place.
-
-## Step 1: Install skill packages
+Read-only verifier. Reports any missing prerequisite and, on success, writes resolved paths to `$OF1_STATE_DIR/setup.json` for downstream steps.
 
 ```bash
-upskill aem-growth-adoption/of1-demo-skills --all --branch skills-v3 --force 2>/dev/null && echo "of1-demo-skills OK" || echo "WARN: could not install of1-demo-skills"
-upskill adobe/skills --path plugins/aem/edge-delivery-services --all 2>/dev/null && echo "adobe/skills (EDS + snowflake) OK" || echo "WARN: could not install adobe/skills"
-upskill adobe/skills --path plugins/stardust --all 2>/dev/null && echo "adobe/skills (stardust) OK" || echo "WARN: could not install stardust"
-upskill pbakaus/impeccable --all 2>/dev/null && echo "impeccable OK" || echo "WARN: could not install impeccable"
+bash "$SKILL_DIR/scripts/verify.sh"
 ```
 
-## Step 2: Verify local skills installed
+Exit `0` on success, `1` on any blocker (one `✗ <reason>` line per failure). The orchestrator MUST stop on failure — every subsequent step assumes everything below is in place.
 
-```bash
-SKILLS_OK=true
-for SKILL in of1-discovery of1-branch-setup of1-snowflake of1-template-generation of1-brand-voice-extractor of1-content-metadata of1-generative-block-styler of1-quick-suggestions of1-cta-template-builder of1-deploy; do
-  if [ -f "/workspace/skills/${SKILL}/SKILL.md" ]; then
-    echo "  ✓ ${SKILL}"
-  else
-    echo "  ✗ ${SKILL} MISSING"
-    SKILLS_OK=false
-  fi
-done
-```
+## What it checks
 
-## Step 3: Verify upstream plugins available
+1. The 13 OF1 step skills are installed (`of1-discovery`, `of1-snowflake`, …)
+2. The Adobe EDS skills `stardust`, `snowflake`, `impeccable` are installed
+3. Shell tools: `node`, `python3`, `jq`, `git`, `curl`
+4. `playwright-cli` (or the standard `playwright` binary with a shim warning)
+5. The `of1-demo` content repo is a valid clone at `$OF1_DEMO_REPO`
+6. An Adobe IMS / DA token is resolvable
+7. `$OF1_STATE_DIR` is writable
 
-Verify the EDS, stardust, and impeccable skills installed from the upstream packages:
+## Env vars — the orchestrator sets these before invoking
 
-```bash
-for SKILL in snowflake da-content stardust impeccable; do
-  if [ -f "/workspace/skills/${SKILL}/SKILL.md" ]; then
-    echo "  ✓ ${SKILL}"
-  else
-    echo "  ✗ ${SKILL} MISSING"
-    SKILLS_OK=false
-  fi
-done
-```
+| Var | Purpose |
+|-----|---------|
+| `OF1_DEMO_REPO` | **required** — absolute path to a local clone of `aem-growth-adoption/of1-demo` |
+| `OF1_STATE_DIR` | shared IPC + state dir. SLICC: `/shared/of1-demo`. CC: `$PWD/.of1/state` (default). |
+| `ADOBE_IMS_TOKEN` | raw token value (preferred — highest priority) |
+| `OF1_TOKEN_FILE` | path to a `{"access_token":"…"}` JSON (alternative to the env value) |
+| `STRICT` | `1` makes warnings fail. Default `0`. |
+| `OF1_RUNTIME` | `cc` or `slicc`. Optional — the verifier auto-detects from its install path (`/workspace/skills/*` → slicc, else cc). Orchestrators may set explicitly so fix messages cite only the relevant install command. |
 
-## Step 4: Verify tools
+Token resolution order: `$ADOBE_IMS_TOKEN` → `$OF1_TOKEN_FILE` → `$PWD/.hlx/.da-token.json` → `$OF1_DEMO_REPO/.hlx/.da-token.json`.
 
-```bash
-TOOLS_OK=true
+## State files written
 
-which playwright-cli >/dev/null 2>&1 && echo "  ✓ playwright-cli" || { echo "  ✗ playwright-cli NOT FOUND"; TOOLS_OK=false; }
-which python3 >/dev/null 2>&1 && echo "  ✓ python3" || { echo "  ✗ python3 NOT FOUND"; TOOLS_OK=false; }
-which jq >/dev/null 2>&1 && echo "  ✓ jq" || { echo "  ✗ jq NOT FOUND"; TOOLS_OK=false; }
-which git >/dev/null 2>&1 && echo "  ✓ git" || { echo "  ✗ git NOT FOUND"; TOOLS_OK=false; }
-```
+| File | Purpose |
+|------|---------|
+| `$OF1_STATE_DIR/setup.json` | resolved paths + token source. Downstream steps MUST read this for `tokenFile`, `of1Repo`, `stateDir` — do not hard-code defaults. |
+| `$OF1_STATE_DIR/step-1-status.json` | `{"step":1,"status":"done"\|"failed",…}`. SLICC's sprinkle polls it; CC ignores it. |
 
-## Step 5: Clone of1-demo repo
+## Why this skill does not install anything
 
-```bash
-if [ -d /workspace/of1-demo ]; then
-  echo "  ✓ of1-demo repo already cloned"
-else
-  cd /workspace && git clone https://github.com/aem-growth-adoption/of1-demo.git && echo "  ✓ of1-demo cloned" || { echo "  ✗ clone failed"; TOOLS_OK=false; }
-fi
-```
-
-## Step 6: Verify git credentials
-
-```bash
-[ -f ~/.git-credentials ] && echo "  ✓ git credentials" || echo "  ⚠ no git credentials file (push may require auth)"
-```
-
-## Completion
-
-Report results as a summary:
-
-```
-## Setup Complete
-
-- Skills: [N/N] local + stardust plugins
-- Tools: playwright-cli, python3, jq, git
-- Repo: of1-demo cloned
-- Git: credentials OK
-```
-
-If all critical checks pass, write:
-```bash
-mkdir -p /shared/of1-demo
-echo '{"step":1,"status":"done"}' > /shared/of1-demo/step-1-status.json
-```
-
-If any critical check fails, write:
-```bash
-mkdir -p /shared/of1-demo
-echo '{"step":1,"status":"failed","error":"Missing: [list what failed]"}' > /shared/of1-demo/step-1-status.json
-```
-
-Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.
+Neither runtime can activate plugins/skills installed mid-session — CC's `/plugin install` only picks up disk changes between turns, and SLICC's `upskill --force` has the same limitation. So this is a pure read-only verifier: missing items are reported with the exact fix command (per runtime) the user runs before re-invoking the pipeline.
