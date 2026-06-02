@@ -237,18 +237,21 @@ done
 # Build a deliverables array — one entry per prototype, so the sprinkle (or
 # Claude Code orchestrator, once it learns the protocol) can render one Open
 # button per page (e.g. Open Home, Open Adventures, Open Magazine).
-DELIVERABLES=$(python3 - <<'PYEOF'
-import json, os
+# IMPORTANT: deliverable URLs MUST point at /deliverables/prototype-*.html
+# (the standalone HTML committed in step 5), NOT /${BRANCH}/prototype-*
+# (which is the EDS overlay URL produced later by step 6 — snowflake).
+# Heredoc is UNQUOTED so bash expands ${BRANCH}/${REPO}/${OWNER} inline; no
+# os.environ lookup needed (and BRANCH/REPO/OWNER aren't exported here).
+DELIVERABLES=$(python3 - <<PYEOF
+import json
 from pathlib import Path
-base = f"https://{os.environ['BRANCH']}--{os.environ['REPO']}--{os.environ['OWNER']}.aem.page"
+base = "https://${BRANCH}--${REPO}--${OWNER}.aem.page"
 out = []
-# Put prototype-home first if present
 files = sorted(Path('deliverables').glob('prototype-*.html'))
 files.sort(key=lambda p: 0 if p.stem == 'prototype-home' else 1)
 for p in files:
-    slug = p.stem  # prototype-home → "Home"
-    label = slug.replace('prototype-', '').replace('-', ' ').title()
-    out.append({"url": f"{base}/{p.as_posix()}", "label": label})
+    label = p.stem.replace('prototype-', '').replace('-', ' ').title()
+    out.append({"url": f"{base}/deliverables/{p.name}", "label": label})
 print(json.dumps(out))
 PYEOF
 )
