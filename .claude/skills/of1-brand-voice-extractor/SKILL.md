@@ -6,77 +6,51 @@ user-invocable: true
 
 # Brand Voice Extractor
 
-Analyze a website to extract its brand voice, tone, and personality, then generate a `brand-voice.json` file for the of1-gen-web-service tenant config.
+Analyze a website to extract its brand voice, tone, and personality, then generate a `brand-voice.json` file for the OF1 worker tenant config.
 
-## ⚡ Speed Priority — Target: 3 minutes
+## Env — orchestrator exports these (see `of1-setup`)
 
-- In pipeline mode, skip user confirmation — just write the file
-- Use 3-5 pages max (homepage + 2-3 others)
-- Leverage discovery output if available (don't re-discover page URLs)
+| Var | Purpose |
+|-----|---------|
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-9-brand-status.json` |
+| `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 
----
-
-## Platform context
-
-This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
-
-| Symbol | SLICC default | Claude Code override |
-|---|---|---|
-| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
-| Schema reference path | `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` | `<plugin-dir>/of1-demo/knowledge/worker-config-schemas.md` (sibling to this skill) |
-
-`$REPO_DIR`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
-
----
-
-## Inputs
-
-- `DOMAIN`: Target domain (e.g., `frescopa.coffee`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
-
-## Schema Reference
-
-Read worker-config-schemas.md § `brand-voice.json` for the exact output format expected by the worker. Use the schema reference path from Platform context.
-
-## Process
-
-### Step 1: Read context (pipeline mode)
+Read repo config:
 
 ```bash
-REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
-REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
-DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
-
-cd "$REPO_DIR"
+REPO_CONFIG=$(cat "$OF1_STATE_DIR/repo-config.json")
+DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
+cd "$OF1_DEMO_REPO"
 mkdir -p of1/config
 ```
 
-If discovery output exists, read it for page URLs:
-```bash
-cat "$STATE_DIR/step-3-output.md" 2>/dev/null
-```
+Schema reference: `of1-demo/knowledge/worker-config-schemas.md` § `brand-voice.json`.
 
-### Step 2: Crawl key pages
+## Inputs
 
-Fetch **3-5 pages** to get a representative sample of the brand's writing. Prioritize:
+- `DOMAIN` (e.g. `frescopa.coffee`). In pipeline mode, read from repo-config. Only ask the user if not provided.
+- Discovery output at `$OF1_STATE_DIR/step-3-output.md` (if available — use for page URLs instead of re-discovering)
 
-1. **Homepage** — `https://{DOMAIN}`
+## Process
+
+### 1. Crawl key pages
+
+Fetch **3–5 pages** to get a representative sample of the brand's writing:
+
+1. **Homepage** — `https://${DOMAIN}`
 2. **Product/service page** — a detail page (from discovery output if available)
 3. **About or editorial** — `/about`, `/blog`, `/stories`
 
-For each page, use **WebFetch**:
+For each page, analyze:
+- TONE: Formal/informal, technical/accessible, playful/serious?
+- VOCABULARY: 10–15 domain-specific terms used naturally
+- SENTENCE STYLE: Short and punchy? Long and detailed?
+- BRAND PERSONALITY: If this brand were a person, how would they talk?
+- DO patterns: What does the writing do well?
+- DON'T patterns: What does the writing avoid?
+- EXAMPLE PHRASES: 3–5 distinctly "on-brand" phrases
 
-```
-Analyze this page's writing style and extract:
-1. TONE: Formal/informal, technical/accessible, playful/serious?
-2. VOCABULARY: 10-15 domain-specific terms used naturally.
-3. SENTENCE STYLE: Short and punchy? Long and detailed?
-4. BRAND PERSONALITY: If this brand were a person, how would they talk?
-5. DO patterns: What does the writing do well?
-6. DON'T patterns: What does the writing avoid?
-7. EXAMPLE PHRASES: 3-5 distinctly "on-brand" phrases.
-```
-
-### Step 3: Synthesize
+### 2. Synthesize
 
 Across all pages, identify:
 - Consistent voice attributes
@@ -85,9 +59,9 @@ Across all pages, identify:
 - Domain vocabulary (used without explanation)
 - Anti-patterns (words/phrases the brand avoids)
 
-### Step 4: Present findings (standalone mode only)
+### 3. Present findings (standalone mode only)
 
-**Skip this step in pipeline mode** — go directly to Step 5.
+**Skip this step in pipeline mode** — go directly to Step 4.
 
 In standalone mode, present and wait for confirmation:
 
@@ -113,9 +87,9 @@ In standalone mode, present and wait for confirmation:
 Does this capture the brand correctly? Anything to adjust?
 ```
 
-### Step 5: Generate brand-voice.json
+### 4. Generate `of1/config/brand-voice.json`
 
-Write to `of1/config/brand-voice.json`:
+The worker injects these fields into the LLM system prompt to shape how generated sections are written. The more specific and accurate, the more on-brand the output.
 
 ```json
 {
@@ -133,25 +107,14 @@ Write to `of1/config/brand-voice.json`:
 }
 ```
 
-**How the worker uses this file:**
-
-The worker's `build-prompt.js` reads `ctx.tenant.brandVoice` and injects it into the LLM system prompt:
-- `personality` → "Personality: {value}"
-- `tone` → "Tone: {value}"
-- `vocabulary` → "Use terms like: {joined values}"
-- `avoidWords` → "Avoid: {joined values}"
-
-These directly shape how the LLM writes generated sections. The more specific and accurate these are, the more on-brand the output will be. Generic values like "professional and friendly" produce generic output.
-
 ## Completion (pipeline mode)
 
-When running as part of the OF1 pipeline (step 9), this skill runs alongside `content-metadata`. Both must complete before step 9 is marked done. After writing `brand-voice.json`, write your half of the status:
+This skill runs alongside `content-metadata` (step 9b). Both must complete before step 9 is marked done.
 
 ```bash
-mkdir -p "$STATE_DIR"
-echo '{"step":9,"status":"done","summary":"Brand voice extracted: [personality adjectives]. [N] vocabulary terms, [M] avoid words."}' > "$STATE_DIR/step-9-brand-status.json"
+cat > "$OF1_STATE_DIR/step-9-brand-status.json" <<EOF
+{"step":9,"substep":"brand","status":"done","summary":"Brand voice extracted: [personality adjectives]. [N] vocabulary terms, [M] avoid words."}
+EOF
 ```
 
 The orchestrator waits for both `step-9-brand-status.json` and `step-9-content-status.json` before marking step 9 complete.
-
-Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.

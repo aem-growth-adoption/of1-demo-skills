@@ -116,7 +116,7 @@ The OF1 worker materializes templates from EDS into R2 after `POST /api/tenants/
 
 ### Catalog requirement — fully inline
 
-⚠️ Every entry in `templates-catalog.json`'s `templates[]` array MUST include `slots`, `htmlContent`, and `stylesheet` inlined. If the worker fetches each template's metadata + HTML separately, it exceeds the 50-subrequest limit and crashes with a 1101 error. `assemble-catalog.py` handles this — do not hand-author the catalog.
+⚠️ Every entry in `templates-catalog.json`'s `templates[]` array MUST include `slots`, `htmlContent`, and `stylesheet` inlined. `assemble-catalog.py` handles this — do not hand-author the catalog.
 
 ### Per-template structure (mandatory)
 
