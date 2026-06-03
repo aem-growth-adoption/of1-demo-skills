@@ -1,111 +1,102 @@
 ---
 name: of1-generative-block-styler
-description: Generate polished CSS for the of1 generative block that makes dynamically-rendered sections look impressive in the demo
+description: Generate polished CSS for the OF1 generative block AND set up the /of1 page end-to-end (template, fragments, page-chrome CSS, branded block CSS, DA content).
 user-invocable: true
 ---
 
 # Generative Block Styler
 
-Generate a polished, brand-aligned CSS file for the of1 generative block. This makes the dynamically-generated EDS sections (hero, cards, columns, tables) look visually impressive when rendered in the conversational/demo context.
+Own the `/of1` page top to bottom: install the block, generate brand-aligned CSS for both the block and the page chrome, create the passthrough template + fragments, and upload the DA content documents that make the page renderable.
 
-## Platform context
+## Env — orchestrator exports these (see `of1-setup`)
 
-This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
+| Var | Purpose |
+|-----|---------|
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-8-status.json` |
+| `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
+| `SKILL_DIR` | absolute path to this skill's directory |
+| `OF1_SNOWFLAKE_ASSETS` | absolute path to `of1-snowflake/assets/` (sibling skill — provides the canonical `of1.js` and `of1-base.css`) |
+| `ADOBE_IMS_TOKEN` | raw DA token (preferred) |
+| `OF1_TOKEN_FILE` | path to a `{"access_token":"…"}` JSON (fallback) |
 
-| Symbol | SLICC default | Claude Code override |
-|---|---|---|
-| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
-| `$OF1_SNOWFLAKE_ASSETS` | `/workspace/skills/of1-snowflake/assets` | `<plugin-dir>/of1-snowflake/assets` (sibling skill's `assets/` dir) |
+Resolve `DA_TOKEN` and read repo config once at the top:
 
-`$REPO_DIR`, `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
+```bash
+DA_TOKEN="${ADOBE_IMS_TOKEN:-$(jq -r .access_token "$OF1_TOKEN_FILE")}"
+[ -n "$DA_TOKEN" ] || { echo "FAIL: no DA token available" >&2; exit 1; }
+
+REPO_CONFIG=$(cat "$OF1_STATE_DIR/repo-config.json")
+OWNER=$(jq -r .owner   <<<"$REPO_CONFIG")
+REPO=$(jq -r .repo     <<<"$REPO_CONFIG")
+BRANCH=$(jq -r .branch <<<"$REPO_CONFIG")
+DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
+```
 
 ## CRITICAL RULES
 
 1. **NEVER modify `blocks/of1/of1.js`** — the OF1 block JavaScript is shared infrastructure and must not be changed. Only the CSS (`blocks/of1/of1.css`) is customized per brand.
-2. **Verify `blocks/of1/of1.js` EXISTS before starting** — if it's missing, the block won't render at all. The snowflake step (Step 6) should have installed it. If missing, copy it from the skill assets: `cp $OF1_SNOWFLAKE_ASSETS/of1.js blocks/of1/of1.js` and commit it.
-3. **Style using the brand guidelines from stardust** — read `stardust/current/DESIGN.json`, `DESIGN.md`, and the `:root` tokens in `styles/styles.css`. The OF1 block must feel native to the brand, not like a generic overlay.
-4. **Commit BOTH of1.js and of1.css** — of1.js must be deployed as-is (unmodified) alongside your styled of1.css. Always `git add blocks/of1/` to include both files. A missing JS = blank page.
+2. **This skill OWNS the block install.** Always copy `of1.js` and `of1-base.css` fresh from `$OF1_SNOWFLAKE_ASSETS/` — never reuse whatever exists in the repo (may be stale from a previous run).
+3. **Style using brand tokens from stardust** — read `stardust/current/DESIGN.json`, `DESIGN.md`, and the `:root` tokens in `styles/styles.css`. The OF1 block must feel native to the brand, not a generic overlay.
+4. **Commit BOTH `of1.js` and `of1.css`** — `of1.js` deployed as-is alongside your styled `of1.css`. Always `git add blocks/of1/` to include both. Missing JS = blank page.
 
-## Why This Exists
+## Why this skill exists
 
-The EDS blocks have CSS designed for statically-authored pages. When the LLM generates sections dynamically, the raw block CSS often looks too plain:
-- No visual hierarchy between generated sections
-- Cards render as flat lists without proper grid treatment
-- Heroes lack the full-bleed dramatic treatment
-- Tables are unstyled
-- No transitions or animations on section appearance
-- No cohesive visual container for the generated content
+EDS block CSS is designed for statically-authored pages. When the LLM generates sections dynamically, the raw block CSS often looks too plain — no visual hierarchy between sections, cards render as flat lists, heroes lack full-bleed treatment, tables are unstyled, no transitions, no cohesive container. This skill bridges that gap by writing `blocks/of1/of1.css` (block-level styles for generated content) and `styles/of1.css` (page chrome for the `/of1` page itself).
 
-This skill bridges that gap by generating a `generative.css` (or enhancing `blocks/of1/of1.css`) that styles the generated output specifically.
+## Always start from the canonical base files
 
-## IMPORTANT: Always Start from the Canonical Base Files
+The OF1 block base files live in the snowflake skill's assets, NOT in the demo repo:
 
-The OF1 block base files live in the **skills directory**, NOT in the demo repo:
+- **Base CSS:** `$OF1_SNOWFLAKE_ASSETS/of1-base.css`
+- **Base JS:** `$OF1_SNOWFLAKE_ASSETS/of1.js`
 
-- **Base CSS**: `$OF1_SNOWFLAKE_ASSETS/of1-base.css`
-- **Base JS**: `$OF1_SNOWFLAKE_ASSETS/of1.js`
-
-**Step 8 MUST:**
-1. Copy `of1.js` from skills to `blocks/of1/of1.js` AS-IS (never modify it)
-2. Use `of1-base.css` as the starting template for generating `blocks/of1/of1.css`
-3. Replace the generic token values in the base CSS with brand-specific values
-4. Add any brand-specific visual enhancements on top
-
-**DO NOT** use whatever `of1.css` or `of1.js` already exists in the demo repo — always start fresh from the skills assets. The demo repo files may be stale or from a previous run.
+Always copy/read these as the starting point. Do NOT use whatever `of1.css` or `of1.js` happens to be in the demo repo.
 
 ## Process
 
-### Step 0: Install base files from skills
+### Step 0 — Install block JS
 
 ```bash
-# Always copy the canonical of1.js — never modify it
-cp $OF1_SNOWFLAKE_ASSETS/of1.js blocks/of1/of1.js
-
-# Read the base CSS as your starting template
-cat $OF1_SNOWFLAKE_ASSETS/of1-base.css
+cd "$OF1_DEMO_REPO"
+mkdir -p blocks/of1
+cp "$OF1_SNOWFLAKE_ASSETS/of1.js" blocks/of1/of1.js
 ```
 
-### Step 1: Read design context
+### Step 1 — Read design context
 
-Read the following files to understand the brand:
 - `stardust/current/DESIGN.json` — design tokens (colors, fonts, spacing, radius)
+- `stardust/current/DESIGN.md` — design direction
 - `styles/styles.css` — CSS custom properties (the actual deployed tokens)
-- `$OF1_SNOWFLAKE_ASSETS/of1-base.css` — the base template to customize
-- `templates/templates-catalog.json` — template catalog defining what the LLM generates
+- `$OF1_SNOWFLAKE_ASSETS/of1-base.css` — base template to customize
+- `templates/templates-catalog.json` — template catalog (what the LLM generates)
 
-### Step 2: Generate brand-appropriate styles
+### Step 2 — Generate brand-appropriate block styles
 
 The CSS must cover these key patterns:
-- **Section-level styling** — each generated section gets proper spacing, backgrounds, max-width constraints
-- **Hero treatment** — full-bleed with image background, gradient overlay, large typography
-- **Card grids** — proper grid layout with hover effects, image aspect ratios, card borders/shadows
+
+- **Section-level styling** — spacing, backgrounds, max-width constraints
+- **Hero treatment** — full-bleed image background, gradient overlay, large typography
+- **Card grids** — proper grid layout, hover effects, image aspect ratios, card borders/shadows
 - **Comparison tables** — styled headers, alternating rows, responsive overflow
-- **Columns** — proper side-by-side with responsive stacking
-- **Suggestions UI** — polished follow-up chips with hover states, custom input, restart button
+- **Columns** — side-by-side with responsive stacking
+- **Suggestions UI** — follow-up chips with hover states, custom input, restart button
 - **Skeleton loading** — animated placeholder while generating
-- **Section animations** — fade + slide-up on section appearance
-- **Debug panel** — side panel with timing waterfall (activated with ?debug)
+- **Section animations** — fade + slide-up on appearance
+- **Debug panel** — side panel with timing waterfall (activated with `?debug`)
 
-Adapt these patterns to the current brand:
-- Use the site's actual CSS custom properties (`var(--primary-color)`, `var(--text-color)`, etc.)
-- Match the site's aesthetic (light/dark theme, border-radius, typography)
-- Ensure generated sections look cohesive with the site's existing pages
+Adapt these patterns to the current brand: use the site's actual CSS custom properties (`var(--primary-color)`, `var(--text-color)`, …), match the site's aesthetic (light/dark theme, border-radius, typography), ensure generated sections feel cohesive with the rest of the site.
 
-### Step 3: Write the CSS
+### Step 3 — Write `blocks/of1/of1.css` (block styling)
 
-**BLOCK CSS OUTPUT: `blocks/of1/of1.css`** — this is what EDS auto-loads for the OF1 block. All block-level styling (search UI, generated sections, cards, hero, suggestions, skeleton, debug) goes here.
+**This is what EDS auto-loads for the OF1 block.** All block-level styling (search UI, generated sections, cards, hero, suggestions, skeleton, debug) goes here.
 
-**PAGE CHROME OUTPUT: `styles/of1.css`** — this is loaded by the overlay engine for the OF1 page template. It provides header/footer/body styling only (NOT block styling).
+⚠️ **DO NOT put block styling in `styles/of1.css`** — that file is only for page chrome (Step 5b).
 
-⚠️ **DO NOT put block styling in `styles/of1.css`** — it's only for page chrome (header, footer, body typography). The block CSS MUST go in `blocks/of1/of1.css`.
-
-The process:
+Process:
 1. Read `$OF1_SNOWFLAKE_ASSETS/of1-base.css` as the template
-2. Replace ALL generic token values (e.g., `#000000`, `system-ui`) with the brand's actual values from `DESIGN.json`
+2. Replace ALL generic token values (e.g. `#000000`, `system-ui`) with brand values from `DESIGN.json`
 3. Add brand-specific visual enhancements
-4. Write the COMPLETE result to `blocks/of1/of1.css`
-
-Write the complete CSS to `blocks/of1/of1.css`, organized into these sections:
+4. Write the complete result to `blocks/of1/of1.css`, organized into these sections:
 
 ```
 /* ─── Container & Layout ─── */
@@ -126,34 +117,34 @@ Write the complete CSS to `blocks/of1/of1.css`, organized into these sections:
 /* ─── Responsive ─── */
 ```
 
-### Step 4: Verify block class names
+### Step 4 — Verify block class names
 
-The generated sections use EDS class conventions. After `decorateMain` + `loadSections`, the DOM structure is:
+After `decorateMain` + `loadSections`, the DOM structure is:
 
 ```html
 <main>
   <div class="section of1-container">        <!-- of1 search UI -->
     <div class="of1-wrapper">
-      <div class="of1 block">...</div>
+      <div class="of1 block">…</div>
     </div>
   </div>
   <div class="section hero-container">       <!-- generated hero -->
     <div class="hero-wrapper">
-      <div class="hero block">...</div>
+      <div class="hero block">…</div>
     </div>
   </div>
   <div class="section cards-container">      <!-- generated cards -->
     <div class="cards-wrapper">
-      <div class="cards block">...</div>
+      <div class="cards block">…</div>
     </div>
   </div>
   <div class="section generative-suggestions"> <!-- follow-up -->
-    ...
+    …
   </div>
 </main>
 ```
 
-Target selectors for generated content use the `.generated-section` class added by the of1 block JS:
+Target selectors for generated content use the `.generated-section` class added by the OF1 block JS:
 
 ```css
 .generated-section                         /* any generated section */
@@ -164,36 +155,27 @@ Target selectors for generated content use the `.generated-section` class added 
 .generated-section .table                  /* generated table */
 ```
 
-### Step 5: Test
+### Step 5 — Test locally
 
-Start the dev server and test:
-1. Open the of1 page
+Start the dev server and verify:
+1. Open the OF1 page
 2. Click a suggestion chip
-3. Verify: hero has full-bleed image + gradient + white text
-4. Verify: cards render in a grid with proper image treatment
-5. Verify: tables have styled headers and rows
-6. Verify: sections animate in smoothly
-7. Verify: suggestions UI is polished with hover states
+3. Hero has full-bleed image + gradient + white text
+4. Cards render in a grid with proper image treatment
+5. Tables have styled headers and rows
+6. Sections animate in smoothly
+7. Suggestions UI is polished with hover states
 
-### Step 5b: Write `styles/of1.css` — page-level chrome styling
+### Step 5b — Write `styles/of1.css` (page chrome)
 
-**⚠️ CRITICAL:** The OF1 page loads `styles/of1.css` via the overlay engine (template name = "of1"). This file provides page-level styling for the header, footer, and body — NOT the block itself. Without it, the nav bar and footer render as unstyled links.
+**The OF1 page loads `styles/of1.css` via the overlay engine (template name = `of1`).** This provides page-level styling for the header, footer, and body — NOT the block. Without it, the nav bar and footer render as unstyled links.
 
-**Copy the header/footer CSS from the prototype styles.** Look at `styles/prototype-home.css` (or any prototype CSS file) and extract the `.site-header` and `.site-footer` rules. The OF1 page uses the same header/footer fragments as the prototype pages but loads a different page-level stylesheet.
+Copy the header/footer CSS from the prototype styles. Open `styles/prototype-home.css` and extract the `.site-header`/`.site-footer` rules — the OF1 page uses the same fragments as the prototype pages but loads a different page-level stylesheet.
 
-```bash
-# Extract header/footer styling from prototype CSS and write to styles/of1.css
-# The file MUST include:
-# 1. .site-header styling (dark translucent nav bar, white links, logo fill)
-# 2. .site-footer styling (footer columns, link colors, typography)
-# 3. Body/typography basics (font-family, color, background)
-# 4. Any h1-h6 overrides for the page
-```
-
-**What `styles/of1.css` must contain:**
+`styles/of1.css` must contain:
 
 | Section | Purpose |
-|---------|---------|
+|---|---|
 | Body reset | Brand font-family, color, background |
 | `.site-header` | Sticky dark nav with backdrop-blur, white links |
 | `.site-header nav` | Flex layout, spacing, max-width |
@@ -203,62 +185,130 @@ Start the dev server and test:
 | Typography | Heading fonts, weights, sizes |
 | Responsive | Mobile nav/footer adjustments |
 
-**The easiest approach:** Read `styles/prototype-home.css`, find all rules targeting `.site-header` and `.site-footer` (and their children), and write them into `styles/of1.css` with the addition of body/typography overrides.
+### Step 6 — Create the `/of1` page template + fragments
 
-### Step 6: Commit and push
+The `/of1` page uses a **passthrough** template: the overlay engine loads the branded header/footer + the page-chrome CSS, but does NOT replace `<main>` content (the OF1 block stays untouched).
 
-Push so the preview updates:
 ```bash
-git add blocks/of1/ styles/of1.css
-git commit -m "feat: brand-aligned OF1 generative block styling for {DOMAIN}"
-git push origin ${BRANCH}
+cd "$OF1_DEMO_REPO"
+
+mkdir -p templates fragments/of1
+
+# Passthrough template — keeps the OF1 block, only swaps in header/footer + page chrome
+cat > templates/of1.html <<'TMPL'
+<main data-overlay="of1">
+  <div class="of1-container" data-slot-passthrough="true">
+  </div>
+</main>
+TMPL
+
+# OF1 page uses the same header/footer chrome as the prototype-home page
+cp fragments/prototype-home/header.html fragments/of1/header.html
+cp fragments/prototype-home/footer.html fragments/of1/footer.html
 ```
 
-## Key Principles
+**Note:** the substrate (`scripts/scripts.js`) must already understand `data-slot-passthrough` — that's installed during the snowflake step (step 6). If a fresh run shows the OF1 page rendering as raw unstyled DA content, the substrate doesn't have passthrough support yet.
 
-- **The generated content must look as good as hand-crafted pages** — this is a demo, impressions matter
-- **Use the brand's actual tokens** — don't hardcode colors, use `var(--primary-color)` etc.
+### Step 7 — Upload OF1 DA content (and nav/footer placeholders)
+
+The `/of1` page itself is a DA document that points the overlay engine at the `of1` template. The default EDS header/footer blocks also expect `/nav` and `/footer` content to exist — without them, those blocks 404 even though our overlay-aware fragments are the ones actually used. Create all three.
+
+```bash
+# /of1 — content page that triggers template=of1
+OF1_HTML='<html><body><header></header><main><div><table><tr><th colspan="2">of1</th></tr><tr><td><p>api-endpoint</p></td><td><p>https://of1-gen-web-service.franklin-prod.workers.dev</p></td></tr><tr><td><p>domain</p></td><td><p>'${BRANCH}'--'${REPO}'--'${OWNER}'</p></td></tr></table></div><div><table><tr><th colspan="2">Metadata</th></tr><tr><td><p>template</p></td><td><p>of1</p></td></tr><tr><td><p>nav</p></td><td><p>/'${BRANCH}'/nav</p></td></tr><tr><td><p>footer</p></td><td><p>/'${BRANCH}'/footer</p></td></tr></table></div></main><footer></footer></body></html>'
+
+curl -s -X PUT \
+  -H "Authorization: Bearer ${DA_TOKEN}" \
+  -H "Content-Type: text/html" \
+  -d "$OF1_HTML" \
+  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/of1.html"
+
+# /nav and /footer placeholders so the default EDS blocks don't 404
+NAV_HTML='<html><body><header></header><main><div><p><a href="/">Brand</a></p></div><div><ul><li><a href="#">Link 1</a></li></ul></div></main><footer></footer></body></html>'
+
+curl -s -X PUT \
+  -H "Authorization: Bearer ${DA_TOKEN}" \
+  -H "Content-Type: text/html" \
+  -d "$NAV_HTML" \
+  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/nav.html"
+
+FOOTER_HTML='<html><body><header></header><main><div><p>Footer content</p></div></main><footer></footer></body></html>'
+
+curl -s -X PUT \
+  -H "Authorization: Bearer ${DA_TOKEN}" \
+  -H "Content-Type: text/html" \
+  -d "$FOOTER_HTML" \
+  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/footer.html"
+
+# Trigger preview so the URLs are live
+for SLUG in of1 nav footer; do
+  curl -s -X POST \
+    -H "Authorization: Bearer ${DA_TOKEN}" \
+    -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
+    -o /dev/null \
+    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${BRANCH}/${SLUG}"
+done
+```
+
+**Do NOT include a `<title>` tag in the DA HTML** — EDS will render it as visible content.
+
+### Step 8 — Commit and push
+
+```bash
+cd "$OF1_DEMO_REPO"
+git add blocks/of1/ styles/of1.css templates/of1.html fragments/of1/
+git commit -m "feat: OF1 page + brand-aligned block styling for ${DOMAIN}"
+git push origin "$BRANCH"
+```
+
+## Key principles
+
+- **Generated content must look as good as hand-crafted pages** — this is a demo, impressions matter
+- **Use the brand's actual tokens** — don't hardcode colors; use `var(--primary-color)`
 - **Style generated sections specifically** — don't break existing static page styling
-- **Full-bleed heroes** — they should be dramatic, not constrained to max-width
-- **Card images are critical** — the LLM outputs image URLs, they must render at proper aspect ratios in a grid
+- **Full-bleed heroes** — dramatic, not constrained to max-width
+- **Card images are critical** — the LLM outputs image URLs; they must render at proper aspect ratios in a grid
 - **Responsive by default** — grids collapse, heroes scale, tables scroll
 - **Animations add polish** — fade-in + slide-up on each section as it streams in
 
 ## Completion — HARD STOP for user review
 
-After pushing, mark the step as `review` and **STOP**. Do NOT proceed to any further steps. The user must open the OF1 page, test the search UI, click suggestion chips, and visually approve the styling before continuing.
+After pushing, mark the step as `review` and **STOP**. Do not proceed. The user must open the OF1 page, test the search UI, click suggestion chips, and visually approve the styling before the pipeline continues.
 
 This is a gate — step 13 (Deploy) cannot start until both step 7 (Templates) and step 8 (this step) are approved.
 
-Write a status file — do NOT call `sprinkle send` directly (only the of1-demo orchestrator scoop may do that). In Claude Code the orchestrator's `Agent` return is the source of truth and this file is optional.
-
 ```bash
-mkdir -p "$STATE_DIR"
-REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
-OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
-REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
-BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
-echo '{"step":8,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/of1","summary":"OF1 generative block CSS styled to match brand. Please open the OF1 page, test search chips, and review the design."}' > "$STATE_DIR/step-8-status.json"
+OF1_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/of1"
+cat > "$OF1_STATE_DIR/step-8-status.json" <<EOF
+{
+  "step": 8,
+  "status": "review",
+  "deliverables": [
+    { "url": "${OF1_URL}", "label": "OF1 page" }
+  ],
+  "summary": "OF1 page is live with brand-aligned block + page-chrome styling. Open it, try the search chips, and review the design."
+}
+EOF
 ```
 
 The user will:
 1. Open the OF1 page via the deliverable link
 2. Try suggestion chips to see generated content with the new styling
-3. Approve or request revisions via the sprinkle UI
+3. Approve or request revisions
 
-## Common Mistakes That Waste Time
+## Common mistakes that waste time
 
-Cross-cutting rules (SLICC Node.js shim, EDS class collisions) live in `of1-demo/knowledge/common-pitfalls.md`. The pitfalls below are specific to OF1-block styling — read all of them before writing CSS.
+Cross-cutting rules (SLICC Node.js shim, EDS class collisions) live in `of1-demo/knowledge/common-pitfalls.md`. The pitfalls below are specific to OF1-block styling — read all before writing CSS.
 
-| Mistake | Time Cost | Fix |
-|---------|-----------|-----|
+| Mistake | Time cost | Fix |
+|---|---|---|
 | Writing branded CSS to `styles/of1-base.css` or any other file | 10+ min (block appears completely unstyled) | Output MUST go to `blocks/of1/of1.css` — the ONLY file EDS auto-loads for the block |
-| Leaving generic tokens (`#000000`, `system-ui`) in of1.css | 5+ min (block looks unbranded) | Replace ALL placeholder token values with brand values from DESIGN.json |
+| Leaving generic tokens (`#000000`, `system-ui`) in `of1.css` | 5+ min (block looks unbranded) | Replace ALL placeholder token values with brand values from `DESIGN.json` |
 | **Forgetting `styles/of1.css` page chrome** | **OF1 nav/footer renders as raw unstyled links** | **MUST write `styles/of1.css` with header/footer CSS copied from prototype styles** |
-| Using existing `of1.js` from the demo repo | 10+ min debugging | Always copy from `$OF1_SNOWFLAKE_ASSETS/of1.js` |
-| Using existing `of1.css` from the demo repo as base | 5+ min stale/wrong | Always start from `$OF1_SNOWFLAKE_ASSETS/of1-base.css` |
-| Modifying `of1.js` to add brand logic | breaks block | JS is shared infrastructure — NEVER touch it, only customize CSS |
-| Forgetting to commit `of1.js` alongside `of1.css` | blank page | Always `git add blocks/of1/` to include both files |
-| **Generated sections constrained to 980px max-width** | **Content has huge side padding, doesn't fill viewport** | **Generated sections MUST be full-width (`max-width: 100%` or `none`). Only inner content (cards grid, text) should have max-width. Heroes/sections themselves go edge-to-edge.** |
-| **Section padding over 60px** | **Huge vertical gaps between generated sections** | **Use 40-56px vertical padding max. The base template uses 56px — don't increase it.** |
+| Using whatever `of1.js` is in the demo repo | 10+ min debugging | Always copy from `$OF1_SNOWFLAKE_ASSETS/of1.js` |
+| Using whatever `of1.css` is in the demo repo as base | 5+ min stale/wrong | Always start from `$OF1_SNOWFLAKE_ASSETS/of1-base.css` |
+| Modifying `of1.js` to add brand logic | Breaks block | JS is shared infrastructure — NEVER touch it, only customize CSS |
+| Forgetting to commit `of1.js` alongside `of1.css` | Blank page | Always `git add blocks/of1/` to include both files |
+| **Generated sections constrained to 980px max-width** | **Content has huge side padding, doesn't fill viewport** | **Generated sections MUST be full-width (`max-width: 100%` or `none`). Only inner content (cards grid, text) should have max-width.** |
+| **Section padding over 60px** | **Huge vertical gaps between sections** | **Use 40–56px vertical padding max. Base template uses 56px — don't increase it.** |
 | **Start over button icon misaligned** | **SVG icon floating above/below text** | **`.suggestion-restart` needs `display: inline-flex; align-items: center; gap: 6px;`** |
