@@ -29,15 +29,16 @@ cd "$OF1_DEMO_REPO"
 
 ## Modes
 
-Selected by `OF1_TG_MODE`:
+Selected by `OF1_TG_MODE`. The orchestrator runs the three phases in order: `base` → `intent × 5` (parallel) → `assemble`.
 
 | Mode | What it does | Dispatched by |
 |---|---|---|
-| `intent` | Generate 5 variations for ONE intent (`$OF1_TG_INTENT`). Writes only `templates/of1-{intent}-*` and `styles/of1-{intent}-*`. Does NOT commit. | Orchestrator fan-out (5 agents in parallel) |
-| `assemble` | Run ONCE after all 5 intent agents finish. Generates `styles/of1-template-base.css`, assembles the catalog, runs `fill-template.py`, installs gallery, single commit + push. | Orchestrator after all intents return |
-| `all` (default) | Legacy fallback — runs the 5 intents serially then assemble inline. ~5× slower than the fan-out. | Single agent when orchestrator can't fan out |
+| `base` | Generate `styles/of1-template-base.css` from the prototype CSS + `DESIGN.json`. Must finish before any `intent` agent starts — intent agents read the base CSS to see the exact token surface they can reference. | Orchestrator FIRST (sequential, 1 agent) |
+| `intent` | Generate 5 variations for ONE intent (`$OF1_TG_INTENT`). Reads the base CSS (already on disk), writes only `templates/of1-{intent}-*` and `styles/of1-{intent}-*`. Does NOT commit. | Orchestrator fan-out (5 agents in parallel) after `base` |
+| `assemble` | Run ONCE after all 5 intent agents finish. Verifies base CSS exists, assembles the catalog, runs `fill-template.py`, installs gallery, single commit + push. | Orchestrator after all intents return |
+| `all` (default) | Legacy fallback — runs `base` → 5 intents serially → assemble, inline in one agent. ~5× slower than the fan-out. | Single agent when orchestrator can't fan out |
 
-**Race-safety:** intent agents write disjoint files (`of1-{intent}-*` prefixes don't collide). Only the assemble agent touches `styles/of1-template-base.css`, the catalog, and git.
+**Race-safety:** intent agents write disjoint files (`of1-{intent}-*` prefixes don't collide). `styles/of1-template-base.css` is owned by the `base` agent; intent agents only read it. The catalog, gallery, and git are owned by `assemble`.
 
 ## Inputs
 
@@ -45,8 +46,8 @@ Available before invocation, in addition to the env above:
 
 - Design tokens → `$OF1_DEMO_REPO/stardust/current/DESIGN.json` (from step 4)
 - Demo narrative → `$OF1_STATE_DIR/step-3-output.md` (from step 3)
-- Prototype HTML → `$OF1_DEMO_REPO/deliverables/prototype-*.html` (from step 5)
-- Prototype CSS → `$OF1_DEMO_REPO/styles/prototype-*.css` (from step 6 / snowflake)
+- Slot-marked overlay templates → `$OF1_DEMO_REPO/templates/prototype-*.html` (from step 6 / snowflake) — real examples of the `<section>` + `data-slot` pattern your 25 templates will follow
+- Prototype CSS → `$OF1_DEMO_REPO/styles/prototype-*.css` (from step 6 / snowflake) — extracted styling rules (padding, radius, hover states, exact values)
 - EDS-rendered screenshots → `$OF1_DEMO_REPO/deliverables/eds-prototype-*.png` (captured by orchestrator before fan-out)
 
 Worker-side schemas: `of1-demo/knowledge/worker-config-schemas.md` § `templates.json`, § `products.json`.
@@ -62,7 +63,7 @@ The OF1 worker materializes templates from EDS into R2 after `POST /api/tenants/
 | 3 | `templates/<name>.html` | Slot-based HTML body | `intent` |
 | 4 | `templates/<name>.metadata.json` | Per-template slot contract | `intent` |
 | 5 | `templates/<name>.sample.json` | Sample slot data for gallery preview | `intent` |
-| 6 | `styles/of1-template-base.css` | Shared design tokens + thin reset | `assemble` |
+| 6 | `styles/of1-template-base.css` | Shared design tokens + thin reset | `base` |
 | 7 | `styles/<name>.css` | Per-template stylesheet (imports the base) | `intent` |
 | 8 | `drafts/<name>-sample.html` | Filled preview (via `fill-template.py`) | `assemble` |
 | 9 | `gallery/index.html` | Browsable review UI | `assemble` |
@@ -137,13 +138,13 @@ The OF1 worker materializes templates from EDS into R2 after `POST /api/tenants/
 
 ## Reference — Component palette (extract from prototypes)
 
-Templates render INSIDE the EDS preview — they live within the full stylesheet stack (snowflake substrate + OF1 chrome + EDS base), NOT inside a standalone prototype. Inferring style only from the prototype HTML produces templates that look subtly wrong when EDS renders them.
+Templates render INSIDE the EDS preview — they live within the full stylesheet stack (snowflake substrate + OF1 chrome + EDS base). Inferring style only from one prototype produces templates that look subtly wrong when EDS renders them.
 
-**Read every prototype, not just home.** Each contributes different patterns:
+**Read every prototype, not just home.** Each contributes different patterns; combine the slot-marked overlay templates (`templates/prototype-*.html`), the extracted CSS (`styles/prototype-*.css`), and the EDS-rendered screenshots (`deliverables/eds-prototype-*.png`):
 
-- `prototype-home.html` — hero treatment, section rhythm, full-bleed banners
-- Listing pages (`prototype-adventures.html`, `prototype-products.html`) — card grids, filter chips, multi-column hover states
-- Detail pages (`prototype-bali-surf-camp.html`, `prototype-product-detail.html`) — structured fact lists, tabbed content, two-column splits, pricing modules
+- `prototype-home` — hero treatment, section rhythm, full-bleed banners
+- Listing pages (e.g. `prototype-adventures`, `prototype-products`) — card grids, filter chips, multi-column hover states
+- Detail pages (e.g. `prototype-bali-surf-camp`, `prototype-product-detail`) — structured fact lists, tabbed content, two-column splits, pricing modules
 
 Extract and reuse VERBATIM:
 
@@ -158,7 +159,76 @@ Extract and reuse VERBATIM:
 | Fact lists / spec rows | Detail | deep-dive, comparison |
 | Tabs / accordions | Detail | deep-dive |
 
-The EDS-rendered screenshots at `deliverables/eds-prototype-*.png` are the **visual ground truth** — inspect them; the CSS files explain *why* the rendered versions look the way they do.
+The EDS-rendered screenshots at `deliverables/eds-prototype-*.png` are the **visual ground truth** — inspect them; the prototype CSS explains *why* the rendered versions look the way they do, and the slot-marked templates show how that visual structure maps to `data-slot` markers.
+
+## Process — Mode: `base`
+
+Generate `styles/of1-template-base.css` from the prototype CSS + `DESIGN.json`. This must finish before any `intent` agent starts — every per-template CSS file `@imports` this, and the intent agents read it to know the exact token surface they can reference. Get the brand tokens wrong here and every generated page inherits the bug.
+
+Write the file directly; **don't run a script**.
+
+**Sources of truth, priority order:**
+
+1. Prototype CSS — `$OF1_DEMO_REPO/styles/prototype-*.css` (search `:root { … }` + custom-property declarations). Snowflake extracted these from the prototype HTML, so they're the canonical token source.
+2. `DESIGN.json` — `$OF1_DEMO_REPO/stardust/current/DESIGN.json`. Tiebreaker / fill-in for tokens not in the prototypes. Schema drifts between extraction runs; tolerate variation.
+
+Don't trust `DESIGN.json` as the sole source — the prototypes are the visually-validated ground truth.
+
+**Required tokens** — define at minimum these custom properties on `:root`, using prototype values verbatim:
+
+```css
+:root {
+  /* Colors */
+  --color-bg: ...;
+  --color-fg: ...;
+  --color-fg-dim: ...;
+  --color-accent: ...;       /* brand accent — must match prototype buttons/links */
+  --color-surface: ...;
+  --color-border: ...;
+
+  /* Typography */
+  --font-display: ...;       /* heading family */
+  --font-body: ...;
+  --weight-display: ...;
+  --weight-body: ...;
+
+  /* Scale */
+  --size-h1: ...;
+  --size-h2: ...;
+  --size-h3: ...;
+  --size-body: ...;
+  --line-tight: ...;
+  --line-relaxed: ...;
+
+  /* Spacing & shape */
+  --space-section: ...;      /* vertical rhythm between sections */
+  --space-container: ...;    /* horizontal container padding */
+  --radius: ...;             /* card / button radius — often 0 for editorial brands */
+  --shadow-card: ...;        /* `none` if prototype has no shadows */
+}
+```
+
+Then add a thin reset on top (box-sizing, body/h1–h6/p margin reset, body font + color from tokens). NO component styles or utility classes — those belong in per-template CSS.
+
+**Verify before declaring done:**
+
+```bash
+for var in --color-bg --color-fg --color-accent --font-display --font-body --size-h1 --radius; do
+  grep -q "${var}:" styles/of1-template-base.css || { echo "FAIL: missing $var" >&2; exit 1; }
+done
+
+# Accent must match prototype — spot check
+grep -A1 ":root" styles/of1-template-base.css | grep accent
+grep -A1 ":root" styles/prototype-*.css       | grep -i accent | head -3
+# If these disagree, fix of1-template-base.css before continuing.
+```
+
+Status file (SLICC sprinkle IPC; CC ignores):
+
+```bash
+echo "{\"step\":7,\"substep\":\"base\",\"status\":\"done\",\"summary\":\"Generated styles/of1-template-base.css with brand tokens.\"}" \
+  > "$OF1_STATE_DIR/step-7-base-status.json"
+```
 
 ## Process — Mode: `intent`
 
@@ -291,65 +361,15 @@ COUNT_CSS=$(ls styles/of1-*.css 2>/dev/null | grep -v 'of1-template-base.css' | 
   || { echo "FAIL: expected 25 of each (html=$COUNT_HTML meta=$COUNT_META css=$COUNT_CSS)" >&2; exit 1; }
 ```
 
-### 1. Generate `styles/of1-template-base.css`
+### 1. Verify the base CSS is in place
 
-Every per-template CSS file `@imports` this — get the brand tokens wrong here and every generated page inherits the bug. Write the file directly; **don't run a script**.
-
-**Sources of truth, priority order:**
-
-1. Prototype CSS — `$OF1_DEMO_REPO/styles/prototype-*.css` (search `:root { … }` + custom-property declarations)
-2. Prototype HTML inline `<style>` blocks — `$OF1_DEMO_REPO/deliverables/prototype-*.html`
-3. `DESIGN.json` (`$OF1_DEMO_REPO/stardust/current/DESIGN.json`) — tiebreaker / fill-in for tokens not in the prototypes. Schema drifts between extraction runs; tolerate variation.
-
-Don't trust `DESIGN.json` as the sole source — the prototypes are the visually-validated ground truth.
-
-**Required tokens** — define at minimum these custom properties on `:root`, using prototype values verbatim:
-
-```css
-:root {
-  /* Colors */
-  --color-bg: ...;
-  --color-fg: ...;
-  --color-fg-dim: ...;
-  --color-accent: ...;       /* brand accent — must match prototype buttons/links */
-  --color-surface: ...;
-  --color-border: ...;
-
-  /* Typography */
-  --font-display: ...;       /* heading family */
-  --font-body: ...;
-  --weight-display: ...;
-  --weight-body: ...;
-
-  /* Scale */
-  --size-h1: ...;
-  --size-h2: ...;
-  --size-h3: ...;
-  --size-body: ...;
-  --line-tight: ...;
-  --line-relaxed: ...;
-
-  /* Spacing & shape */
-  --space-section: ...;      /* vertical rhythm between sections */
-  --space-container: ...;    /* horizontal container padding */
-  --radius: ...;             /* card / button radius — often 0 for editorial brands */
-  --shadow-card: ...;        /* `none` if prototype has no shadows */
-}
-```
-
-Then add a thin reset on top (box-sizing, body/h1–h6/p margin reset, body font + color from tokens). NO component styles or utility classes — those belong in per-template CSS.
-
-**Verify before continuing:**
+`styles/of1-template-base.css` is written by the `base` agent dispatched before the intent fan-out. Fail fast if it's missing:
 
 ```bash
-for var in --color-bg --color-fg --color-accent --font-display --font-body --size-h1 --radius; do
-  grep -q "${var}:" styles/of1-template-base.css || { echo "FAIL: missing $var" >&2; exit 1; }
-done
-
-# Accent must match prototype — spot check
-grep -A1 ":root" styles/of1-template-base.css | grep accent
-grep -A1 ":root" styles/prototype-*.css       | grep -i accent | head -3
-# If these disagree, fix of1-template-base.css before continuing.
+[ -f styles/of1-template-base.css ] || {
+  echo "FAIL: styles/of1-template-base.css missing — was the 'base' agent dispatched first?" >&2
+  exit 1
+}
 ```
 
 ### 2. Assemble the catalog (fully inlined)
@@ -372,8 +392,6 @@ for TPL in templates/of1-*.html; do
   [ -f "$SAMPLE" ] && python3 tools/fill-template.py "$TPL" "$SAMPLE" "drafts/${NAME}-sample.html"
 done
 ```
-
-Use `python3` — Node is a SHIM in SLICC and doesn't support ESM.
 
 ### 4. Install gallery
 
@@ -432,18 +450,20 @@ EOF
 
 ## Process — Mode: `all` (legacy fallback)
 
-If `OF1_TG_MODE` is unset, run the 5 intents serially then assemble inline. Same artifacts as the fan-out; ~5× slower wall-clock because there's no parallelism. Prefer fan-out when the orchestrator supports it.
+If `OF1_TG_MODE` is unset, run all three phases inline: `base` → 5 intents serially → `assemble`. Same artifacts as the fan-out; ~5× slower wall-clock because there's no parallelism. Prefer fan-out when the orchestrator supports it.
 
 ```bash
+OF1_TG_MODE=base # re-invoke this skill's base path
+
 for INTENT in comparison recommendation deep-dive budget discovery; do
   OF1_TG_MODE=intent OF1_TG_INTENT="$INTENT" # re-invoke this skill's intent path
 done
+
 OF1_TG_MODE=assemble # re-invoke this skill's assemble path
 ```
 
 ## Notes
 
-- **Node.js is a SHIM in SLICC** — do NOT use `node`, `npm`, or `.mjs` files. Use `python3 tools/fill-template.py`.
 - **ASCII-safe sample text** — no accented characters in sample data (use plain `e` not `é`); some downstream tooling chokes.
 - **Deliverable URL is the gallery, never the catalog JSON** — the tripwire in assemble Completion guards against this.
 
