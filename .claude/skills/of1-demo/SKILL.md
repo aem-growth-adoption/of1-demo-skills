@@ -59,7 +59,7 @@ Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everyt
 | 5 — prototype | `claude-opus-4-6` | Pixel-perfect HTML generation requiring visual judgment. |
 | 6 — snowflake | `claude-sonnet-4-6` | Runs `snowflake-split.py`, copies substrate, installs OF1 block. |
 | 7a–7e — template intents | `claude-sonnet-4-6` | Structured generation following a clear pattern + EDS visual reference. 5 parallel scoops — biggest cost saving. |
-| 7-assemble | `claude-sonnet-4-6` | Writes `of1-base.css` directly from prototype CSS (no script), then runs `assemble-catalog.py` + `fill-template.py` + one commit. The base-CSS authoring is light synthesis but cascades into 25 templates — bump to opus here if quality dips. |
+| 7-assemble | `claude-sonnet-4-6` | Writes `of1-template-base.css` directly from prototype CSS (no script), then runs `assemble-catalog.py` + `fill-template.py` + one commit. The base-CSS authoring is light synthesis but cascades into 25 templates — bump to opus here if quality dips. |
 | 8 — OF1 styling | `claude-sonnet-4-6` | CSS generation matching prototype-home. Clear reference; not deep reasoning. |
 | 9a — brand voice | `claude-sonnet-4-6` | Synthesis from existing extraction JSON. |
 | 9b — content metadata | `claude-sonnet-4-6` | Scrape product pages + run `download-images.py`. Structured. |
@@ -124,7 +124,7 @@ scoop_scoop({
   env: { OF1_TG_MODE: "assemble" }
 })
 ```
-The assemble scoop generates `styles/of1-base.css`, assembles the catalog, runs `fill-template.py`, installs the gallery, and does the single git commit + push. It writes the canonical `/shared/of1-demo/step-7-status.json` that the orchestrator pushes to the sprinkle.
+The assemble scoop generates `styles/of1-template-base.css`, assembles the catalog, runs `fill-template.py`, installs the gallery, and does the single git commit + push. It writes the canonical `/shared/of1-demo/step-7-status.json` that the orchestrator pushes to the sprinkle.
 
 **If `env` is not supported by the scoop runtime,** pass the mode + intent in the scoop's system prompt instead — the skill reads them from env first, but the orchestrator can equivalently inject `export OF1_TG_MODE=intent OF1_TG_INTENT=<intent>` at the top of the prompt.
 
@@ -226,7 +226,7 @@ Step 7 (template generation) used to be a single ~22-minute scoop. It is now spl
 
 - **Pre-fan-out (inline, orchestrator):** capture an EDS-rendered visual reference of `prototype-home` so the 5 intent scoops share a single visual ground truth (see "Pre-fan-out: capture EDS visual reference" below).
 - **7a — 7e (parallel intent scoops):** named `of1-s7-comparison`, `of1-s7-recommendation`, `of1-s7-deep-dive`, `of1-s7-budget`, `of1-s7-discovery`. Each runs the `of1-template-generation` skill with `OF1_TG_MODE=intent` and `OF1_TG_INTENT=<intent>`. Each writes only its own `templates/of1-{intent}-*.{html,metadata.json,sample.json}` + `styles/of1-{intent}-*.css` files. **No git operations.** Each writes `/shared/of1-demo/step-7-intent-<intent>-status.json` on completion.
-- **7-assemble (sequential after 7a–7e):** named `of1-s7-assemble`. Same skill with `OF1_TG_MODE=assemble`. Generates `styles/of1-base.css` from `DESIGN.json` (deterministic), assembles the fully-inlined catalog via `assemble-catalog.py`, runs `fill-template.py`, installs the gallery, single commit + push. Writes the canonical `/shared/of1-demo/step-7-status.json` that the sprinkle reads.
+- **7-assemble (sequential after 7a–7e):** named `of1-s7-assemble`. Same skill with `OF1_TG_MODE=assemble`. Generates `styles/of1-template-base.css` from `DESIGN.json` (deterministic), assembles the fully-inlined catalog via `assemble-catalog.py`, runs `fill-template.py`, installs the gallery, single commit + push. Writes the canonical `/shared/of1-demo/step-7-status.json` that the sprinkle reads.
 
 ### Pre-fan-out: capture EDS visual reference (inline)
 

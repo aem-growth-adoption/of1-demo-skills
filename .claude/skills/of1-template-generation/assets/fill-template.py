@@ -155,7 +155,7 @@ def main():
     )
 
     # Wrap in standalone page
-    stylesheet = values.get('_meta', {}).get('stylesheet', '/styles/of1-base.css')
+    stylesheet = values.get('_meta', {}).get('stylesheet', '/styles/of1-template-base.css')
     title = values.get('hero.title', 'Template Preview')
 
     standalone = f'''<!DOCTYPE html>

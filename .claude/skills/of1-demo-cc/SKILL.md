@@ -75,7 +75,7 @@ Step 7 (template generation) used to be a single ~22-minute agent. It is now spl
 
 - **Pre-fan-out (inline, orchestrator turn):** capture **every** prototype page's EDS-rendered visual reference. The 5 intent agents need to see the *actual* rendered design system across all page types (home → hero patterns, listing → card grids, detail → fact lists / tabs), not just one screenshot of home.
 - **7a — 7e (parallel intent agents):** each runs the `of1-template-generation` skill with `OF1_TG_MODE=intent` and `OF1_TG_INTENT` set to one of `comparison`, `recommendation`, `deep-dive`, `budget`, `discovery`. Each writes only its own `templates/of1-{intent}-*.{html,metadata.json,sample.json}` + `styles/of1-{intent}-*.css` files. No git operations.
-- **7-assemble (sequential after 7a–7e):** runs the same skill with `OF1_TG_MODE=assemble`. Writes `styles/of1-base.css` directly from the prototype CSS files (no script — see the template-generation skill's "Mode: assemble § 1"), assembles the fully-inlined catalog, runs `fill-template.py`, installs the gallery, and commits everything in one push.
+- **7-assemble (sequential after 7a–7e):** runs the same skill with `OF1_TG_MODE=assemble`. Writes `styles/of1-template-base.css` directly from the prototype CSS files (no script — see the template-generation skill's "Mode: assemble § 1"), assembles the fully-inlined catalog, runs `fill-template.py`, installs the gallery, and commits everything in one push.
 
 ### Pre-fan-out: capture EDS visual references for ALL prototypes (inline)
 
@@ -133,7 +133,7 @@ For each intent agent (7a–7e):
 ## Mode (Step 7 fan-out)
 - `OF1_TG_MODE=intent`
 - `OF1_TG_INTENT=<comparison|recommendation|deep-dive|budget|discovery>`
-- Export these env vars at the start of your work and follow the skill's "Mode: intent" section. Do NOT generate `styles/of1-base.css`, the catalog, the gallery, or commit anything — those are the assemble agent's job.
+- Export these env vars at the start of your work and follow the skill's "Mode: intent" section. Do NOT generate `styles/of1-template-base.css`, the catalog, the gallery, or commit anything — those are the assemble agent's job.
 ```
 
 For the assemble agent (7-assemble):
@@ -157,7 +157,7 @@ Each `Agent` dispatch MUST pass an explicit `model` parameter. The default (inhe
 | 5 — prototype | `opus` | Pixel-perfect HTML generation requiring visual judgment against extracted tokens. |
 | 6 — snowflake | `sonnet` | Runs `snowflake-split.py`, copies substrate, installs OF1 block. Scripted. |
 | 7a–7e — template intents | `sonnet` | Structured generation following a clear pattern + EDS visual reference. 5 parallel agents, this is the biggest cost block — Sonnet here is the single largest saving. |
-| 7-assemble | `sonnet` | Writes `of1-base.css` directly from prototype CSS (no script), then runs `assemble-catalog.py` + `fill-template.py` + one commit. The base-CSS authoring is light synthesis but cascades into 25 templates — bump to `opus` here if quality dips. |
+| 7-assemble | `sonnet` | Writes `of1-template-base.css` directly from prototype CSS (no script), then runs `assemble-catalog.py` + `fill-template.py` + one commit. The base-CSS authoring is light synthesis but cascades into 25 templates — bump to `opus` here if quality dips. |
 | 8 — OF1 styling | `sonnet` | CSS generation matching prototype-home tokens. Has clear reference; not deep reasoning. |
 | 9a — brand voice | `sonnet` | Synthesis from existing extraction JSON. |
 | 9b — content metadata | `sonnet` | Scrape product pages + run `download-images.py`. Structured. |
