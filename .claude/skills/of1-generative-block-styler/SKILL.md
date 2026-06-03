@@ -157,18 +157,7 @@ Target selectors for generated content use the `.generated-section` class added 
 .generated-section .table                  /* generated table */
 ```
 
-### Step 5 — Test locally
-
-Start the dev server and verify:
-1. Open the OF1 page
-2. Click a suggestion chip
-3. Hero has full-bleed image + gradient + white text
-4. Cards render in a grid with proper image treatment
-5. Tables have styled headers and rows
-6. Sections animate in smoothly
-7. Suggestions UI is polished with hover states
-
-### Step 5b — Write `styles/of1.css` (page chrome)
+### Step 5 — Write `styles/of1.css` (page chrome)
 
 **The OF1 page loads `styles/of1.css` via the overlay engine (template name = `of1`).** This provides page-level styling for the header, footer, and body — NOT the block. Without it, the nav bar and footer render as unstyled links.
 
@@ -262,6 +251,36 @@ git add blocks/of1/ styles/of1.css templates/of1.html fragments/of1/
 git commit -m "feat: OF1 page + brand-aligned block styling for ${DOMAIN}"
 git push origin "$BRANCH"
 ```
+
+### Step 9 — Verify the live `/of1` page renders correctly
+
+After the push, EDS picks up the code change automatically. Open the live OF1 page in a browser and verify the three things that have to be right before handing back to the user:
+
+```bash
+OF1_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/of1"
+playwright-cli visit "$OF1_URL" --headed
+sleep 4  # EDS pulls fragments + lazy CSS
+
+# Confirm the branded chrome and the block are all in the DOM
+playwright-cli eval "document.querySelector('header.site-header') ? 'header OK' : 'HEADER MISSING'"
+playwright-cli eval "document.querySelector('footer.site-footer') ? 'footer OK' : 'FOOTER MISSING'"
+playwright-cli eval "document.querySelector('.of1')             ? 'of1 block OK' : 'OF1 BLOCK MISSING'"
+
+# Capture a screenshot for visual review
+playwright-cli screenshot --full-page --output "$OF1_STATE_DIR/of1-render-check.png"
+```
+
+Open the screenshot — the branded nav should be at the top, the branded footer at the bottom, and the OF1 search UI (title, input, suggestion chips) in the middle.
+
+Common failures:
+
+| Symptom | Likely cause |
+|---|---|
+| `HEADER MISSING` / `FOOTER MISSING` | `fragments/of1/{header,footer}.html` didn't get pushed, or `scripts/scripts.js` is missing passthrough support (Step 6 of the snowflake skill) |
+| `OF1 BLOCK MISSING` | `blocks/of1/of1.js` wasn't pushed, OR the DA content document at `/of1.html` is missing the `template=of1` metadata, OR the `of1` block class isn't on the right element |
+| Screenshot shows unstyled links / system font | `styles/of1.css` didn't get pushed, or the overlay engine didn't pick it up (check `<meta name="template">` in the rendered HTML) |
+
+Fix any failures and re-push before Completion.
 
 ## Key principles
 
