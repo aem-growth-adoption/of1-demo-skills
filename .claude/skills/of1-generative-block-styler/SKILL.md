@@ -14,8 +14,7 @@ Own the `/of1` page top to bottom: install the block, generate brand-aligned CSS
 |-----|---------|
 | `OF1_STATE_DIR` | state + IPC dir; receives `step-8-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
-| `SKILL_DIR` | absolute path to this skill's directory |
-| `OF1_SNOWFLAKE_ASSETS` | absolute path to `of1-snowflake/assets/` (sibling skill — provides the canonical `of1.js` and `of1-base.css`) |
+| `SKILL_DIR` | absolute path to this skill's directory (used to find the canonical `assets/of1.js` and `assets/of1.css` that get installed in `blocks/of1/`) |
 | `ADOBE_IMS_TOKEN` | raw DA token (preferred) |
 | `OF1_TOKEN_FILE` | path to a `{"access_token":"…"}` JSON (fallback) |
 
@@ -35,7 +34,7 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 ## CRITICAL RULES
 
 1. **NEVER modify `blocks/of1/of1.js`** — the OF1 block JavaScript is shared infrastructure and must not be changed. Only the CSS (`blocks/of1/of1.css`) is customized per brand.
-2. **This skill OWNS the block install.** Always copy `of1.js` and `of1-base.css` fresh from `$OF1_SNOWFLAKE_ASSETS/` — never reuse whatever exists in the repo (may be stale from a previous run).
+2. **This skill OWNS the block install.** Always copy `of1.js` and `of1.css` fresh from `$SKILL_DIR/assets/` to `blocks/of1/` — never reuse whatever exists in the demo repo (may be stale from a previous run).
 3. **Style using brand tokens from stardust** — read `stardust/current/DESIGN.json`, `DESIGN.md`, and the `:root` tokens in `styles/styles.css`. The OF1 block must feel native to the brand, not a generic overlay.
 4. **Commit BOTH `of1.js` and `of1.css`** — `of1.js` deployed as-is alongside your styled `of1.css`. Always `git add blocks/of1/` to include both. Missing JS = blank page.
 
@@ -45,29 +44,32 @@ EDS block CSS is designed for statically-authored pages. When the LLM generates 
 
 ## Always start from the canonical base files
 
-The OF1 block base files live in the snowflake skill's assets, NOT in the demo repo:
+The OF1 block source files live in this skill's own `assets/`:
 
-- **Base CSS:** `$OF1_SNOWFLAKE_ASSETS/of1-base.css`
-- **Base JS:** `$OF1_SNOWFLAKE_ASSETS/of1.js`
+- **Base JS:** `$SKILL_DIR/assets/of1.js` — copied as-is to `blocks/of1/of1.js`
+- **Base CSS:** `$SKILL_DIR/assets/of1.css` — copied to `blocks/of1/of1.css`, then customized in place with brand tokens
 
-Always copy/read these as the starting point. Do NOT use whatever `of1.css` or `of1.js` happens to be in the demo repo.
+Always start from these. Do NOT use whatever `of1.css` or `of1.js` happens to be in the demo repo.
 
 ## Process
 
-### Step 0 — Install block JS
+### Step 0 — Install block JS + CSS
 
 ```bash
 cd "$OF1_DEMO_REPO"
 mkdir -p blocks/of1
-cp "$OF1_SNOWFLAKE_ASSETS/of1.js" blocks/of1/of1.js
+cp "$SKILL_DIR/assets/of1.js"  blocks/of1/of1.js
+cp "$SKILL_DIR/assets/of1.css" blocks/of1/of1.css
 ```
+
+`of1.js` is deployed as-is. `of1.css` is the unbranded template — Step 3 customizes it in place with the site's brand tokens.
 
 ### Step 1 — Read design context
 
 - `stardust/current/DESIGN.json` — design tokens (colors, fonts, spacing, radius)
 - `stardust/current/DESIGN.md` — design direction
 - `styles/styles.css` — CSS custom properties (the actual deployed tokens)
-- `$OF1_SNOWFLAKE_ASSETS/of1-base.css` — base template to customize
+- `blocks/of1/of1.css` — the freshly-copied template you'll customize
 - `templates/templates-catalog.json` — template catalog (what the LLM generates)
 
 ### Step 2 — Generate brand-appropriate block styles
@@ -86,17 +88,17 @@ The CSS must cover these key patterns:
 
 Adapt these patterns to the current brand: use the site's actual CSS custom properties (`var(--primary-color)`, `var(--text-color)`, …), match the site's aesthetic (light/dark theme, border-radius, typography), ensure generated sections feel cohesive with the rest of the site.
 
-### Step 3 — Write `blocks/of1/of1.css` (block styling)
+### Step 3 — Customize `blocks/of1/of1.css` for the brand
 
 **This is what EDS auto-loads for the OF1 block.** All block-level styling (search UI, generated sections, cards, hero, suggestions, skeleton, debug) goes here.
 
 ⚠️ **DO NOT put block styling in `styles/of1.css`** — that file is only for page chrome (Step 5b).
 
-Process:
-1. Read `$OF1_SNOWFLAKE_ASSETS/of1-base.css` as the template
-2. Replace ALL generic token values (e.g. `#000000`, `system-ui`) with brand values from `DESIGN.json`
-3. Add brand-specific visual enhancements
-4. Write the complete result to `blocks/of1/of1.css`, organized into these sections:
+Step 0 already copied the unbranded template to `blocks/of1/of1.css`. Now edit it in place:
+1. Replace ALL generic token values (e.g. `#000000`, `system-ui`) with brand values from `DESIGN.json`
+2. Add brand-specific visual enhancements
+
+The file is organized into these sections (keep the structure; just retune the values):
 
 ```
 /* ─── Container & Layout ─── */
@@ -305,8 +307,8 @@ Cross-cutting rules (SLICC Node.js shim, EDS class collisions) live in `of1-demo
 | Writing branded CSS to `styles/of1-base.css` or any other file | 10+ min (block appears completely unstyled) | Output MUST go to `blocks/of1/of1.css` — the ONLY file EDS auto-loads for the block |
 | Leaving generic tokens (`#000000`, `system-ui`) in `of1.css` | 5+ min (block looks unbranded) | Replace ALL placeholder token values with brand values from `DESIGN.json` |
 | **Forgetting `styles/of1.css` page chrome** | **OF1 nav/footer renders as raw unstyled links** | **MUST write `styles/of1.css` with header/footer CSS copied from prototype styles** |
-| Using whatever `of1.js` is in the demo repo | 10+ min debugging | Always copy from `$OF1_SNOWFLAKE_ASSETS/of1.js` |
-| Using whatever `of1.css` is in the demo repo as base | 5+ min stale/wrong | Always start from `$OF1_SNOWFLAKE_ASSETS/of1-base.css` |
+| Using whatever `of1.js` is in the demo repo | 10+ min debugging | Always copy fresh from `$SKILL_DIR/assets/of1.js` |
+| Using whatever `of1.css` is in the demo repo as base | 5+ min stale/wrong | Always copy fresh from `$SKILL_DIR/assets/of1.css` and customize in place |
 | Modifying `of1.js` to add brand logic | Breaks block | JS is shared infrastructure — NEVER touch it, only customize CSS |
 | Forgetting to commit `of1.js` alongside `of1.css` | Blank page | Always `git add blocks/of1/` to include both files |
 | **Generated sections constrained to 980px max-width** | **Content has huge side padding, doesn't fill viewport** | **Generated sections MUST be full-width (`max-width: 100%` or `none`). Only inner content (cards grid, text) should have max-width.** |

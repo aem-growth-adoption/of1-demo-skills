@@ -436,7 +436,7 @@ cd "$REPO_DIR"
 # OF1 block
 mkdir -p blocks/of1
 cp "$SKILL_DIR/assets/of1.js"      blocks/of1/of1.js
-cp "$SKILL_DIR/assets/of1-base.css" blocks/of1/of1.css
+cp "$SKILL_DIR/assets/of1-template.css" blocks/of1/of1.css
 
 # Overlay-aware header/footer JS — REQUIRED for OF1 + every snowflake page
 # (the stock EDS versions are 170+ lines and fetch /nav.html instead)
