@@ -53,7 +53,7 @@ Always start from these. Do NOT use whatever `of1.css` or `of1.js` happens to be
 
 ## Process
 
-### Step 0 — Install block JS + CSS
+### Step 0 — Install block files + patch the overlay engine for passthrough
 
 ```bash
 cd "$OF1_DEMO_REPO"
@@ -63,6 +63,26 @@ cp "$SKILL_DIR/assets/of1.css" blocks/of1/of1.css
 ```
 
 `of1.js` is deployed as-is. `of1.css` is the unbranded template — Step 3 customizes it in place with the site's brand tokens.
+
+**Then patch `scripts/scripts.js` to add passthrough support to the overlay engine.** Snowflake (step 6) installs a stock overlay engine whose `applyTemplateOverlay()` always replaces `<main>.innerHTML` with the template's content. That's wrong for the `/of1` page — its `<main>` contains the OF1 search block (an active component with running JS that would be destroyed by an innerHTML swap). The passthrough mode lets the engine load the branded chrome + the page CSS while leaving the existing `<main>` content intact.
+
+Open `scripts/scripts.js`, find the `applyTemplateOverlay()` function, and add this check **before** the "Replace main content" line:
+
+```javascript
+// Check for passthrough mode — if the template body has [data-slot-passthrough],
+// only load header/footer + page CSS but keep the original <main> content intact.
+// Used by the /of1 page so the OF1 block's running JS isn't destroyed.
+if (templateMain.querySelector('[data-slot-passthrough]')) {
+  main.dataset.overlay = templateName;
+  // Passthrough still needs standard block decoration so blocks in <main>
+  // (like the OF1 block) have their decorate() function called.
+  decorateMain(main);
+  await loadSection(main.querySelector('.section'), waitForFirstImage);
+  return true;
+}
+```
+
+**Critical:** the passthrough MUST call `decorateMain(main)` and `loadSection()` before returning `true`. Without those, blocks in `<main>` never decorate and the page renders as raw unstyled DA content. "Passthrough" means "skip DOM replacement" — NOT "skip block decoration."
 
 ### Step 1 — Read design context
 
@@ -198,7 +218,7 @@ cp fragments/prototype-home/header.html fragments/of1/header.html
 cp fragments/prototype-home/footer.html fragments/of1/footer.html
 ```
 
-**Note:** the substrate (`scripts/scripts.js`) must already understand `data-slot-passthrough` — that's installed during the snowflake step (step 6). If a fresh run shows the OF1 page rendering as raw unstyled DA content, the substrate doesn't have passthrough support yet.
+The passthrough behavior for the `<main data-overlay="of1">` + `[data-slot-passthrough]` template above is implemented by the `scripts/scripts.js` patch installed in Step 0 — verify that patch is in place before pushing.
 
 ### Step 7 — Upload OF1 DA content (and nav/footer placeholders)
 
