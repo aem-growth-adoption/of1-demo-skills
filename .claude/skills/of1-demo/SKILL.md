@@ -57,9 +57,10 @@ Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everyt
 | 3 — discovery | `claude-opus-4-6` | Brand/narrative synthesis from crawled pages. Drives the demo story. |
 | 4 — extraction | `claude-opus-4-6` | Design-token + visual-system extraction. Wrong tokens cascade. |
 | 5 — prototype | `claude-opus-4-6` | Pixel-perfect HTML generation requiring visual judgment. |
-| 6 — snowflake | `claude-sonnet-4-6` | Runs `snowflake-split.py`, copies substrate, installs OF1 block. |
+| 6 — snowflake | `claude-sonnet-4-6` | Invokes the adobe `snowflake` skill once per prototype. Thin wrapper. |
 | 7a–7e — template intents | `claude-sonnet-4-6` | Structured generation following a clear pattern + EDS visual reference. 5 parallel scoops — biggest cost saving. |
-| 7-assemble | `claude-sonnet-4-6` | Writes `of1-template-base.css` directly from prototype CSS (no script), then runs `assemble-catalog.py` + `fill-template.py` + one commit. The base-CSS authoring is light synthesis but cascades into 25 templates — bump to opus here if quality dips. |
+| 7-base | `claude-sonnet-4-6` | Reads prototype CSS → writes `styles/of1-template-base.css` (shared tokens). Sequential, before intent fan-out. |
+| 7-assemble | `claude-sonnet-4-6` | Verifies base CSS exists, runs `assemble-catalog.py` + `fill-template.py`, installs gallery, single commit + push. Bump to opus if quality dips. |
 | 8 — OF1 styling | `claude-sonnet-4-6` | CSS generation matching prototype-home. Clear reference; not deep reasoning. |
 | 9a — brand voice | `claude-sonnet-4-6` | Synthesis from existing extraction JSON. |
 | 9b — content metadata | `claude-sonnet-4-6` | Scrape product pages + run `download-images.py`. Structured. |
@@ -100,9 +101,19 @@ scoop_scoop({
 
 Run these in the same orchestrator turn as scoops 10 + 11 (four scoops in one batch after step 5).
 
-**For step 7 (Templates), spawn SIX scoops — five parallel intent scoops + one assemble scoop** (see "Step 7 fan-out detail" below for the rationale):
+**For step 7 (Templates), spawn SEVEN scoops across 3 phases — one `base` scoop + five parallel intent scoops + one `assemble` scoop** (see "Step 7 fan-out detail" below for the rationale):
 
-Spawn the five intent scoops in the same orchestrator turn as Step 8 (six scoops at once). Each intent scoop runs the same skill (`of1-template-generation`) with `OF1_TG_MODE=intent` and one of the five intents in `OF1_TG_INTENT`:
+**Phase 1 — base (sequential, after Step 6):** spawn `of1-s7-base` alongside Step 8. It generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all 25 per-template CSS files `@import`. Must finish before intent agents start.
+```
+scoop_scoop({
+  name: "of1-s7-base",
+  model: "claude-sonnet-4-6",
+  writablePaths: ["/scoops/of1-s7-base/", "/shared/", "/workspace/{REPO_NAME}/"],
+  env: { OF1_TG_MODE: "base" }
+})
+```
+
+**Phase 2 — intent (parallel, after base finishes):** spawn 5 intent scoops once `/shared/of1-demo/step-7-base-status.json` exists. Each runs the same skill with `OF1_TG_MODE=intent` and one of the five intents:
 ```
 for INTENT in comparison recommendation deep-dive budget discovery; do
   scoop_scoop({
@@ -113,9 +124,9 @@ for INTENT in comparison recommendation deep-dive budget discovery; do
   })
 done
 ```
-Intent scoops do NOT need DA mount access — they only write to the local repo, no uploads.
+Intent scoops do NOT need DA mount access — they only write to the local repo.
 
-After all five `/shared/of1-demo/step-7-intent-<intent>-status.json` files exist, spawn the assemble scoop:
+**Phase 3 — assemble (sequential, after all 5 intents finish):** spawn once all five `/shared/of1-demo/step-7-intent-<intent>-status.json` files exist:
 ```
 scoop_scoop({
   name: "of1-s7-assemble",
@@ -124,7 +135,7 @@ scoop_scoop({
   env: { OF1_TG_MODE: "assemble" }
 })
 ```
-The assemble scoop generates `styles/of1-template-base.css`, assembles the catalog, runs `fill-template.py`, installs the gallery, and does the single git commit + push. It writes the canonical `/shared/of1-demo/step-7-status.json` that the orchestrator pushes to the sprinkle.
+The assemble scoop verifies `styles/of1-template-base.css` exists, assembles the catalog, runs `fill-template.py`, installs the gallery, and does the single commit + push. It writes the canonical `/shared/of1-demo/step-7-status.json` that the orchestrator pushes to the sprinkle.
 
 **If `env` is not supported by the scoop runtime,** pass the mode + intent in the scoop's system prompt instead — the skill reads them from env first, but the orchestrator can equivalently inject `export OF1_TG_MODE=intent OF1_TG_INTENT=<intent>` at the top of the prompt.
 
@@ -222,11 +233,12 @@ Steps 1→2 (sequential)
 
 ### Step 7 fan-out detail
 
-Step 7 (template generation) used to be a single ~22-minute scoop. It is now split into 6 scoops plus a small inline screenshot step:
+Step 7 (template generation) is split into 7 scoops across 3 phases plus a small inline screenshot step:
 
-- **Pre-fan-out (inline, orchestrator):** capture an EDS-rendered visual reference of `prototype-home` so the 5 intent scoops share a single visual ground truth (see "Pre-fan-out: capture EDS visual reference" below).
-- **7a — 7e (parallel intent scoops):** named `of1-s7-comparison`, `of1-s7-recommendation`, `of1-s7-deep-dive`, `of1-s7-budget`, `of1-s7-discovery`. Each runs the `of1-template-generation` skill with `OF1_TG_MODE=intent` and `OF1_TG_INTENT=<intent>`. Each writes only its own `templates/of1-{intent}-*.{html,metadata.json,sample.json}` + `styles/of1-{intent}-*.css` files. **No git operations.** Each writes `/shared/of1-demo/step-7-intent-<intent>-status.json` on completion.
-- **7-assemble (sequential after 7a–7e):** named `of1-s7-assemble`. Same skill with `OF1_TG_MODE=assemble`. Generates `styles/of1-template-base.css` from `DESIGN.json` (deterministic), assembles the fully-inlined catalog via `assemble-catalog.py`, runs `fill-template.py`, installs the gallery, single commit + push. Writes the canonical `/shared/of1-demo/step-7-status.json` that the sprinkle reads.
+- **Pre-fan-out (inline, orchestrator):** capture EDS-rendered visual references of all prototypes so the intent scoops see the actual rendered design system (see "Pre-fan-out: capture EDS visual reference" below).
+- **7-base (sequential, 1 scoop):** named `of1-s7-base`. Runs `of1-template-generation` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all per-template CSS files `@import`. Writes `/shared/of1-demo/step-7-base-status.json`. Must finish before intent scoops start.
+- **7a–7e (parallel, 5 scoops):** named `of1-s7-comparison`, `of1-s7-recommendation`, `of1-s7-deep-dive`, `of1-s7-budget`, `of1-s7-discovery`. Each runs with `OF1_TG_MODE=intent` and `OF1_TG_INTENT=<intent>`. Each writes only its own `templates/of1-{intent}-*` + `styles/of1-{intent}-*` files. **No git operations.** Each writes `/shared/of1-demo/step-7-intent-<intent>-status.json` on completion.
+- **7-assemble (sequential after 7a–7e):** named `of1-s7-assemble`. Same skill with `OF1_TG_MODE=assemble`. Verifies base CSS exists, assembles the fully-inlined catalog via `assemble-catalog.py`, runs `fill-template.py`, installs the gallery, single commit + push. Writes the canonical `/shared/of1-demo/step-7-status.json` that the sprinkle reads.
 
 ### Pre-fan-out: capture EDS visual reference (inline)
 
@@ -260,15 +272,7 @@ Step 9 used to be a single scoop that ran `of1-brand-voice-extractor` and `of1-c
 - **`of1-s9-brand`** — runs `of1-brand-voice-extractor`. Produces `of1/config/brand-voice.json`. Writes `/shared/of1-demo/step-9-brand-status.json`. ~1–2 min.
 - **`of1-s9-content`** — runs `of1-content-metadata`. Produces `of1/config/{products,personas,use-cases,features,faqs}.json` + uploads all product images. Writes `/shared/of1-demo/step-9-content-status.json`. ~3–5 min.
 
-The content scoop **MUST use `download-images.py`** (parallel: 8 workers, content-type sniffing, mount-or-API fallback) — NOT a per-image `curl` loop. Inject this reminder into the scoop's system prompt:
-
-```
-## Image-upload performance requirement
-You MUST use `python3 /workspace/skills/of1-content-metadata/assets/download-images.py --update-products`
-for image download + DA upload. It runs 8 concurrent workers and finishes in
-~2 min for 50 images. Do NOT loop `curl` per image — the previous pipeline
-revision did this and it took 12 minutes per run.
-```
+The content scoop **MUST use `download-images.py`** (parallel: 8 workers, content-type sniffing, mount-or-API fallback) — NOT a per-image `curl` loop. The skill documents this in its Step 9 section; no separate injection needed.
 
 Once both `/shared/of1-demo/step-9-brand-status.json` AND `step-9-content-status.json` exist, the orchestrator merges them into a single `/shared/of1-demo/step-9-status.json` (so the sprinkle's polling loop sees a single completion for Step 9):
 
@@ -373,7 +377,7 @@ When the user says **"one shot"** (or "one-shot", "oneshot"), run the ENTIRE pip
 
 1. **Zero approval gates** — every review step is auto-approved instantly
 2. **All deliverables still generated** — discovery.html, brand-review.html, prototypes, config-review.html, gallery, demo hub — everything gets built and committed
-3. **Pre-launch checklist still runs** — Step 13 must pass all 4 checks before marking done
+3. **Pre-launch checklist still runs** — Step 13 must pass all 5 checks before marking done
 4. **Sprinkle still updated** — push all statuses with deliverable URLs so the user can review anything after the fact
 5. **Parallel execution maximized** — spawn all possible scoops simultaneously per the dependency graph
 
@@ -570,9 +574,10 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 4 (Extraction)** needs: domain only (does NOT need discovery output). Extracts design tokens, colors, typography, logo, and screenshots from the live site. Produces PRODUCT.md, DESIGN.json, screenshots, logo, and brand-review.html under `stardust/current/`. Runs in PARALLEL with step 3.
 - **Step 5 (Prototype)** needs: domain + extraction outputs from step 4 (`stardust/current/`) + discovery output from step 3 (key pages and narrative). Waits for BOTH S3 and S4 to complete.
 - **Step 6 (Snowflake)** needs: domain, prototypes from step 5, repo-config.json
-- **Step 7 (Templates)** is fanned out into 5 parallel intent scoops + 1 assemble scoop (see "Step 7 fan-out detail"):
-  - Each intent scoop needs: domain, `stardust/current/DESIGN.json` from step 4, demo narrative from step 3, prototype CSS files from step 6, plus its assigned `OF1_TG_INTENT`
-  - The assemble scoop needs: all 25 per-intent template + CSS files (from the 5 intent scoops), `stardust/current/DESIGN.json`, repo-config.json. It owns the single commit + push.
+- **Step 7 (Templates)** is fanned out into 1 `base` + 5 parallel `intent` + 1 `assemble` scoop (see "Step 7 fan-out detail"):
+  - The base scoop needs: prototype CSS files from step 6, `DESIGN.json` from step 4. It generates `styles/of1-template-base.css`.
+  - Each intent scoop needs: domain, `styles/of1-template-base.css` (from base), demo narrative from step 3, prototype CSS + slot-marked templates from step 6, plus its assigned `OF1_TG_INTENT`
+  - The assemble scoop needs: all 25 per-intent template + CSS files (from the 5 intent scoops), repo-config.json. It owns the single commit + push.
 - **Step 8 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
 - **Steps 9–12 (Track B)** need: domain, `stardust/` data from step 4. They do NOT depend on the snowflake — they can start immediately after step 5.
 - **Step 12 (Config review)** needs: all `of1/config/` files from steps 9-11 — orchestrator generates review page inline
@@ -613,7 +618,7 @@ DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 cd "$REPO_DIR"
 
 # Run the fill script — reads of1/config/*.json, writes deliverables/config-review.html
-python3 /workspace/of1-demo-skills/.claude/skills/of1-config-review/assets/fill-config-review.py . "$DOMAIN"
+python3 /workspace/skills/of1-config-review/assets/fill-config-review.py . "$DOMAIN"
 
 # Commit and push
 git add deliverables/config-review.html
@@ -646,7 +651,7 @@ If a step fails or the user requests revisions:
 
 ## Step 13 — MANDATORY Pre-Launch Checklist
 
-**DO NOT mark Step 13 as `"done"` without running these 4 checks.** This applies in ALL modes — one-shot, auto-approve, or manual. The cone must run these checks INLINE (not delegated to a scoop) after the sync succeeds:
+**DO NOT mark Step 13 as `"done"` without running these 5 checks.** This applies in ALL modes — one-shot, auto-approve, or manual. The cone must run these checks INLINE (not delegated to a scoop) after the sync succeeds:
 
 ### Check 1: OF1 page loads with styled search UI
 ```bash
@@ -684,18 +689,40 @@ EOF
 ```
 If this fails: download additional images from the site, upload to DA, update products.json, re-sync.
 
-### Check 4: All quick link URLs return 200
+### Check 4: Template catalog has 25 entries
+```bash
+python3 << 'EOF'
+import json, sys
+from pathlib import Path
+p = Path('templates/templates-catalog.json')
+if not p.exists():
+    print("✗ templates-catalog.json missing"); sys.exit(1)
+catalog = json.loads(p.read_text())
+of1_entries = [t for t in catalog.get('templates', []) if t.get('name', '').startswith('of1-')]
+if len(of1_entries) < 25:
+    print(f"✗ Only {len(of1_entries)} of1-* templates (need 25)"); sys.exit(1)
+intents = {t.get('intent') for t in of1_entries}
+missing = {'comparison', 'recommendation', 'deep-dive', 'budget', 'discovery'} - intents
+if missing:
+    print(f"✗ Missing intents: {missing}"); sys.exit(1)
+print(f"✓ Catalog has {len(of1_entries)} of1-* templates across all 5 intents")
+EOF
+```
+Pass: 25+ of1-* templates across all 5 intents.
+
+### Check 5: All quick link URLs return 200
 ```bash
 for URL in discovery.html brand-review.html config-review.html index.html; do
   curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/deliverables/${URL}"
 done
 curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/${BRANCH}/prototype-home"
 curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/${BRANCH}/of1"
+curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/gallery/index.html"
 ```
 Pass: All return 200.
 
 ### On failure:
-Fix the issue (commit + push + re-preview + re-sync if needed), then re-run the failing check. Only push `"step":13,"status":"done"` to the sprinkle after ALL 4 pass.
+Fix the issue (commit + push + re-preview + re-sync if needed), then re-run the failing check. Only push `"step":13,"status":"done"` to the sprinkle after ALL 5 pass.
 
 ## Completion
 
