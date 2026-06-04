@@ -8,52 +8,28 @@ user-invocable: true
 
 Generate domain-specific quick suggestion chips, placeholder text, and search UI copy based on the site's products and content.
 
-## ⚡ Speed Priority — Target: 2 minutes
+## Env — orchestrator exports these (see `of1-setup`)
 
-- Use discovery output + site knowledge — do NOT wait for products.json or brand-voice.json (they run in parallel)
-- If config files happen to exist already, read them for better suggestions
-- ONE file to write — this is the fastest step
+| Var | Purpose |
+|-----|---------|
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-10-status.json` |
+| `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 
----
-
-## Platform context
-
-This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
-
-| Symbol | SLICC default | Claude Code override |
-|---|---|---|
-| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
-| Schema reference path | `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` | `<plugin-dir>/of1-demo/knowledge/worker-config-schemas.md` (sibling to this skill) |
-
-`$REPO_DIR`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
-
----
-
-## Inputs
-
-- `DOMAIN`: Target domain (e.g., `frescopa.coffee`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
-
-## Schema Reference
-
-Read worker-config-schemas.md § `suggestions.json` for the exact output format expected by the worker. Use the schema reference path from Platform context.
-
-## Process
-
-### Step 1: Read context
+Read repo config:
 
 ```bash
-REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
-REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
-DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
-
-cd "$REPO_DIR"
+REPO_CONFIG=$(cat "$OF1_STATE_DIR/repo-config.json")
+DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
+cd "$OF1_DEMO_REPO"
 mkdir -p of1/config
 ```
 
-Read discovery output for product/category knowledge:
-```bash
-cat "$STATE_DIR/step-3-output.md" 2>/dev/null
-```
+Schema reference: `of1-demo/knowledge/worker-config-schemas.md` § `suggestions.json`.
+
+## Inputs
+
+- `DOMAIN` (e.g. `frescopa.coffee`). In pipeline mode, read from repo-config. Only ask the user if not provided.
+- Discovery output at `$OF1_STATE_DIR/step-3-output.md` (for product/category knowledge)
 
 If config files already exist (from a previous run or if step 9 finished first), read them for richer suggestions:
 ```bash
@@ -62,9 +38,11 @@ cat of1/config/personas.json 2>/dev/null | jq '.[].name'
 cat of1/config/brand-voice.json 2>/dev/null | jq '.tone'
 ```
 
-### Step 2: Generate suggestions
+## Process
 
-Based on discovery context (and products/personas if available), generate 8-12 quick suggestion chips that:
+### 1. Generate suggestions
+
+Based on discovery context (and products/personas if available), generate 8–12 quick suggestion chips that:
 - Cover different personas
 - Cover different intents (compare, recommend, explore, deep-dive, budget)
 - Use natural language a real user would type
@@ -75,9 +53,9 @@ Also generate:
 - Page title
 - Page subtitle
 
-### Step 3: Write output
+### 2. Write `of1/config/suggestions.json`
 
-Write to `of1/config/suggestions.json`:
+The OF1 block fetches this on page load to populate the search UI (randomly picks 5 to display):
 
 ```json
 {
@@ -91,10 +69,6 @@ Write to `of1/config/suggestions.json`:
 }
 ```
 
-**How the worker uses this file:**
-
-The worker's `suggest.js` serves `tenant.suggestions.suggestions` via `POST /api/suggest` when no query is provided. The OF1 block fetches this on page load to populate the search UI.
-
 **Field requirements:**
 - `title` → the `<h1>` heading on the /of1 page (e.g. "Find Your Next Adventure")
 - `subtitle` → supporting text below the heading
@@ -103,22 +77,17 @@ The worker's `suggest.js` serves `tenant.suggestions.suggestions` via `POST /api
 - `suggestions[].label` → short text shown on the chip (under 40 chars)
 - `suggestions[].query` → the full query string sent to `/api/generate` when clicked
 
-**Intent coverage:** Ensure suggestions cover the worker's intent types so demos can showcase different generation behaviors:
-- `deep-dive`: "Tell me about [specific product]" — triggers detailed single-product pages
-- `comparison`: "Compare [A] vs [B]" — triggers side-by-side layouts
-- `recommendation`: "Best [category] for [persona need]" — triggers featured product + alternatives
-- `discovery`: "Show me [broad category]" — triggers diverse card grids
-- `budget`: "[Category] under $[price]" — triggers price-focused results
-
-The OF1 block randomly picks 5 suggestions to display on each page load, so generate 8-12 for variety.
+**Intent coverage:** Ensure suggestions cover all intent types so demos can showcase different generation behaviors:
+- `deep-dive`: "Tell me about [specific product]" — detailed single-product pages
+- `comparison`: "Compare [A] vs [B]" — side-by-side layouts
+- `recommendation`: "Best [category] for [persona need]" — featured product + alternatives
+- `discovery`: "Show me [broad category]" — diverse card grids
+- `budget`: "[Category] under $[price]" — price-focused results
 
 ## Completion (pipeline mode)
 
-When running as part of the OF1 pipeline (step 10), write a status file after generating `suggestions.json`:
-
 ```bash
-mkdir -p "$STATE_DIR"
-echo '{"step":10,"status":"done","summary":"Generated [N] suggestion chips covering [intents covered]."}' > "$STATE_DIR/step-10-status.json"
+cat > "$OF1_STATE_DIR/step-10-status.json" <<EOF
+{"step":10,"status":"done","summary":"Generated [N] suggestion chips covering [intents covered]."}
+EOF
 ```
-
-Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.
