@@ -8,52 +8,32 @@ user-invocable: true
 
 Analyze a website's visual design system (fonts, colors, button styles, spacing) and generate a branded HTML CTA template with slot placeholders. The template is used by the OF1 extension to inject a personalized call-to-action that looks native to the site.
 
-## ⚡ Speed Priority — Target: 2 minutes
+## Env — orchestrator exports these (see `of1-setup`)
 
-- Read DESIGN.json first for colors/fonts/button styles — avoid re-crawling what's already extracted
-- Only WebFetch if DESIGN.json is missing or lacks button-specific detail
-- ONE file to write
+| Var | Purpose |
+|-----|---------|
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-11-status.json` |
+| `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 
----
-
-## Platform context
-
-This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
-
-| Symbol | SLICC default | Claude Code override |
-|---|---|---|
-| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
-| Schema reference path | `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` | `<plugin-dir>/of1-demo/knowledge/worker-config-schemas.md` (sibling to this skill) |
-
-`$REPO_DIR`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
-
----
-
-## Inputs
-
-- `DOMAIN`: Target domain (e.g., `frescopa.coffee`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
-
-## Schema Reference
-
-Read worker-config-schemas.md § `cta-template.json` for the exact output format expected by the worker. Use the schema reference path from Platform context.
-
-## Process preamble (pipeline mode)
+Read repo config:
 
 ```bash
-REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
-REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
-DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
-
-cd "$REPO_DIR"
+REPO_CONFIG=$(cat "$OF1_STATE_DIR/repo-config.json")
+DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
+cd "$OF1_DEMO_REPO"
 mkdir -p of1/config
 ```
 
-Read existing design tokens (from step 4 extraction):
+Read existing design tokens (from step 4 extraction) — use for colors, fonts, button styles, border-radius. Only WebFetch the site if you need CTA-specific details not in the tokens:
 ```bash
 cat stardust/current/DESIGN.json 2>/dev/null
 ```
 
-If DESIGN.json exists, use it for colors, fonts, button styles, and border-radius. Only WebFetch the site if you need CTA-specific details not in the tokens.
+Schema reference: `of1-demo/knowledge/worker-config-schemas.md` § `cta-template.json`.
+
+## Inputs
+
+- `DOMAIN` (e.g. `frescopa.coffee`). In pipeline mode, read from repo-config. Only ask the user if not provided.
 
 ## Output
 
@@ -75,79 +55,59 @@ If DESIGN.json exists, use it for colors, fonts, button styles, and border-radiu
 
 ## Process
 
-### Step 1: Analyze the site's visual design
+### 1. Analyze the site's visual design
 
-Fetch the homepage and 1-2 key pages using **WebFetch**:
+Fetch the homepage and 1–2 key pages using WebFetch. Extract:
+- Fonts (heading vs body — custom, web, or system)
+- Primary/accent colors, background colors, text colors
+- Button style (background, text color, border-radius, padding, text-transform, font-weight, letter-spacing)
+- Section styling (dark/light backgrounds, padding/margins)
+- Overall theme (dark/light, minimal/rich, sharp/rounded)
 
-```
-Analyze this page's visual design system. Extract:
-1. FONTS: What font-family is used for headings? For body text? (look for custom fonts, web fonts, or system fonts)
-2. PRIMARY COLORS: What's the brand's primary color? Background colors? Text colors?
-3. BUTTON STYLE: What do CTAs/buttons look like? Background color, text color, border-radius (rounded/pill/square?), padding, text-transform, font-weight, letter-spacing?
-4. SECTION STYLING: How are content sections styled? Dark backgrounds or light? What padding/margins?
-5. OVERALL THEME: Dark or light? Minimal or rich? Sharp or rounded?
-6. ACCENT COLORS: Secondary colors used for highlights or interactive elements?
-```
+### 2. Determine the CTA visual treatment
 
-### Step 2: Determine the CTA visual treatment
+- **Background:** usually dark (matches hero/footer tone) or a prominent section style
+- **Heading:** brand font, white or light color, bold weight, ~2rem
+- **Description:** lighter/muted color, regular weight, ~1.1rem
+- **Button:** brand's actual button style (color, radius, padding, text-transform)
+- **Container:** 3–4rem vertical padding, 2rem horizontal, text-align center
 
-Based on the design analysis, decide:
+The CTA should look like a native section on the site — not a generic overlay.
 
-- **Background:** Usually dark (matches hero/footer tone) or matches a prominent section style
-- **Heading:** Brand font, white or light color, bold weight, ~2rem size
-- **Description:** Lighter/muted color, regular weight, ~1.1rem size
-- **Button:** Brand's actual button style (color, border-radius, padding, text-transform)
-- **Container:** Appropriate padding (3-4rem vertical, 2rem horizontal), text-align center
+### 3. Build the HTML template
 
-The CTA should look like it could be a native section on the site — not a generic overlay.
+Self-contained HTML block using **inline styles only** (no external CSS). Must include exactly these placeholders:
 
-### Step 3: Build the HTML template
-
-Create a self-contained HTML block using **inline styles only** (no external CSS dependencies). The template must include exactly these placeholders:
-
-- `{{title}}` — personalized heading (5-10 words)
+- `{{title}}` — personalized heading (5–10 words)
 - `{{description}}` — personalized body text (1 sentence)
-- `{{href}}` — resolved at runtime (do NOT include in slots)
-- `{{buttonText}}` — personalized button label (2-4 words)
+- `{{href}}` — resolved at runtime (NOT in slots)
+- `{{buttonText}}` — personalized button label (2–4 words)
 
-**Template structure:**
 ```html
-<div style="[background, padding, text-align, margin]">
+<div style="[background, padding, text-align, margin, border-radius]">
   <h2 style="[color, font-family, font-size, font-weight, margin, line-height]">{{title}}</h2>
   <p style="[color, font-family, font-size, margin, max-width, line-height]">{{description}}</p>
-  <a href="{{href}}" style="[display, background, color, font-family, font-size, font-weight, padding, border-radius, text-decoration, text-transform, letter-spacing]">{{buttonText}}</a>
+  <a href="{{href}}" style="[display, background, color, font-family, font-size, font-weight, padding, border-radius, text-decoration, text-transform]">{{buttonText}}</a>
 </div>
 ```
 
-### Step 4: Write fallback content
+### 4. Write fallback content
 
 Generate appropriate static fallback content that fits the brand:
+- **title:** generic but relevant to the site's primary offering (5–10 words)
+- **description:** invites exploration, 1 sentence
+- **buttonText:** action-oriented, 2–4 words
 
-- **title:** Generic but relevant to the site's primary offering (5-10 words)
-- **description:** Invites exploration, 1 sentence
-- **buttonText:** Action-oriented, 2-4 words
+### 5. Write `of1/config/cta-template.json`
 
-### Step 5: Write cta-template.json
-
-```bash
-mkdir -p of1/config
-```
-
-Write the JSON file to `of1/config/cta-template.json`. Ensure:
+Ensure:
 - HTML is on a single line (no newlines inside the `html` field)
-- All double quotes inside the HTML use escaped `\"` 
+- All double quotes inside the HTML use escaped `\"`
 - No trailing commas
 
-### Step 6: Confirm
+## Quality checklist
 
-> CTA template written to `of1/config/cta-template.json`. 
-> Visual: [describe the look — e.g., "dark background, white heading, orange pill button matching BMW brand"]
-
-## Quality Checklist
-
-Before writing the file, verify:
-
-- [ ] Template uses the site's actual font family (not a generic sans-serif unless that IS the site's font)
+- [ ] Template uses the site's actual font family (not generic sans-serif unless that IS the site's font)
 - [ ] Button style matches the site's real button design (color, radius, text-transform)
 - [ ] Background color is appropriate (typically dark, matching the site's dark sections)
 - [ ] The CTA would not look out of place if screenshot alongside the actual site
@@ -163,11 +123,8 @@ Before writing the file, verify:
 
 ## Completion (pipeline mode)
 
-When running as part of the OF1 pipeline, write your status after completing:
-
 ```bash
-mkdir -p "$STATE_DIR"
-echo '{"step":11,"status":"done","summary":"CTA template generated: [brief visual description]"}' > "$STATE_DIR/step-11-status.json"
+cat > "$OF1_STATE_DIR/step-11-status.json" <<EOF
+{"step":11,"status":"done","summary":"CTA template generated: [brief visual description]"}
+EOF
 ```
-
-Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.
