@@ -6,157 +6,81 @@ user-invocable: true
 
 # Content Metadata Populator
 
-Crawl a website to extract product data, user personas, use cases, features, and FAQs, producing JSON files for the of1-gen-web-service tenant config.
+Crawl a website to extract product data, user personas, use cases, features, and FAQs, producing JSON files for the OF1 worker tenant config.
 
-## ⚡ Speed Priority — Target: 5 minutes
+## Env — orchestrator exports these (see `of1-setup`)
 
-- In pipeline mode, skip user confirmation — just write the files
-- Cap at 10-20 products (focused on the demo category from discovery)
-- Use discovery output to focus on the right product line
+| Var | Purpose |
+|-----|---------|
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-9-content-status.json` |
+| `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
+| `SKILL_DIR` | absolute path to this skill (used to find `assets/download-images.py`) |
+| `ADOBE_IMS_TOKEN` | raw DA token (preferred) |
+| `OF1_TOKEN_FILE` | path to a `{"access_token":"…"}` JSON (fallback) |
 
----
-
-## Platform context
-
-This skill runs in both SLICC and Claude Code. Resolve these symbols up-front — the rest of the skill uses them by name and assumes you've read this section.
-
-| Symbol | SLICC default | Claude Code override |
-|---|---|---|
-| `$STATE_DIR` | `/shared/of1-demo` | `$OF1_STATE_DIR` (e.g. `<project>/.of1/state`) |
-| `$SKILL_DIR` | `/workspace/skills/of1-content-metadata` | `<plugin-dir>/of1-content-metadata` (absolute path to this skill, set by orchestrator) |
-| `$DA_TOKEN` | `$(oauth-token adobe)` | `$ADOBE_IMS_TOKEN`, or `$(jq -r .access_token "$OF1_TOKEN_FILE")` |
-| Schema reference path | `/workspace/skills/of1-demo/knowledge/worker-config-schemas.md` | `<plugin-dir>/of1-demo/knowledge/worker-config-schemas.md` (sibling to this skill) |
-
-`$REPO_DIR`, `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` come from `"$STATE_DIR/repo-config.json"` (written by `of1-branch-setup`).
-
-Image upload uses `download-images.py` (8 concurrent workers, sniffs content type from magic bytes). It uses the DA mount in SLICC and falls back to `admin.da.live` PUT in Claude Code, picking the token from `$DA_TOKEN`/`$ADOBE_IMS_TOKEN` or `~/.hlx/.da-token.json` automatically.
-
----
-
-## Inputs
-
-- `DOMAIN`: Target domain (e.g., `frescopa.coffee`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
-
-## Schema Reference
-
-Read worker-config-schemas.md for the exact output format of each file (use the schema reference path from Platform context):
-- § `products.json` — field requirements, vectorized fields, image allowlist
-- § `personas.json` — keyword matching behaviour
-- § `use-cases.json` — same shape as personas
-- § `features.json` — vectorized, needs id/name/description
-- § `faqs.json` — vectorized, needs id/question/answer
-
-## Process
-
-### Step 0: Read context (pipeline mode)
+Resolve `DA_TOKEN` and read repo config:
 
 ```bash
-REPO_CONFIG=$(cat "$STATE_DIR/repo-config.json")
-OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
-REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
-BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
-REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
-DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
+export DA_TOKEN="${ADOBE_IMS_TOKEN:-$(jq -r .access_token "$OF1_TOKEN_FILE")}"
+[ -n "$DA_TOKEN" ] || { echo "FAIL: no DA token available" >&2; exit 1; }
 
-cd "$REPO_DIR"
+REPO_CONFIG=$(cat "$OF1_STATE_DIR/repo-config.json")
+OWNER=$(jq -r .owner   <<<"$REPO_CONFIG")
+REPO=$(jq -r .repo     <<<"$REPO_CONFIG")
+BRANCH=$(jq -r .branch <<<"$REPO_CONFIG")
+DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
+
+cd "$OF1_DEMO_REPO"
 mkdir -p of1/config
 ```
 
 If discovery output exists, read it to focus on the right product category:
 ```bash
-cat "$STATE_DIR/step-3-output.md" 2>/dev/null
+cat "$OF1_STATE_DIR/step-3-output.md" 2>/dev/null
 ```
 
-### Step 1: Understand scope
+Schema reference: `of1-demo/knowledge/worker-config-schemas.md` — § `products.json`, § `personas.json`, § `use-cases.json`, § `features.json`, § `faqs.json`.
 
-If `DOMAIN` was provided in your prompt (pipeline mode), use `https://{DOMAIN}` and focus on the **demo category** from discovery (10-20 products). Skip asking.
+## Inputs
 
-Otherwise, ask the user:
-> What should I index? Options:
-> 1. **Full catalog** — All products/items on the site
-> 2. **Specific category** — Only certain product lines
-> 3. **Curated list** — You provide specific URLs
->
-> What's the site URL?
+- `DOMAIN` (e.g. `frescopa.coffee`). In pipeline mode, read from repo-config. Only ask the user if not provided.
 
-### Step 2: Discover catalog
+## Process
 
-Fetch main product listing pages with **WebFetch**:
+### 1. Understand scope
 
-```
-List every product/item on this page with:
-- Name
-- URL (full link to detail page)
-- Category
-- Price (if visible)
-- Short description
+In pipeline mode: use `https://${DOMAIN}` and focus on the **demo category** from discovery (10–20 products). Skip asking.
 
-Also list category/subcategory navigation links.
-```
+In standalone mode, ask:
+> What should I index? Full catalog / specific category / curated list of URLs?
 
-### Step 3: Extract product data
+### 2. Discover catalog
 
-For each product detail page, use **WebFetch**:
+Fetch main product listing pages with WebFetch. Extract for each visible product: name, URL, category, price, short description.
 
-```
-Extract all product information:
-- Full product name
-- Price and currency
-- Category/subcategory
-- Key features (bullet points)
-- Description (1-2 sentences)
-- Technical specifications
-- Use cases mentioned
-- Target audience
-- Image URLs (primary product image)
-- Related products
-- Tags/labels
-```
+### 3. Extract product data
 
-For large catalogs (20+) in standalone mode, batch in groups of 5 and check in with the user. In pipeline mode, cap at 20 products from the demo focus category.
+For each product detail page (cap at 20 in pipeline mode), extract: name, price, currency, category, features (bullets), description (2–3 sentences), specifications, use cases, target audience, image URLs, related products, tags.
 
-### Step 4: Infer personas and use cases
+### 4. Infer personas and use cases
 
-From product data, infer:
+**Personas:** distinct buyer types with trigger keywords, priorities, and product mappings.
 
-**Personas:** Distinct buyer types, trigger keywords, priorities, product mappings.
+**Use cases:** activities/goals with trigger keywords and recommended products.
 
-**Use cases:** Activities/goals, trigger keywords, recommended products.
+### 5. Extract features and FAQs
 
-### Step 5: Extract features and FAQs
+**Features:** cross-product differentiators (technology names, capability categories).
 
-**Features:** Cross-product differentiators (technology names, capability categories).
+**FAQs:** from FAQ sections or inferred from comparison points and feature explanations.
 
-**FAQs:** From FAQ sections or inferred from comparison points and feature explanations.
+### 6. Present summary (standalone mode only)
 
-### Step 6: Present summary (standalone mode only)
+**Skip in pipeline mode** — go directly to Step 7.
 
-**Skip this step in pipeline mode** — go directly to Step 7.
+### 7. Generate JSON files
 
-In standalone mode, present and wait for confirmation:
-
-```
-## Content Metadata Summary
-
-**Products:** [N] items across [M] categories
-**Personas:** [N] identified
-**Use Cases:** [N] identified
-**Features:** [N] extracted
-**FAQs:** [N] questions
-
-Proceed with generating all files?
-```
-
-### Step 7: Generate JSON files
-
-Determine domain from URL. Write to `of1/config/`.
-
-The worker's pipeline steps consume these files as follows:
-- `rag-products.js` scores products by matching query words against `name`, `category`, `description`, and `keywords`
-- `persona-match.js` matches queries (or user interests in personalize mode) against persona `keywords`
-- `use-case-match.js` matches queries (or interests) against use-case `keywords`
-- `rag-content.js` matches queries against feature `name`/`description` and FAQ `question`/`answer`
-- `build-prompt.js` passes matched product data to the LLM — for deep-dive intent it sends ALL fields including `highlights`, `itinerary`, `whatToBring`, etc.
+Write all files to `of1/config/`. Schemas below.
 
 **products.json:**
 ```json
@@ -167,16 +91,11 @@ The worker's pipeline steps consume these files as follows:
     "category": "category",
     "price": 999,
     "currency": "USD",
-    "images": ["https://site.com/hero.jpg", "https://site.com/detail.jpg"],
+    "images": ["https://content.da.live/owner/repo/branch/media/product-slug-1.png"],
     "url": "https://site.com/products/slug",
-    "description": "Detailed description (2-3 sentences). This is sent to the LLM.",
+    "description": "Detailed description (2-3 sentences). Sent to the LLM for generation.",
     "features": ["Feature 1", "Feature 2"],
     "highlights": ["Key selling point 1", "Key selling point 2"],
-    "duration": "5 days",
-    "difficulty": "Beginner",
-    "groupSize": "2-8",
-    "itinerary": ["Day 1: ...", "Day 2: ..."],
-    "whatToBring": ["Item 1", "Item 2"],
     "persona": "persona-id",
     "useCase": "use-case-id",
     "keywords": ["search term 1", "search term 2", "synonym", "related phrase"]
@@ -184,14 +103,14 @@ The worker's pipeline steps consume these files as follows:
 ]
 ```
 
-**CRITICAL fields for the worker:**
-- `persona` (string): ID of the primary persona this product is for — used by `persona-match.js` to boost RAG scoring
-- `useCase` (string): ID of the primary use-case — used by `use-case-match.js` for RAG boosting
-- `keywords` (array of 8-12 strings): Search terms a user might type to find this product — used by `rag-products.js` for direct keyword matching (each match adds +2 to score)
-- `images` (array): Self-hosted image URLs (uploaded to DA or committed to git at `/assets/products/{id}/{n}.png`). These MUST be local EDS URLs, never external CDN URLs — external URLs break due to encoding issues, CORS, and EDS image optimization rewriting.
-- `description` (string): Must be rich enough for the LLM to generate detailed content in deep-dive mode
+**CRITICAL fields:**
+- `persona` (string): primary persona ID — used for RAG scoring boost
+- `useCase` (string): primary use-case ID — used for RAG scoring boost
+- `keywords` (array of 8–12 strings): search terms a user might type — each match adds +2 to score
+- `images` (array): **MUST be DA-hosted URLs** (see Step 8 below). Never external CDN URLs.
+- `description` (string): must be rich enough for the LLM to generate detailed deep-dive content
 
-Without `persona`, `useCase`, and `keywords`, the worker cannot match user queries to the right products and will return irrelevant content.
+Without `persona`, `useCase`, and `keywords`, the worker cannot match user queries to the right products.
 
 **personas.json:**
 ```json
@@ -200,14 +119,14 @@ Without `persona`, `useCase`, and `keywords`, the worker cannot match user queri
     "id": "persona-slug",
     "name": "Persona Name",
     "description": "Who this represents and what they're looking for",
-    "keywords": ["trigger", "words", "that", "this", "persona", "would", "type", "in", "search", "bar"],
+    "keywords": ["trigger", "words", "user", "would", "type", "in", "search"],
     "priorities": ["what", "they", "value"],
     "recommendedProducts": ["product-id-1", "product-id-2"]
   }
 ]
 ```
 
-**CRITICAL:** `keywords` (array of 10-12 strings) are matched against the user's query by `persona-match.js`. In personalize mode, they're matched against the user's browsing interests. Without keywords, persona matching fails silently and defaults to the first persona.
+`keywords` (10–12 strings) are matched against the user's query. Without them, persona matching fails silently and defaults to the first persona.
 
 **use-cases.json:**
 ```json
@@ -216,14 +135,14 @@ Without `persona`, `useCase`, and `keywords`, the worker cannot match user queri
     "id": "use-case-slug",
     "name": "Use Case Name",
     "description": "What this involves and who it's for",
-    "keywords": ["trigger", "keywords", "phrases", "user", "would", "search", "for"],
+    "keywords": ["trigger", "keywords", "user", "would", "search", "for"],
     "recommendedProducts": ["product-id-1"],
     "relatedPersonas": ["persona-id-1"]
   }
 ]
 ```
 
-**CRITICAL:** `keywords` (array of 8-12 strings) are matched against queries by `use-case-match.js`. Without them, use-case matching never triggers.
+`keywords` (8–12 strings) — without them, use-case matching never triggers.
 
 **features.json:**
 ```json
@@ -231,7 +150,7 @@ Without `persona`, `useCase`, and `keywords`, the worker cannot match user queri
   {
     "id": "feature-slug",
     "name": "Feature Name",
-    "description": "What it does and why it matters. Searched by rag-content.js against the query.",
+    "description": "What it does and why it matters.",
     "productIds": ["product-1"],
     "category": "feature-category"
   }
@@ -244,59 +163,45 @@ Without `persona`, `useCase`, and `keywords`, the worker cannot match user queri
   {
     "id": "faq-slug",
     "question": "The question a user might ask?",
-    "answer": "The full answer. Both question and answer are searched by rag-content.js.",
+    "answer": "The full answer.",
     "relatedProducts": ["product-id"],
     "category": "faq-category"
   }
 ]
 ```
 
-### Step 8: Cross-reference check
+### 8. Cross-reference check
 
 Verify all ID references are consistent across files. Fix mismatches.
 
-### Step 9: Pull Product Assets — MUST SELF-HOST ON DA
+### 9. Download + upload product images to DA
 
-**CRITICAL RULE: ALL product images MUST be downloaded and uploaded to DA.** Never leave external CDN URLs in products.json — not AEM delivery URLs, not the customer's site URLs, not any third-party CDN. External URLs break due to CORS, referrer policies, encoding issues, CDN token expiration, and EDS image optimization rewriting.
+**ALL product images MUST be self-hosted on DA.** Never leave external CDN URLs in `products.json` — external URLs break due to CORS, referrer policies, encoding issues, and EDS image optimization rewriting.
 
-**Target:** MINIMUM 2 images per product, up to 5. The pre-launch checklist FAILS if any product has fewer than 2 images. Prioritize:
-1. Main product shot (hero/front view) — REQUIRED
-2. Alternate angle, colorway, or lifestyle shot — REQUIRED (minimum 2 total)
-3. Lifestyle/in-use shot
-4. Detail/close-up shot
-5. Package or accessory shot
+**Minimum 2 images per product, up to 5.** The pre-launch checklist FAILS if any product has fewer than 2. If a product page has only 1 image, look on the category/listing page, manufacturer press galleries, or related model pages for additional angles.
 
-**If a product detail page only has 1 image**, look for additional images on:
-- The category/listing page (model lineup shots, carousel images)
-- The manufacturer's press/media pages (high-res product galleries)
-- Related model pages (shared platform shots work as fallback)
+#### Extract source URLs
 
-**NEVER leave a product with only 1 image** — the deploy checklist will flag it as a failure.
-
-#### Step 9a — Extract source image URLs from each product page
-
-Use playwright-cli to visit each product detail page and extract ALL product images:
+Use playwright-cli to visit each product detail page and extract product images:
 
 ```bash
-playwright-cli eval --tab <TAB_ID> "
+playwright-cli eval "
 Array.from(document.querySelectorAll('img'))
   .filter(i => i.naturalWidth > 200 && !i.src.includes('icon') && !i.src.includes('logo'))
   .map(i => ({ src: i.src, alt: i.alt, w: i.naturalWidth, h: i.naturalHeight }))
 "
 ```
 
-Pick up to 5 unique, high-quality product images per product, and stage them in `products.json` as the source URLs (still external at this point — Step 9b rewrites them to DA URLs).
+Stage the source URLs in `products.json`'s `images` arrays.
 
-#### Step 9b — Parallel batch download + upload (the ONLY path)
+#### Parallel download + upload
 
-Use `download-images.py` — it downloads + uploads concurrently (8 workers), sniffs content type from magic bytes (so JPEGs get `Content-Type: image/jpeg`, not `image/png`), uses the DA mount when available and falls back to `admin.da.live` PUT otherwise, and resolves the IMS token from multiple sources (SLICC's `oauth-token adobe`, Claude Code's `.hlx/.da-token.json`, or `$DA_TOKEN`/`$ADOBE_IMS_TOKEN` env vars).
-
-Do NOT loop `curl` per image — that's how Step 9 used to take 12 minutes for 49 images. The script does the same work in ~2 minutes.
+Use `download-images.py` — it downloads + uploads concurrently (8 workers), sniffs content type from magic bytes, and resolves the DA token automatically.
 
 ```bash
-cd "$REPO_DIR"
+cd "$OF1_DEMO_REPO"
 
-# Generate manifest from products.json (current images field = source URLs from Step 9a)
+# Generate manifest from products.json
 python3 << 'EOF'
 import json
 with open("of1/config/products.json") as f:
@@ -307,7 +212,7 @@ with open("/tmp/image-manifest.json", "w") as f:
 print(f"Manifest: {len(manifest)} products with images")
 EOF
 
-# Parallel download + upload + rewrite products.json with DA URLs in one shot
+# Parallel download + upload + rewrite products.json with DA URLs
 python3 "$SKILL_DIR/assets/download-images.py" \
   --input /tmp/image-manifest.json \
   --owner "$OWNER" --repo "$REPO" --branch "$BRANCH" \
@@ -315,103 +220,55 @@ python3 "$SKILL_DIR/assets/download-images.py" \
   --update-products
 ```
 
-The script prints per-image status (`ok`/`FAIL`) plus a final summary. If any images fail, fix the source URLs in products.json and re-run — the script is idempotent.
+The `--update-products` flag rewrites `products.json[*].images` to DA URLs automatically.
 
-**The DA content URL for products.json:**
+#### Verify
 
-After downloading to DA, images are accessible at:
-```
-https://content.da.live/{OWNER}/{REPO}/{BRANCH}/media/product-{PRODUCT_ID}-{N}.{ext}
-```
-
-The `--update-products` flag rewrites `products.json[*].images` to use these URLs automatically, so you don't have to edit the JSON by hand.
-
-**Update products.json images array with DA URLs:**
-
-```json
-"images": [
-  "https://content.da.live/aem-growth-adoption/of1-demo/${BRANCH}/media/product-house-blend-1.png",
-  "https://content.da.live/aem-growth-adoption/of1-demo/${BRANCH}/media/product-house-blend-2.png"
-]
-```
-
-**Verify EVERY product has ≥2 images and they're accessible:**
 ```bash
 python3 << 'EOF'
-import json, subprocess
+import json, subprocess, sys
 
 with open("of1/config/products.json") as f:
     products = json.load(f)
 
 all_good = True
 for p in products:
-    name = p.get("name", "Unknown")
     images = p.get("images", [])
     if len(images) < 2:
-        print(f"  ✗ FAIL: {name} has only {len(images)} image(s) — MUST have ≥2")
+        print(f"  ✗ {p['name']}: only {len(images)} image(s) — MUST have ≥2")
         all_good = False
     else:
-        # Spot-check first image returns 200
         r = subprocess.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", images[0]], capture_output=True, text=True)
         status = "✓" if r.stdout.strip() == "200" else "✗"
-        print(f"  {status} {name}: {len(images)} images (HTTP {r.stdout.strip()})")
+        print(f"  {status} {p['name']}: {len(images)} images (HTTP {r.stdout.strip()})")
         if r.stdout.strip() != "200":
             all_good = False
 
 if not all_good:
-    print("\n✗ FAIL: Fix products with <2 images before completing this step!")
-    import sys; sys.exit(1)
-else:
-    print("\n✓ All products have ≥2 accessible images")
+    print("\n✗ FAIL: Fix products with <2 images before completing!")
+    sys.exit(1)
+print("\n✓ All products have ≥2 accessible images")
 EOF
 ```
 
-**If any product has fewer than 2 images, DO NOT write the completion status file.** Go back and download more images. Check the category/listing page, the model lineup page, or manufacturer press images for additional angles.
-
-**IMPORTANT:** Never use invented/fabricated image URLs. Only use URLs extracted from the live site that actually downloaded successfully (> 10KB).
-
-## DO NOT — Image Hosting
-
-- **DO NOT** leave `delivery-p*.adobeaemcloud.com` URLs in products.json — download to DA
-- **DO NOT** leave `{customer-domain}/...` URLs in products.json — download to DA
-- **DO NOT** leave any external CDN URL in products.json — ALWAYS download to DA
-- **DO NOT** skip this step thinking "the URLs work fine" — they break in production
-- **DO NOT** use the git repo `/assets/` folder for images — use DA (via the mount in SLICC or admin.da.live in Claude Code; `download-images.py` handles both)
-
-
-### Step 10: Confirm
-
-> Content metadata written to `of1/config/`. Files: products.json, personas.json, use-cases.json, features.json, faqs.json.
-> Product images: [N] products, [total] assets at /assets/products/.
-
-## Common Mistakes That Waste Time
-
-Image-handling rules (self-host on DA, never use external CDN URLs, never invent URLs, minimum 2 per product, png/jpg format) and curl pitfalls (`--data-binary @-`) live in `of1-demo/knowledge/common-pitfalls.md` (§ 2 and § 5). `download-images.py` handles the parallel upload + content-type sniffing + mount-vs-API fallback automatically — most legacy gotchas from the bash flow no longer apply.
-
-Skill-specific:
-
-| Mistake | Time Cost | Fix |
-|---------|-----------|-----|
-| Skipping the post-upload verification | 10+ min debugging broken images at deploy time | The Step 9b verification block at the end of the skill MUST pass before completing — every product ≥2 images, every URL returns 200 |
-| Re-running without `--update-products` | products.json keeps external URLs even after upload | Always pass `--update-products` to `download-images.py` so the JSON is rewritten with DA URLs |
+**Do NOT write the completion status until this passes.** Go back and download more images if any product has fewer than 2.
 
 ## Tips
 
 - IDs must be URL-friendly slugs (lowercase, hyphens)
 - Don't fabricate data — if not on the page, omit it
 - Persona keywords should be words users would type, not marketing terms
-- 10-30 well-described products work better than 200 sparse entries
-- Product images MUST be self-hosted on DA — external CDN URLs ALWAYS break eventually
+- 10–30 well-described products work better than 200 sparse entries
+- Never use invented/fabricated image URLs — only URLs extracted from the live site that actually downloaded successfully (> 10 KB)
 
 ## Completion (pipeline mode)
 
-When running as part of the OF1 pipeline (step 9), this skill runs alongside `brand-voice-extractor`. Both must complete before step 9 is marked done. After writing all JSON files, write your half of the status:
+This skill runs alongside `brand-voice-extractor` (step 9a). Both must complete before step 9 is marked done.
 
 ```bash
-mkdir -p "$STATE_DIR"
-echo '{"step":9,"status":"done","summary":"Content metadata: [N] products, [M] personas, [P] use cases, [Q] features, [R] FAQs."}' > "$STATE_DIR/step-9-content-status.json"
+cat > "$OF1_STATE_DIR/step-9-content-status.json" <<EOF
+{"step":9,"substep":"content","status":"done","summary":"Content metadata: [N] products, [M] personas, [P] use cases, [Q] features, [R] FAQs. All images on DA."}
+EOF
 ```
 
 The orchestrator waits for both `step-9-content-status.json` and `step-9-brand-status.json` before marking step 9 complete.
-
-Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.
