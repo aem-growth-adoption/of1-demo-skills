@@ -47,6 +47,66 @@ def count_templates(repo_dir):
         return 0
     return len([f for f in tpl_dir.glob('of1-*.html')])
 
+
+def render_audit(state_dir):
+    """Render pipeline-audit.json as an HTML section for the demo hub."""
+    audit = load_json(f'{state_dir}/pipeline-audit.json')
+    if not audit or not audit.get('steps'):
+        return ''
+
+    total_tokens = audit.get('totalTokens') or 0
+    total_duration = audit.get('totalDurationMs') or 0
+    total_mins = total_duration / 60000
+    step_count = audit.get('stepCount', len(audit['steps']))
+
+    # Summary stats
+    html = '<h2>Pipeline Audit</h2>\n'
+    html += '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px;">\n'
+    html += f'  <div style="font-size:12px;color:var(--dim);">Total tokens<br><span style="font-size:20px;color:var(--fg);">{total_tokens:,}</span></div>\n'
+    html += f'  <div style="font-size:12px;color:var(--dim);">Wall clock<br><span style="font-size:20px;color:var(--fg);">{total_mins:.1f} min</span></div>\n'
+    html += f'  <div style="font-size:12px;color:var(--dim);">Dispatches<br><span style="font-size:20px;color:var(--fg);">{step_count}</span></div>\n'
+    html += '</div>\n'
+
+    # Per-step table
+    html += '<table style="width:100%;font-size:11px;border-collapse:collapse;margin-bottom:24px;">\n'
+    html += '<tr style="text-align:left;color:var(--dim);border-bottom:1px solid var(--border);">'
+    html += '<th style="padding:6px 8px;">Step</th><th>Name</th><th>Model</th>'
+    html += '<th style="text-align:right;">Tokens</th><th style="text-align:right;">Duration</th>'
+    html += '<th>Status</th></tr>\n'
+
+    for s in audit['steps']:
+        dur_s = (s.get('durationMs') or 0) / 1000
+        tokens = s.get('totalTokens') or 0
+        status = s.get('status', '?')
+        status_color = 'var(--accent)' if status == 'done' else ('var(--orange)' if status == 'failed' else 'var(--dim)')
+        retries = s.get('retries', 0)
+        retry_badge = f' <span style="color:var(--orange);">↻{retries}</span>' if retries > 0 else ''
+
+        html += f'<tr style="border-bottom:1px solid var(--border);">'
+        html += f'<td style="padding:6px 8px;">{s.get("step", "?")}</td>'
+        html += f'<td>{escape(s.get("name", ""))}</td>'
+        html += f'<td>{escape(s.get("model", ""))}</td>'
+        html += f'<td style="text-align:right;">{tokens:,}</td>'
+        html += f'<td style="text-align:right;">{dur_s:.0f}s</td>'
+        html += f'<td style="color:{status_color};">{status}{retry_badge}</td>'
+        html += '</tr>\n'
+
+    html += '</table>\n'
+
+    # Improvements
+    improvements = audit.get('improvements', [])
+    if improvements:
+        html += '<h2>Improvements</h2>\n'
+        html += '<div style="display:flex;flex-direction:column;gap:12px;">\n'
+        for imp in improvements:
+            html += '<div style="padding:12px 16px;border:1px solid var(--border);border-radius:6px;font-size:12px;">\n'
+            html += f'  <div style="color:var(--orange);margin-bottom:4px;">Step {imp.get("step", "?")} — {escape(imp.get("issue", ""))}</div>\n'
+            html += f'  <div style="color:var(--dim);">{escape(imp.get("suggestion", ""))}</div>\n'
+            html += '</div>\n'
+        html += '</div>\n'
+
+    return html
+
 def extract_narrative(step3_output):
     """Extract the narrative paragraph from discovery output."""
     lines = step3_output.split('\n')
@@ -258,6 +318,7 @@ def main():
     html = html.replace('{{REPO}}', repo)
     html = html.replace('{{BRANCH}}', branch)
     html = html.replace('{{DATE}}', date.today().strftime('%B %d, %Y'))
+    html = html.replace('{{PIPELINE_AUDIT}}', render_audit(state_dir))
     
     # Write output
     out_dir = Path(repo_dir) / 'deliverables'
