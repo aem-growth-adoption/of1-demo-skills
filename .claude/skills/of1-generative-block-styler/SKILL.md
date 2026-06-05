@@ -181,27 +181,25 @@ Target selectors for generated content use the `.generated-section` class added 
 
 **The OF1 page loads `styles/of1.css` via the overlay engine (template name = `of1`).** This provides page-level styling for the header, footer, body, and ALL elements that appear outside `<main>` — NOT the block. Without it, the nav bar, announcement bar, and footer render as unstyled links.
 
-Copy ALL page-chrome CSS from the prototype styles. Open `styles/prototype-home.css` and extract **every rule** that targets elements outside `<main>` — that includes the announcement bar, header, footer, and body typography. The OF1 page uses the same fragments as the prototype pages but loads a different page-level stylesheet.
+**Start from a COPY of the entire `styles/prototype-home.css`, then strip only the `<main>`-content rules.** This inverted approach guarantees nothing is missed — announcement bars, nav actions, logo fills, footer columns, responsive overrides all come along for free.
 
-⚠️ **Common regression:** only copying `.site-header` and `.site-footer` rules while missing `.announcement-bar` (or any other element above/below `<main>`). The OF1 page renders those elements from the header/footer fragments — if the CSS for them isn't in `styles/of1.css`, they appear as raw unstyled text.
+```bash
+cd "$OF1_DEMO_REPO"
+cp styles/prototype-home.css styles/of1.css
+```
 
-`styles/of1.css` must contain:
+Then edit `styles/of1.css` and **remove only** the rules that style elements INSIDE `<main>` (hero sections, card grids, product listings, feature blocks, etc. — anything with class names from the prototype's `<main>` content). Keep everything else:
 
-| Section | Purpose |
-|---|---|
-| `:root` tokens | Brand colors, fonts (same as prototype) |
-| Body reset | Brand font-family, color, background |
-| `.announcement-bar` | Promo/shipping bar above nav (background, text color, padding) — if the site has one |
-| `.site-header` | Nav bar background, border, sticky positioning |
-| `.site-header nav` | Flex layout, spacing, max-width |
-| `.site-header nav a` / `.nav-links` | Link styling (color, font-size, hover state) |
-| `.site-header .logo svg` | Logo SVG fill colors |
-| `.nav-actions` | Cart/search/sign-in button styling |
-| `.site-footer` | Footer background, columns grid, link colors |
-| Typography | Heading fonts, weights, sizes |
-| Responsive | Mobile nav/footer adjustments |
+- `:root` tokens
+- `*` / body resets
+- `.announcement-bar` (or any promo bar above the nav)
+- `.site-header` and all descendants (nav, logo, links, actions)
+- `.site-footer` and all descendants
+- Typography (h1–h6, p)
+- All responsive `@media` rules for the above
+- Any utility classes used by header/footer fragments
 
-**The easiest approach:** read `styles/prototype-home.css` and copy EVERYTHING except the `<main>`-content section rules (hero, cards, etc. — those are handled by the overlay template CSS). When in doubt, include it — extra rules that target elements not in `<main>` are harmless; missing rules produce visible regressions.
+⚠️ **Do NOT cherry-pick rules to include.** Start from the full file and remove what you know is `<main>`-only. If in doubt, keep it — extra rules for elements not in the DOM are harmless; missing rules produce visible regressions (raw unstyled announcement bar, unstyled nav icons, etc.).
 
 ### Step 6 — Create the `/of1` page template + fragments
 
