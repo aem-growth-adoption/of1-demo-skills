@@ -63,15 +63,29 @@ If a page is missing, check `stardust/state.json` and re-invoke for that page.
 
 After stardust:prototype generates the prototypes, verify and fix these four common issues before committing.
 
-#### 4a. Logo completeness
+#### 4a. Logo in header AND footer — MUST be inlined SVG
 
-`stardust/current/assets/logo.svg` should be the FULL brand logotype, downloaded directly from the site (typically from `/icons/logo.svg` or extracted from the DOM). If it's truncated, re-download:
+The brand logo MUST be inlined as a complete `<svg>` element (not an `<img src="...">`) in BOTH the header nav and the footer of every prototype. This is the #1 cause of logo rendering failures downstream — if the logo is an `<img>` tag, EDS/DA processing strips or breaks it.
+
+**Verify after stardust:prototype runs:**
 
 ```bash
-curl -s "https://${DOMAIN}/icons/logo.svg" > stardust/current/assets/logo.svg
+# Both header and footer must contain an inline <svg> with the full logo
+for PROTO in stardust/prototypes/prototype-*.html; do
+  echo "=== $(basename $PROTO) ==="
+  grep -c '<svg' "$PROTO" | xargs -I{} echo "  Inline SVGs: {}"
+  grep -q 'class="header-logo".*<svg\|class="nav-logo".*<svg\|logo.*<svg' "$PROTO" \
+    && echo "  ✓ Header has inline SVG logo" \
+    || echo "  ✗ Header logo may be missing or using <img>"
+done
 ```
 
-Update both the header AND footer logo references in the prototypes. The footer logo uses the SAME complete SVG as the header, with fill colors changed for the dark footer background (e.g. `fill="#F4E9DC"` instead of `fill="#58181d"`).
+**If the logo is missing, truncated, or using `<img>` instead of inline SVG:**
+
+1. Get the full logo SVG: `curl -s "https://${DOMAIN}/icons/logo.svg" > stardust/current/assets/logo.svg` (or extract from the DOM via playwright-cli if not at a predictable path)
+2. Inline the complete SVG into the header nav (inside the brand link `<a>`)
+3. Inline the SAME SVG into the footer, but with fill colors changed for the dark footer background (e.g. `fill="#F4E9DC"` instead of `fill="#58181d"`)
+4. Verify the SVG has the correct `viewBox` attribute — if it renders as a tiny square, the viewBox is wrong or missing
 
 #### 4b. CSS class naming — avoid EDS collisions
 
@@ -136,7 +150,7 @@ git push origin "$BRANCH"
 stardust:prototype already enforces this, but for clarity:
 
 - **Use real images** from the live site (exact URLs from the captured page JSON)
-- **Inline the brand logo SVG** in the nav/header
+- **Inline the brand logo SVG** in BOTH the nav/header AND the footer (same SVG, different fill colors for dark footer background)
 - **Match design tokens exactly** (colors, fonts, spacing)
 - **No placeholder images**, colored boxes, gradient divs, or emoji
 - **No redesign** — faithful reproduction only
