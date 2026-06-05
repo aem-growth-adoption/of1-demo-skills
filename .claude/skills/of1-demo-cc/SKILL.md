@@ -251,6 +251,88 @@ If a step returns `failed`:
 4. On retry, re-dispatch with guidance appended.
 5. On skip, only allow if no downstream step structurally depends on it.
 
+## Pipeline audit
+
+After every Agent dispatch returns, record the step's telemetry from the `<usage>` block in the Agent result. The orchestrator tracks this in memory and writes the full audit to `$OF1_STATE_DIR/pipeline-audit.json` after the pipeline finishes (or fails).
+
+### What to record per step
+
+| Field | Source |
+|---|---|
+| `step` | Step number |
+| `name` | Step name (e.g. "branch-setup") |
+| `model` | Model used for this dispatch |
+| `startedAt` | ISO timestamp when the Agent was dispatched |
+| `durationMs` | From the `<usage>` block: `duration_ms` |
+| `totalTokens` | From the `<usage>` block: `total_tokens` |
+| `toolUses` | From the `<usage>` block: `tool_uses` |
+| `status` | From the agent's return JSON (`done` / `review` / `failed`) |
+| `summary` | From the agent's return JSON |
+| `retries` | Number of retries for this step (0 if first-pass success) |
+| `error` | If failed: the failure message. Otherwise `null`. |
+
+### When to write the audit file
+
+Write `$OF1_STATE_DIR/pipeline-audit.json` at **two points**:
+1. After step 13 completes (success path)
+2. If the pipeline aborts (failure path — partial audit is still useful)
+
+Shape:
+
+```json
+{
+  "domain": "<DOMAIN>",
+  "startedAt": "<ISO timestamp of first dispatch>",
+  "completedAt": "<ISO timestamp of last step return>",
+  "totalTokens": <sum across all steps>,
+  "totalDurationMs": <wall-clock from start to finish>,
+  "stepCount": <number of dispatches including retries>,
+  "steps": [
+    {
+      "step": 2,
+      "name": "branch-setup",
+      "model": "sonnet",
+      "startedAt": "...",
+      "durationMs": 12400,
+      "totalTokens": 3200,
+      "toolUses": 8,
+      "status": "done",
+      "summary": "branch + repo-config ready",
+      "retries": 0,
+      "error": null
+    }
+  ]
+}
+```
+
+### Improvements section (append after completion)
+
+After writing the audit, analyze the run and append an `improvements` array to `pipeline-audit.json`. For each step that had issues — retries, high token usage relative to its task complexity, unexpectedly long duration, or a `failed` status that was recovered — write a brief, actionable observation:
+
+```json
+{
+  "improvements": [
+    {
+      "step": 5,
+      "issue": "Prototype generation took 14 min (3× expected) — agent re-generated the full page 4 times instead of iterating on specific sections",
+      "suggestion": "Add a 'targeted fix only — do not regenerate the full page' instruction to the stardust:prototype invocation"
+    },
+    {
+      "step": 9,
+      "issue": "Content-metadata retried 2× — download-images.py failed on first run because products.json had 3 products with only external CDN URLs (no source images found on detail pages)",
+      "suggestion": "Have the extraction step (4) capture more image URLs per product page upfront, or fall back to listing-page carousel images when detail pages have <2"
+    }
+  ]
+}
+```
+
+Rules for the improvements section:
+- Only include steps that had actual problems (retries, failures, token spend >2× the expected range from the model table, duration >3× expected)
+- Be specific: name the exact behavior that went wrong, not generic "could be better"
+- Each `suggestion` should be a concrete change to a skill or dispatch prompt — something actionable for the next pipeline run
+- If the run was clean (no retries, all steps within expected bounds), write `"improvements": []` — don't invent issues
+- This section is for pipeline-level learning; skill-level bugs should be filed as skill edits, not left as audit notes
+
 ## Notes
 
 - Resuming across sessions is not yet implemented (state files exist but resume logic would need to read `step-<N>-summary.json` and rebuild the task list).
