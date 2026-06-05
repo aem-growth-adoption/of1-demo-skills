@@ -179,22 +179,29 @@ Target selectors for generated content use the `.generated-section` class added 
 
 ### Step 5 — Write `styles/of1.css` (page chrome)
 
-**The OF1 page loads `styles/of1.css` via the overlay engine (template name = `of1`).** This provides page-level styling for the header, footer, and body — NOT the block. Without it, the nav bar and footer render as unstyled links.
+**The OF1 page loads `styles/of1.css` via the overlay engine (template name = `of1`).** This provides page-level styling for the header, footer, body, and ALL elements that appear outside `<main>` — NOT the block. Without it, the nav bar, announcement bar, and footer render as unstyled links.
 
-Copy the header/footer CSS from the prototype styles. Open `styles/prototype-home.css` and extract the `.site-header`/`.site-footer` rules — the OF1 page uses the same fragments as the prototype pages but loads a different page-level stylesheet.
+Copy ALL page-chrome CSS from the prototype styles. Open `styles/prototype-home.css` and extract **every rule** that targets elements outside `<main>` — that includes the announcement bar, header, footer, and body typography. The OF1 page uses the same fragments as the prototype pages but loads a different page-level stylesheet.
+
+⚠️ **Common regression:** only copying `.site-header` and `.site-footer` rules while missing `.announcement-bar` (or any other element above/below `<main>`). The OF1 page renders those elements from the header/footer fragments — if the CSS for them isn't in `styles/of1.css`, they appear as raw unstyled text.
 
 `styles/of1.css` must contain:
 
 | Section | Purpose |
 |---|---|
+| `:root` tokens | Brand colors, fonts (same as prototype) |
 | Body reset | Brand font-family, color, background |
-| `.site-header` | Sticky dark nav with backdrop-blur, white links |
+| `.announcement-bar` | Promo/shipping bar above nav (background, text color, padding) — if the site has one |
+| `.site-header` | Nav bar background, border, sticky positioning |
 | `.site-header nav` | Flex layout, spacing, max-width |
-| `.site-header nav a` | White text, font-size, hover state |
-| `.site-header .nav-logo svg` | Logo fill color |
+| `.site-header nav a` / `.nav-links` | Link styling (color, font-size, hover state) |
+| `.site-header .logo svg` | Logo SVG fill colors |
+| `.nav-actions` | Cart/search/sign-in button styling |
 | `.site-footer` | Footer background, columns grid, link colors |
 | Typography | Heading fonts, weights, sizes |
 | Responsive | Mobile nav/footer adjustments |
+
+**The easiest approach:** read `styles/prototype-home.css` and copy EVERYTHING except the `<main>`-content section rules (hero, cards, etc. — those are handled by the overlay template CSS). When in doubt, include it — extra rules that target elements not in `<main>` are harmless; missing rules produce visible regressions.
 
 ### Step 6 — Create the `/of1` page template + fragments
 

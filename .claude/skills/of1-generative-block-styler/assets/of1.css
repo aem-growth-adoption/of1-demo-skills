@@ -603,3 +603,32 @@
     height: 200px;
   }
 }
+
+/* ─── Full-width fix for generated sections ───────────────── */
+/* EDS wraps each section in .<name>-wrapper which has default max-width.
+   Generated sections MUST be full-width; only inner content constrains width. */
+.generated-section,
+.generated-section .section,
+.generated-section [class*="-wrapper"],
+.generated-section [class*="-container"],
+main > .section.generated-section {
+  max-width: 100% !important;
+  width: 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Inner content areas that SHOULD have constrained width */
+.generated-section .of1-hero-grid,
+.generated-section .of1-cmp-grid,
+.generated-section [data-grid-items],
+.generated-section .default-content-wrapper {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
