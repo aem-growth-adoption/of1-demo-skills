@@ -7,6 +7,8 @@ description: Orchestrate the OF1 generative-search demo pipeline end-to-end for 
 
 Turns any website into a branded OF1 generative-search demo on Adobe Edge Delivery Services. 13 steps. Auto-approves by default; user can interrupt to revise any step.
 
+**⚠️ This skill is for Claude Code only.** If you are running in SLICC, use the `of1-demo` skill instead — it uses SLICC's scoop/sprinkle primitives for sub-agent dispatch and progress UI.
+
 ## Entry
 
 The user invokes you with a target domain — e.g. "one-shot demo for frescopa.coffee" or "/of1-demo-cc frescopa.coffee". Extract:
