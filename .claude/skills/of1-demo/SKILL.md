@@ -105,6 +105,8 @@ Run these in the same orchestrator turn as scoops 10 + 11 (four scoops in one ba
 
 **For step 7 (Templates), spawn SEVEN scoops across 3 phases — one `base` scoop + five parallel intent scoops + one `assemble` scoop** (see "Step 7 fan-out detail" below for the rationale):
 
+⚠️ **NEVER use `OF1_TG_MODE=all` (single-scoop mode).** It runs all 25 templates serially in one scoop (~18+ min), routinely hits the SLICC scoop timeout (~7 min), and produces incomplete output. Always use the 3-phase fan-out below. The `all` mode exists in the skill only as a fallback for environments that cannot fan out — SLICC CAN fan out, so always do so.
+
 **Phase 1 — base (sequential, after Step 6):** spawn `of1-s7-base` alongside Step 8. It generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all 25 per-template CSS files `@import`. Must finish before intent agents start.
 ```
 scoop_scoop({
@@ -115,7 +117,7 @@ scoop_scoop({
 })
 ```
 
-**Phase 2 — intent (parallel, after base finishes):** spawn 5 intent scoops once `/shared/of1-demo/step-7-base-status.json` exists. Each runs the same skill with `OF1_TG_MODE=intent` and one of the five intents:
+**Phase 2 — intent (5 parallel scoops, after base finishes):** spawn once `/shared/of1-demo/step-7-base-status.json` exists. Each writes only 5 templates (20 files) — right at the SLICC scoop timeout boundary, so keeping them at 5 per scoop is critical. Do NOT combine intents into fewer scoops.
 ```
 for INTENT in comparison recommendation deep-dive budget discovery; do
   scoop_scoop({
@@ -129,6 +131,25 @@ done
 Intent scoops do NOT need DA mount access — they only write to the local repo.
 
 **Phase 3 — assemble (sequential, after all 5 intents finish):** spawn once all five `/shared/of1-demo/step-7-intent-<intent>-status.json` files exist:
+**Phase 3 — assemble (cone inline preferred, or a scoop):** once all 5 intent status files exist, run assemble. Since assemble is purely scripted (run `assemble-catalog.py` + `fill-template.py` + git push), the cone can run it **inline** without spawning a scoop — this is faster and avoids timeout risk:
+
+```bash
+cd "$REPO_DIR"
+python3 /workspace/skills/of1-template-generation/assets/assemble-catalog.py . "$OWNER" "$REPO" "$BRANCH"
+mkdir -p tools drafts gallery
+cp /workspace/skills/of1-template-generation/assets/fill-template.py tools/fill-template.py
+for TPL in templates/of1-*.html; do
+  NAME=$(basename "$TPL" .html)
+  [ -f "templates/${NAME}.sample.json" ] && python3 tools/fill-template.py "$TPL" "templates/${NAME}.sample.json" "drafts/${NAME}-sample.html"
+done
+cp /workspace/skills/of1-template-generation/assets/gallery.html gallery/index.html
+git add styles/of1-template-base.css styles/of1-*.css templates/ of1/config/templates.json drafts/ tools/ gallery/
+git commit -m "feat: 25 OF1 templates (5 intents × 5 variations) for ${DOMAIN}"
+git push origin "$BRANCH"
+echo '{"step":7,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/gallery/index.html","summary":"25 templates assembled."}' > /shared/of1-demo/step-7-status.json
+```
+
+If you prefer a scoop for isolation:
 ```
 scoop_scoop({
   name: "of1-s7-assemble",
@@ -137,7 +158,6 @@ scoop_scoop({
   env: { OF1_TG_MODE: "assemble" }
 })
 ```
-The assemble scoop verifies `styles/of1-template-base.css` exists, assembles the catalog, runs `fill-template.py`, installs the gallery, and does the single commit + push. It writes the canonical `/shared/of1-demo/step-7-status.json` that the orchestrator pushes to the sprinkle.
 
 **If `env` is not supported by the scoop runtime,** pass the mode + intent in the scoop's system prompt instead — the skill reads them from env first, but the orchestrator can equivalently inject `export OF1_TG_MODE=intent OF1_TG_INTENT=<intent>` at the top of the prompt.
 
