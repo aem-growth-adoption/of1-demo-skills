@@ -32,6 +32,8 @@ scoop_scoop({
 })
 ```
 
+The sprinkle must be open and receiving updates throughout the demo. After each step completes, push the status to it via `sprinkle send of1-demo '<json>'`.
+
 ## Lick Events
 
 The sprinkle sends licks as a single `action` string with colon-delimited fields.
