@@ -757,6 +757,16 @@ If `list_scoops` output includes token counts for the scoop, capture those too. 
 | `retries` | Number of retries (0 if first-pass success) |
 | `error` | If failed: the failure message. Otherwise `null` |
 
+### Capture skill version at pipeline start
+
+Before the first dispatch, record the git hash of the skill plugin:
+
+```bash
+SKILL_PLUGIN_DIR="/workspace/skills"
+SKILL_VERSION=$(git -C "$SKILL_PLUGIN_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+SKILL_BRANCH=$(git -C "$SKILL_PLUGIN_DIR" branch --show-current 2>/dev/null || echo "unknown")
+```
+
 ### Audit file shape
 
 Write `/shared/of1-demo/pipeline-audit.json`:
@@ -764,6 +774,8 @@ Write `/shared/of1-demo/pipeline-audit.json`:
 ```json
 {
   "domain": "<DOMAIN>",
+  "skillVersion": "<git short hash>",
+  "skillBranch": "<branch name>",
   "startedAt": "<ISO>",
   "completedAt": "<ISO>",
   "totalDurationMs": <wall-clock>,

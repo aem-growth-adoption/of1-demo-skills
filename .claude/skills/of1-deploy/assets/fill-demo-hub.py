@@ -59,8 +59,13 @@ def render_audit(state_dir):
     total_mins = total_duration / 60000
     step_count = audit.get('stepCount', len(audit['steps']))
 
+    # Skill version
+    skill_version = audit.get('skillVersion', 'unknown')
+    skill_branch = audit.get('skillBranch', 'unknown')
+
     # Summary stats
     html = '<h2>Pipeline Audit</h2>\n'
+    html += f'<p style="font-size:11px;color:var(--dim);margin-bottom:12px;">Skills: {escape(skill_branch)}@{escape(skill_version)}</p>\n'
     html += '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px;">\n'
     html += f'  <div style="font-size:12px;color:var(--dim);">Total tokens<br><span style="font-size:20px;color:var(--fg);">{total_tokens:,}</span></div>\n'
     html += f'  <div style="font-size:12px;color:var(--dim);">Wall clock<br><span style="font-size:20px;color:var(--fg);">{total_mins:.1f} min</span></div>\n'

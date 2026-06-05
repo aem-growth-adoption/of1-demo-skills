@@ -277,11 +277,25 @@ Write `$OF1_STATE_DIR/pipeline-audit.json` at **two points**:
 1. After step 13 completes (success path)
 2. If the pipeline aborts (failure path — partial audit is still useful)
 
-Shape:
+### Capture skill version at pipeline start
+
+Before the first dispatch, record the git hash of the skill plugin so the audit is tied to a reproducible version:
+
+```bash
+SKILL_PLUGIN_DIR="<absolute path to the of1-demo-skills plugin root>"
+SKILL_VERSION=$(git -C "$SKILL_PLUGIN_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+SKILL_BRANCH=$(git -C "$SKILL_PLUGIN_DIR" branch --show-current 2>/dev/null || echo "unknown")
+```
+
+Include both in the audit file's top-level fields.
+
+### Audit file shape
 
 ```json
 {
   "domain": "<DOMAIN>",
+  "skillVersion": "<git short hash of the skill plugin>",
+  "skillBranch": "<branch name of the skill plugin>",
   "startedAt": "<ISO timestamp of first dispatch>",
   "completedAt": "<ISO timestamp of last step return>",
   "totalTokens": <sum across all steps>,
