@@ -724,6 +724,88 @@ Pass: All return 200.
 ### On failure:
 Fix the issue (commit + push + re-preview + re-sync if needed), then re-run the failing check. Only push `"step":13,"status":"done"` to the sprinkle after ALL 5 pass.
 
+## Pipeline audit
+
+After the pipeline finishes (or aborts), write a structured audit to `/shared/of1-demo/pipeline-audit.json`. This gives cost/time visibility per run and a feedback loop for iterating on skill quality.
+
+### What to record per step
+
+For each step scoop, record timing and status when the status file appears:
+
+```bash
+# When dispatching a step:
+STEP_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+# When the status file appears (poll loop sees it):
+STEP_END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+STEP_DURATION_MS=$(( $(date +%s -d "$STEP_END") - $(date +%s -d "$STEP_START") ))
+```
+
+If `list_scoops` output includes token counts for the scoop, capture those too. Otherwise record `null` — duration alone is valuable.
+
+| Field | Source |
+|---|---|
+| `step` | Step number |
+| `name` | Step name |
+| `model` | Model assigned (from the model table) |
+| `startedAt` | Timestamp when `scoop_scoop()` was called |
+| `completedAt` | Timestamp when the status file appeared |
+| `durationMs` | Wall-clock between dispatch and status-file arrival |
+| `totalTokens` | From `list_scoops` if available; otherwise `null` |
+| `status` | From the step's status JSON (`done` / `review` / `failed`) |
+| `summary` | From the step's status JSON |
+| `retries` | Number of retries (0 if first-pass success) |
+| `error` | If failed: the failure message. Otherwise `null` |
+
+### Audit file shape
+
+Write `/shared/of1-demo/pipeline-audit.json`:
+
+```json
+{
+  "domain": "<DOMAIN>",
+  "startedAt": "<ISO>",
+  "completedAt": "<ISO>",
+  "totalDurationMs": <wall-clock>,
+  "totalTokens": <sum or null if unavailable>,
+  "stepCount": <dispatches including retries>,
+  "steps": [ ... ],
+  "improvements": [ ... ]
+}
+```
+
+### Improvements section
+
+After writing the step data, analyze the run and append an `improvements` array. For each step that had issues — retries, unexpectedly long duration (>3× expected from the model table), or a `failed` status that was recovered — write a brief, actionable observation:
+
+```json
+{
+  "improvements": [
+    {
+      "step": 5,
+      "issue": "Prototype took 22 min (2× expected) — scoop regenerated the full page 4 times instead of iterating on specific sections",
+      "suggestion": "Add 'targeted fix only — do not regenerate the full page' instruction to stardust:prototype invocation"
+    }
+  ]
+}
+```
+
+Rules:
+- Only include steps with actual problems (retries, failures, duration >3× expected)
+- Be specific: name the exact behavior that went wrong
+- Each `suggestion` should be a concrete change to a skill or dispatch prompt
+- If the run was clean: `"improvements": []` — don't invent issues
+
+### When to write
+
+1. After step 13 completes (success)
+2. If the pipeline aborts (partial audit is still useful)
+
+Push the audit file to the sprinkle as a final event so the user can access it:
+```bash
+sprinkle send of1-demo '{"type":"audit","file":"/shared/of1-demo/pipeline-audit.json"}'
+```
+
 ## Completion
 
 After step 13 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.
