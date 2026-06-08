@@ -15,7 +15,7 @@ Generate pixel-perfect, self-contained HTML reproductions of key pages from the 
 | `OF1_STATE_DIR` | state + IPC dir; receives `step-5-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 
-`playwright-cli` calls below use the legacy `visit`/`--output` shape — SLICC runs that natively, CC uses the shim installed by `of1-setup`.
+`playwright-cli` calls use `open` + `--fullPage=true` + `--filename` (SLICC-native syntax; CC shim passes through unchanged).
 
 ## Inputs
 

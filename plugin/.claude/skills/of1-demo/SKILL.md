@@ -105,7 +105,7 @@ Run these in the same orchestrator turn as scoops 10 + 11 (four scoops in one ba
 
 **For step 7 (Templates), spawn SEVEN scoops across 3 phases — one `base` scoop + five parallel intent scoops + one `assemble` scoop** (see "Step 7 fan-out detail" below for the rationale):
 
-⚠️ **NEVER use `OF1_TG_MODE=all` (single-scoop mode).** It runs all 25 templates serially in one scoop (~18+ min), routinely hits the SLICC scoop timeout (~7 min), and produces incomplete output. Always use the 3-phase fan-out below. The `all` mode exists in the skill only as a fallback for environments that cannot fan out — SLICC CAN fan out, so always do so.
+⚠️ **NEVER use `OF1_TG_MODE=all` (single-scoop mode).** It runs all 25 templates serially in one scoop (~18+ min) and produces incomplete output. Always use the 3-phase fan-out below. The `all` mode exists in the skill only as a fallback for environments that cannot fan out — SLICC CAN fan out, so always do so.
 
 **Phase 1 — base (sequential, after Step 6):** spawn `of1-s7-base` alongside Step 8. It generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all 25 per-template CSS files `@import`. Must finish before intent agents start.
 ```
@@ -117,7 +117,7 @@ scoop_scoop({
 })
 ```
 
-**Phase 2 — intent (5 parallel scoops, after base finishes):** spawn once `/shared/of1-demo/step-7-base-status.json` exists. Each writes only 5 templates (20 files) — right at the SLICC scoop timeout boundary, so keeping them at 5 per scoop is critical. Do NOT combine intents into fewer scoops.
+**Phase 2 — intent (5 parallel scoops, after base finishes):** spawn once `/shared/of1-demo/step-7-base-status.json` exists. Each writes only 5 templates (20 files). Do NOT combine intents into fewer scoops — parallelism is the speed win.
 ```
 for INTENT in comparison recommendation deep-dive budget discovery; do
   scoop_scoop({
@@ -202,6 +202,23 @@ Review steps without a deliverable URL will show the summary but no open link �
 **Do NOT use `while/sleep` polling loops.** They block your turn, burn compute, and prevent you from receiving other licks (user input, parallel scoop completions). The platform notifies you — just yield and wait.
 
 Only the of1-demo cone may call `sprinkle send`. Step scoops write files; the cone reads them and pushes to the sprinkle.
+
+## scoop_wait timeout policy
+
+When using `scoop_wait` for long-running steps (prototype, templates, content-metadata), always set a generous timeout:
+
+```
+scoop_wait({ scoop_names: ["of1-s5"], timeout_ms: 1800000 })  // 30 minutes
+```
+
+**Critical:** `timeout_ms` does NOT kill the scoop. It only wakes up the cone. When the timeout fires:
+
+1. **Do NOT immediately `drop_scoop`.** The scoop is likely still working.
+2. Check if the expected output files exist (e.g. `ls stardust/prototypes/prototype-*.html`)
+3. If files exist but the status file doesn't: the scoop is in its final steps (commit/push/status-write) — wait another minute or let the scoop-notify lick arrive naturally.
+4. Only `drop_scoop` if the scoop has been silent for 5+ minutes AND produced no output files.
+
+**There is no hard scoop execution timeout in SLICC.** Scoops run until they finish (or you drop them). The 30-minute `scoop_wait` is just the cone's patience threshold — set it generously and never drop a working scoop.
 
 ## Parallelism — CRITICAL for Speed
 
