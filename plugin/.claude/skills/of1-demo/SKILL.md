@@ -836,7 +836,10 @@ These issues cost time in previous runs. Avoid them:
 
 7. **DA preview auth** — use `oauth-token adobe` to get the IMS token. For preview triggers, pass BOTH `Authorization: Bearer <token>` AND `x-content-source-authorization: Bearer <token>` headers to `admin.hlx.page`.
 
-8. **`--data-binary @file` breaks in scoops** — curl's `@path` expansion can fail, storing the literal string `@/workspace/...` instead of file contents. Always pipe via stdin: `cat file | curl ... --data-binary @-`.
+8. **DA uploads in SLICC** — both `--data-binary @file` AND `cat file | curl --data-binary @-` silently store the literal string instead of file contents. The ONLY reliable upload methods are:
+   - **Shell variable:** `curl -d "$HTML_VAR" ...` (works for short content like DA pages — the OF1 skills already use this pattern)
+   - **DA mount:** `cat file > /mnt/da/${BRANCH}/path.html` (works for larger content like fragments)
+   Always verify the upload by reading back: `curl -s -H "Authorization: Bearer $DA_TOKEN" "https://admin.da.live/source/..."` and checking the response contains expected content.
 
 9. **Deliverable HTML with images** — When HTML deliverables reference images (screenshots, logos), paths must be absolute from the repo root (e.g., `/deliverables/assets/screenshots/home.png`) so they resolve on the EDS preview URL. Relative paths like `assets/screenshots/...` break because the HTML is served at `/deliverables/brand-review.html` while images are at `/deliverables/assets/screenshots/`. Always commit the image assets alongside the HTML.
 
@@ -895,7 +898,7 @@ cat /path/to/content.html | curl -s -X PUT \
   "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/page-name.html"
 ```
 
-**⚠️ IMPORTANT: When using `--data-binary @-`, always pipe via `cat file |`. Do NOT use `--data-binary @/path/to/file` — it can fail silently in scoops.**
+**⚠️ IMPORTANT: `--data-binary @-` and `--data-binary @file` both fail silently in SLICC scoops** (store the literal string instead of content). For short HTML, use `-d "$VAR"` with the content in a shell variable. For larger content, use the DA mount at `/mnt/da/`. Always verify uploads by reading back from admin.da.live.
 
 **DO NOT:**
 - Use `npx da-auth-helper` — it doesn't work in this environment

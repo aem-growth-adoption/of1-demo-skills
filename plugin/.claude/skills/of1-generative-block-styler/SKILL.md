@@ -218,7 +218,14 @@ cat > templates/of1.html <<'TMPL'
 </main>
 TMPL
 
-# OF1 page uses the same header/footer chrome as the prototype-home page
+# OF1 page uses the same header/footer chrome as the prototype-home page.
+# These files MUST exist — step 6 (snowflake) commits them to git.
+# If they're missing, step 6 did not run correctly.
+[ -f fragments/prototype-home/header.html ] || {
+  echo "FAIL: fragments/prototype-home/header.html not found in git." >&2
+  echo "Step 6 (snowflake) did not commit fragments. Re-run step 6." >&2
+  exit 1
+}
 cp fragments/prototype-home/header.html fragments/of1/header.html
 cp fragments/prototype-home/footer.html fragments/of1/footer.html
 ```
