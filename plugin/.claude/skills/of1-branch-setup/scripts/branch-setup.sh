@@ -37,7 +37,7 @@ fi
 # ---------- Verify repo clone ----------
 
 cd "$OF1_DEMO_REPO" || { echo "FAIL: $OF1_DEMO_REPO is not a valid directory" >&2; exit 1; }
-git rev-parse --git-dir >/dev/null 2>&1 || { echo "FAIL: $OF1_DEMO_REPO is not a git repo" >&2; exit 1; }
+[ -d .git ] || { echo "FAIL: $OF1_DEMO_REPO is not a git repo (no .git directory)" >&2; exit 1; }
 
 # ---------- Pick or create branch ----------
 
