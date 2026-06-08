@@ -85,21 +85,48 @@ else
 fi
 
 # ---------- 2. Adobe EDS skills: stardust + snowflake + impeccable ----------
-# Ignore matches inside the of1-demo content repo (legacy/being removed).
+# In SLICC, auto-install missing skills via `upskill`. In CC, report the fix command.
+# Also check stardust sub-skills (extract, prototype) needed by Steps 4 & 5.
 
-for S in stardust snowflake impeccable; do
+ADOBE_EDS_SKILLS=(stardust snowflake impeccable)
+
+install_skill_slicc() {
+  local name="$1"
+  case "$name" in
+    stardust)
+      # Install ALL stardust skills (extract, prototype, direct, etc.)
+      upskill adobe/skills --path plugins/stardust --all 2>&1 | tail -1 ;;
+    snowflake)
+      upskill adobe/skills --path plugins/aem/edge-delivery-services --all 2>&1 | tail -1 ;;
+    impeccable)
+      upskill pbakaus/impeccable --all 2>&1 | tail -1 ;;
+  esac
+}
+
+for S in "${ADOBE_EDS_SKILLS[@]}"; do
   p=$(find_skill "$S" || true)
   if [ -n "${p:-}" ]; then
     ok "$S → $p"
   else
-    case "$S" in
-      snowflake)
-        fail "Adobe EDS skill 'snowflake' not installed — fix: $(fix_cmd '/plugin install aem-edge-delivery-services@adobe-skills' 'upskill adobe/skills --path plugins/aem/edge-delivery-services --all')" ;;
-      stardust)
-        fail "Adobe EDS skill 'stardust' not installed — fix: $(fix_cmd '/plugin install stardust@adobe-skills' 'upskill adobe/skills --path plugins/stardust --all')" ;;
-      impeccable)
-        fail "Adobe EDS skill 'impeccable' not installed — fix: $(fix_cmd '/plugin install impeccable@impeccable' 'upskill pbakaus/impeccable --all')" ;;
-    esac
+    if [ "$RUNTIME" = "slicc" ]; then
+      echo "  Installing $S..."
+      RESULT=$(install_skill_slicc "$S")
+      p=$(find_skill "$S" || true)
+      if [ -n "${p:-}" ]; then
+        ok "$S → $p (auto-installed)"
+      else
+        fail "Adobe EDS skill '$S' failed to install: $RESULT"
+      fi
+    else
+      case "$S" in
+        snowflake)
+          fail "Adobe EDS skill 'snowflake' not installed — fix: /plugin install aem-edge-delivery-services@adobe-skills" ;;
+        stardust)
+          fail "Adobe EDS skill 'stardust' not installed — fix: /plugin install stardust@adobe-skills" ;;
+        impeccable)
+          fail "Adobe EDS skill 'impeccable' not installed — fix: /plugin install impeccable@impeccable" ;;
+      esac
+    fi
   fi
 done
 
@@ -129,7 +156,8 @@ fi
 
 OF1_REPO=""
 if [ -n "${OF1_DEMO_REPO:-}" ] && [ -d "${OF1_DEMO_REPO}/.git" ]; then
-  REMOTE=$(git -C "$OF1_DEMO_REPO" remote get-url origin 2>/dev/null || true)
+  # Use subshell + cd — SLICC's git shim doesn't support `-C` or `remote get-url`.
+  REMOTE=$(cd "$OF1_DEMO_REPO" && git config remote.origin.url 2>/dev/null || true)
   case "$REMOTE" in
     *aem-growth-adoption/of1-demo*) OF1_REPO="$OF1_DEMO_REPO" ;;
   esac
@@ -188,7 +216,9 @@ if [ $FAIL -gt 0 ]; then
   # SLICC sprinkle IPC ack (CC ignores)
   if [ -d "$STATE_DIR" ]; then
     REASONS=$(printf '%s\n' "${LOG[@]}" | grep '^✗' | sed 's/^✗ //' | head -3 | paste -sd '; ' -)
-    printf '{"step":1,"status":"failed","error":%s}\n' "$(printf '%s' "$REASONS" | jq -Rs .)" \
+    # Use python3 for JSON escaping (jq -Rs not available in SLICC)
+    ESCAPED=$(printf '%s' "$REASONS" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+    printf '{"step":1,"status":"failed","error":%s}\n' "$ESCAPED" \
       > "$STATE_DIR/step-1-status.json"
   fi
   exit 1

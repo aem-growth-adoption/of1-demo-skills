@@ -53,6 +53,7 @@ Token resolution order: `$ADOBE_IMS_TOKEN` → `$OF1_TOKEN_FILE` → `$PWD/.hlx/
 | `$OF1_STATE_DIR/setup.json` | resolved paths + token source. Downstream steps MUST read this for `tokenFile`, `of1Repo`, `stateDir` — do not hard-code defaults. |
 | `$OF1_STATE_DIR/step-1-status.json` | `{"step":1,"status":"done"\|"failed",…}`. SLICC's sprinkle polls it; CC ignores it. |
 
-## Why this skill does not install anything
+## Install behavior
 
-Neither runtime can activate plugins/skills installed mid-session — CC's `/plugin install` only picks up disk changes between turns, and SLICC's `upskill --force` has the same limitation. So this is a pure read-only verifier: missing items are reported with the exact fix command (per runtime) the user runs before re-invoking the pipeline.
+- **SLICC:** the script auto-installs missing Adobe EDS skills (`stardust`, `snowflake`, `impeccable`) via `upskill` — SLICC can activate skills mid-session. If auto-install fails, it reports the error and exits.
+- **Claude Code:** cannot activate plugins installed mid-session (`/plugin install` only picks up disk changes between turns). Missing items are reported with the exact fix command for the user to run, then restart Claude Code.
