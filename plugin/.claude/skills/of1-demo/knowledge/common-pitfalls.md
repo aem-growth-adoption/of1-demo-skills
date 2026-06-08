@@ -122,7 +122,18 @@ For binary or multi-KB content, always pipe via stdin. For short JSON or headers
 ## 6. Git workflow
 
 ### 6.1 One commit + one push per step
-Multiple pushes per step waste 2-3 minutes each on preview triggers. Generate all artifacts first, then `git add . && git commit && git push origin $BRANCH` once.
+Multiple pushes per step waste 2-3 minutes each on preview triggers. Generate all artifacts first, then commit + push once.
+
+⚠️ **NEVER use `git add .` or `git add -A` in a scoop.** SLICC scoops may have an incomplete working tree — `git add .` creates a commit containing ONLY the local files, effectively deleting everything else on push. Always add specific paths:
+
+```bash
+# ✅ CORRECT — only stages the files this step produced
+git add templates/ styles/ fragments/ of1/config/
+
+# ❌ WRONG — can destroy the entire repo if working tree is incomplete
+git add .
+git add -A
+```
 
 ### 6.2 Some pipeline artifacts live in `.gitignore`
 `stardust/` is sometimes ignored. If `git add stardust/` shows nothing, use `git add -f stardust/current/...`.

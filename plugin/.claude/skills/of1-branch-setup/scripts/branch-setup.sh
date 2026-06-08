@@ -84,8 +84,8 @@ rm -f "$OF1_STATE_DIR/discovery.html"
 
 git add -A
 if ! git diff --cached --quiet; then
-  git commit -m "chore: clean slate for ${BRANCH}" --quiet
-  git push origin "$BRANCH" --quiet
+  git commit -m "chore: clean slate for ${BRANCH}"
+  git push origin "$BRANCH"
   echo "✓ Clean slate committed + pushed"
 else
   echo "✓ Branch already clean"
@@ -133,8 +133,8 @@ cat > of1/config/of1-endpoint.json <<EOF
 }
 EOF
 git add of1/config/of1-endpoint.json
-git commit -m "feat: of1-endpoint config for ${DOMAIN}" --quiet
-git push origin "$BRANCH" --quiet
+git commit -m "feat: of1-endpoint config for ${DOMAIN}"
+git push origin "$BRANCH"
 echo "✓ of1-endpoint.json committed + pushed"
 
 # ---------- Write step 2 status ----------

@@ -864,6 +864,8 @@ These issues cost time in previous runs. Avoid them:
 
 15. **Static file URLs need `.html` extension** — EDS serves git-committed static HTML files at their exact path including the extension. A file at `deliverables/config-review.html` is served at `/deliverables/config-review.html` — NOT at `/deliverables/config-review` (that 404s). Always include the `.html` extension in deliverable URLs sent to the sprinkle. DA-authored content pages (like `/home`, `/block-catalog`) do NOT need the extension.
 
+16. **NEVER use `git add .` or `git add -A` in a scoop** — SLICC scoops may have an incomplete working tree (they only see files they touched). `git add .` creates a commit containing ONLY the local files, which on push **deletes everything else in the repo**. Always add specific paths: `git add templates/ styles/ fragments/ of1/config/`. The only safe place for `git add -A` is the orchestrator's branch-setup (which is removing files intentionally from a complete tree).
+
 ## DA Authentication & Content Upload (SLICC-specific)
 
 **This is the #1 time waster in previous runs. Follow these rules exactly:**
