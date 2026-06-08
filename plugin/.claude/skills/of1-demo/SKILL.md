@@ -165,29 +165,49 @@ scoop_scoop({
 feed_scoop("of1-demo-step-N", <system prompt with skill instructions + context>)
 ```
 
-The system prompt MUST include:
-- The domain and branch name
-- The repo owner, repo name, and local repo path (from `/shared/of1-demo/repo-config.json`)
-- **DA auth instructions** — ALWAYS include this block in every scoop prompt that touches DA:
-  ```
-  ## DA Auth (CRITICAL — do not deviate)
-  - Get IMS token: DA_TOKEN=$(oauth-token adobe)
-  - Write DA content — TWO options (mount preferred, API as fallback):
-    Option A (preferred): cp file /mnt/da/{branch}/page.html
-    Option B (fallback):  cat file | curl -s -X PUT -H "Authorization: Bearer $DA_TOKEN" -H "Content-Type: text/html" --data-binary @- "https://admin.da.live/source/{owner}/{repo}/{branch}/page.html"
-  - Trigger preview: curl -X POST -H "Authorization: Bearer $DA_TOKEN" -H "x-content-source-authorization: Bearer $DA_TOKEN" https://admin.hlx.page/preview/{owner}/{repo}/{branch}/{branch}/{page}
-  - admin.da.live IS allowed for curl (PUT to write, GET to read)
-  - admin.hlx.page IS allowed for curl (preview/publish triggers)
-  - DO NOT use npx/da-auth-helper (doesn't exist)
-  - DO NOT look for ~/.aem/da-token.json (doesn't exist)
-  - Content path: /mnt/da/{branch}/page.html (NOT /mnt/da/{repo}/page.html)
-  ```
-- How to load the skill:
-  - `read_file /workspace/skills/{skill-name}/SKILL.md` — the local skill will instruct the scoop on what to do, including invoking stardust plugins where needed (e.g., steps 4 & 5 call `stardust:extract` and `stardust:prototype` respectively)
-- Current working directory context (the project repo)
-- Any outputs from previous steps the skill needs
-- Instruction to write a completion marker on finish (NOT `sprinkle send` — the step scoop must NOT call sprinkle commands):
-  Write output to `/shared/of1-demo/step-N-output.md` and a status file to `/shared/of1-demo/step-N-status.json` with content `{"step":N,"status":"done"}` (or `"review"` or `"failed"`).
+The system prompt MUST include — in this order:
+
+```
+## STEP 1 — MANDATORY (do this FIRST, before anything else)
+
+Run: read_file /workspace/skills/{skill-name}/SKILL.md
+Then follow those instructions EXACTLY. Do NOT improvise your own implementation.
+If you skip this step, your output WILL be rejected by the verification gates.
+
+The skill is the tested, validated procedure. It tells you what to do, what tools
+to invoke (including sub-skills like stardust:extract, stardust:prototype, snowflake),
+and what artifacts to produce. Read it. Follow it. Do not deviate.
+
+## Project context
+
+- Domain: {DOMAIN}
+- Branch: {BRANCH}
+- Repo: /workspace/of1-demo (owner: aem-growth-adoption, repo: of1-demo)
+- State dir: /shared/of1-demo
+- repo-config.json: /shared/of1-demo/repo-config.json (read it for all paths)
+- Prior step outputs you need: {list specific files}
+
+## DA Auth
+
+- Get IMS token: DA_TOKEN=$(oauth-token adobe)
+- Upload content: use `-d "$HTML_VAR"` for short content or DA mount `/mnt/da/{branch}/`
+- Trigger preview: curl -X POST -H "Authorization: Bearer $DA_TOKEN" -H "x-content-source-authorization: Bearer $DA_TOKEN" https://admin.hlx.page/preview/{owner}/{repo}/{branch}/{branch}/{page}
+- admin.da.live and admin.hlx.page are allowed for curl
+- DO NOT use npx/da-auth-helper or ~/.aem/da-token.json (don't exist)
+
+## Git rules
+
+- NEVER use `git add .` or `git add -A` — only add specific paths your step produced
+- One commit + one push at the end of your work
+
+## Output contract
+
+Write status to /shared/of1-demo/step-N-status.json:
+{"step":N,"status":"done","deliverables":[{"url":"...","label":"..."}],"summary":"..."}
+Do NOT call sprinkle send — only the orchestrator cone does that.
+```
+
+Substitute the bracketed values per step. The "prior step outputs you need" list comes from the Context Passing section below.
 
 **When status is `"review"`, the status JSON MUST include a `deliverable` URL** so the sprinkle renders an open link for the user. The sprinkle renders these as `<a target="_blank">` and the user's browser opens them directly, so the URL must be publicly reachable from a browser tab — typically the EDS preview URL `https://{branch}--{repo}--{owner}.aem.page/...`. Do NOT use `serve --entry` (chrome-extension:// URLs won't open from outside SLICC) — commit the artifact to git and use its hosted URL. Trigger an EDS preview after pushing so the URL returns 200 before the status is sent.
 
