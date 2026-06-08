@@ -67,19 +67,21 @@ done
 
 ### 2. Generate demo hub page
 
-```bash
-# Get the list of DA pages for the hub to reference
-DA_PAGES=$(curl -s -H "Authorization: Bearer $DA_TOKEN" \
-  "https://admin.da.live/list/${OWNER}/${REPO}/${BRANCH}" \
-  | jq -r '.[] | select(.ext == "html") | .name + ".html"')
+**You MUST create `/tmp/da-pages.txt` before calling the fill script** — it reads this file to list the EDS overlay pages in the hub. Without it, the hub shows prototypes but no live EDS pages.
 
-echo "$DA_PAGES" > /tmp/da-pages.txt
+```bash
+curl -s -H "Authorization: Bearer $DA_TOKEN" \
+  "https://admin.da.live/list/${OWNER}/${REPO}/${BRANCH}" \
+  | jq -r '.[] | select(.ext == "html") | .name + ".html"' > /tmp/da-pages.txt
+
+# Verify it's not empty
+[ -s /tmp/da-pages.txt ] || echo "WARN: no DA pages found — hub will be missing EDS page links"
 
 # Generate the demo hub from the template
 python3 "$SKILL_DIR/assets/fill-demo-hub.py" . "${DOMAIN}"
 ```
 
-This reads all config, finds prototypes, discovers EDS pages from DA, and writes `deliverables/index.html` using the OF1 dark theme template. Do NOT hand-write the hub HTML.
+This reads all config, finds prototypes, discovers EDS pages from `/tmp/da-pages.txt`, and writes `deliverables/index.html`. Do NOT hand-write the hub HTML.
 
 ### 3. Commit and push
 
@@ -157,14 +159,22 @@ playwright-cli screenshot --full-page --output "$OF1_STATE_DIR/check-of1.png"
 ### Check 2: OF1 nav/footer matches prototype-home
 
 ```bash
-playwright-cli visit "${PREVIEW_BASE}/${BRANCH}/prototype-home"
+playwright-cli visit "${PREVIEW_BASE}/${BRANCH}/of1"
 sleep 6
-playwright-cli screenshot --full-page --output "$OF1_STATE_DIR/check-home.png"
+# Verify concrete elements exist — not just a visual comparison
+playwright-cli eval "document.querySelector('.site-header .logo svg') ? 'logo OK' : 'LOGO MISSING'"
+playwright-cli eval "document.querySelector('.site-header .nav-links li') ? 'nav links OK' : 'NAV LINKS MISSING'"
+playwright-cli eval "document.querySelector('.announcement-bar') ? 'announcement OK' : 'no announcement bar (may be expected)'"
+playwright-cli eval "document.querySelector('.site-footer') ? 'footer OK' : 'FOOTER MISSING'"
 ```
 
-Compare both screenshots. Nav bar colors, logo, link styling, footer columns must match exactly.
+**Pass criteria (concrete, not just visual):**
+- Logo SVG renders inside `.site-header` (not just text)
+- Nav links are present as `<li>` elements (not a raw bullet list)
+- Footer has styled content (not empty or a single dark bar)
+- If the site has an announcement bar: it has a background color (not raw unstyled text)
 
-**If fails:** `styles/of1.css` has different rules than `styles/prototype-home.css`. Extract `.site-header` and `.site-footer` from prototype-home.css into styles/of1.css.
+**If fails:** `styles/of1.css` is missing chrome rules. Start from `cp styles/prototype-home.css styles/of1.css` and strip only `<main>`-content rules.
 
 ### Check 3: All products have ≥2 images
 
@@ -247,17 +257,37 @@ done
 [ "$ALL_OK" = "true" ] || { echo "✗ FAIL: Some URLs return non-200"; }
 ```
 
+### Check 6: Generation test (end-to-end worker verification)
+
+```bash
+RESPONSE=$(curl -s -X POST "${WORKER_URL}/api/generate" \
+  -H "Content-Type: application/json" \
+  -d "{\"domain\":\"${TENANT_ID}\",\"query\":\"show me your best products\",\"followUp\":false,\"context\":{\"browsing\":[],\"conversationHistory\":[]}}")
+
+# Verify non-empty response with actual content
+SECTIONS=$(echo "$RESPONSE" | grep -c '"type"' || echo "0")
+if [ "$SECTIONS" -ge 2 ]; then
+  echo "✓ Generation returned ${SECTIONS} sections"
+else
+  echo "✗ FAIL: generation returned ${SECTIONS} sections (expected ≥2)"
+  echo "$RESPONSE" | head -20
+fi
+```
+
+**Pass:** response contains ≥2 sections with content. **If fails:** check worker sync status, verify `hasTemplates` is true in tenant status.
+
 ### Checklist summary
 
-Only mark Step 13 done if ALL 5 pass:
+Only mark Step 13 done if ALL 6 pass:
 
 | # | Check |
 |---|-------|
 | 1 | OF1 page loads with styled search UI |
-| 2 | OF1 nav/footer matches prototype-home |
+| 2 | OF1 nav/footer has logo SVG + nav links + styled footer (concrete element checks) |
 | 3 | All products have ≥2 images |
 | 4 | Template catalog has 25 of1-* entries across all 5 intents |
 | 5 | All deliverable URLs return 200 |
+| 6 | `/api/generate` returns ≥2 sections (end-to-end worker test) |
 
 ## Completion
 
