@@ -46,11 +46,23 @@ echo "Converting: $PROTOTYPES"
 
 ### 2. For each prototype, invoke the `snowflake` skill
 
-Invoke `snowflake` via the platform's sub-skill primitive (CC: the `Skill` tool; SLICC: the equivalent), once per prototype. Snowflake will run its 7 phases (Phase 0 substrate install runs only on the first invocation — subsequent runs are no-ops). The prototypes from step 5 are already hosted on EDS preview (static HTML in `/deliverables/*` is served directly from the code bus), so pass that URL as `SOURCE_URL`:
+Invoke the `snowflake` skill once per prototype. Snowflake runs its 7 phases (Phase 0 substrate install runs only on the first invocation — subsequent runs are no-ops). The prototypes from step 5 are already hosted on EDS preview (static HTML in `/deliverables/*` is served directly from the code bus), so pass that URL as `SOURCE_URL`.
 
-```
-Skill: snowflake
-```
+**How to invoke in each runtime:**
+
+- **Claude Code:** use the `Skill` tool:
+  ```
+  Skill: snowflake
+  ```
+
+- **SLICC:** read the skill and execute it inline:
+  ```bash
+  # 1. Read the skill instructions
+  read_file /workspace/skills/snowflake/SKILL.md
+  # 2. Follow those instructions directly — the skill IS the procedure.
+  #    It handles capture, analysis, artifact generation, DA upload, and preview.
+  ```
+  Do NOT reimplement snowflake's phases by hand. The skill owns the entire static-to-EDS conversion methodology.
 
 Snowflake gathers prerequisites at the start of each run. Supply these values (do NOT let it prompt — provide them upfront in the invocation context):
 

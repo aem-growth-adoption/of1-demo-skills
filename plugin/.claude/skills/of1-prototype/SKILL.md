@@ -40,11 +40,21 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 
 This step's whole job is to delegate to `stardust:prototype`. **Do NOT hand-author HTML, do NOT shell out to playwright/curl/wget to build pages yourself** — the stardust skill owns design-token application, image insertion, layout fidelity, and the visual-diff loop. Reimplementing it here is the most common failure mode.
 
-Invoke `stardust:prototype` via the platform's sub-skill primitive (CC: the `Skill` tool; SLICC: the equivalent):
+Invoke the `stardust:prototype` skill:
 
-```
-Skill: stardust:prototype
-```
+- **Claude Code:** use the `Skill` tool:
+  ```
+  Skill: stardust:prototype
+  ```
+
+- **SLICC:** read the skill and execute it inline:
+  ```bash
+  # 1. Read the skill instructions
+  read_file /workspace/skills/prototype/SKILL.md
+  # 2. Follow those instructions directly — the skill IS the procedure.
+  #    It reads stardust/current/, generates prototypes, and runs visual-diff loops.
+  ```
+  Do NOT invent your own prototype generation approach. The stardust:prototype skill already handles design-token application, image insertion, layout fidelity, and the visual-diff loop.
 
 The skill reads `stardust/current/{DESIGN.json,assets/logo.svg,pages/*.json}`, generates self-contained HTML with all CSS inlined, runs visual-diff loops against the captured screenshots, and writes prototypes to `stardust/prototypes/prototype-*.html`.
 
