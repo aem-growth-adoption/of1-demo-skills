@@ -88,9 +88,9 @@ PROTOTYPE_PAGES=$(ls "${OF1_REPO}/deliverables/"prototype-*.html 2>/dev/null \
 for PAGE in $PROTOTYPE_PAGES; do
   URL="https://${BRANCH}--of1-demo--aem-growth-adoption.aem.page/${BRANCH}/${PAGE}"
   REF="${OF1_REPO}/deliverables/eds-${PAGE}.png"
-  playwright-cli visit "$URL"
+  playwright-cli open "$URL"
   sleep 6
-  playwright-cli screenshot --full-page --output "$REF"
+  playwright-cli screenshot --fullPage=true --filename "$REF"
 
   if [ -s "$REF" ] && [ "$(stat -f%z "$REF" 2>/dev/null || stat -c%s "$REF")" -gt 51200 ]; then
     echo "EDS reference saved: $REF"

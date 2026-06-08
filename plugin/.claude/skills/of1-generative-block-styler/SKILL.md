@@ -290,7 +290,7 @@ After the push, EDS picks up the code change automatically. Open the live OF1 pa
 
 ```bash
 OF1_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/of1"
-playwright-cli visit "$OF1_URL" --headed
+playwright-cli open "$OF1_URL" --headed
 sleep 4  # EDS pulls fragments + lazy CSS
 
 # Confirm the branded chrome and the block are all in the DOM
@@ -299,7 +299,7 @@ playwright-cli eval "document.querySelector('footer.site-footer') ? 'footer OK' 
 playwright-cli eval "document.querySelector('.of1')             ? 'of1 block OK' : 'OF1 BLOCK MISSING'"
 
 # Capture a screenshot for visual review
-playwright-cli screenshot --full-page --output "$OF1_STATE_DIR/of1-render-check.png"
+playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/of1-render-check.png"
 ```
 
 Open the screenshot — the branded nav should be at the top, the branded footer at the bottom, and the OF1 search UI (title, input, suggestion chips) in the middle.

@@ -287,9 +287,9 @@ After step 6 returns `done` and before spawning 7a–7e, the orchestrator captur
 EDS_HOME_URL="https://${BRANCH}--of1-demo--aem-growth-adoption.aem.page/${BRANCH}/prototype-home"
 REF_PATH="/workspace/of1-demo/deliverables/eds-prototype-home.png"
 
-playwright-cli visit "$EDS_HOME_URL"
+playwright-cli open "$EDS_HOME_URL"
 sleep 6
-playwright-cli screenshot --full-page --output "$REF_PATH"
+playwright-cli screenshot --fullPage=true --filename "$REF_PATH"
 
 [ -s "$REF_PATH" ] && [ "$(stat -c%s "$REF_PATH" 2>/dev/null)" -gt 51200 ] \
   && echo "EDS reference saved: $REF_PATH" \

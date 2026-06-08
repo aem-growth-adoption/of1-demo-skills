@@ -36,7 +36,7 @@ TENANT_ID="${BRANCH}--${REPO}--${OWNER}"
 WORKER_URL="https://of1-gen-web-service.franklin-prod.workers.dev"
 ```
 
-`playwright-cli` calls below use the legacy `visit`/`--output` shape — SLICC runs that natively, CC uses the shim installed by `of1-setup`.
+`playwright-cli` calls use `open` + `--fullPage=true` + `--filename` (SLICC-native syntax; CC shim passes through unchanged).
 
 ## How config sync works
 
@@ -147,9 +147,9 @@ ALL checks must pass before marking the demo done. If any fail, fix the issue an
 ### Check 1: OF1 page loads with styled search UI
 
 ```bash
-playwright-cli visit "${PREVIEW_BASE}/${BRANCH}/of1"
+playwright-cli open "${PREVIEW_BASE}/${BRANCH}/of1"
 sleep 6
-playwright-cli screenshot --full-page --output "$OF1_STATE_DIR/check-of1.png"
+playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/check-of1.png"
 ```
 
 **Pass:** branded search UI visible (title, subtitle, input, chips), styled header nav (dark translucent bar, white links), styled footer. No raw unstyled content.
@@ -159,7 +159,7 @@ playwright-cli screenshot --full-page --output "$OF1_STATE_DIR/check-of1.png"
 ### Check 2: OF1 nav/footer matches prototype-home
 
 ```bash
-playwright-cli visit "${PREVIEW_BASE}/${BRANCH}/of1"
+playwright-cli open "${PREVIEW_BASE}/${BRANCH}/of1"
 sleep 6
 # Verify concrete elements exist — not just a visual comparison
 playwright-cli eval "document.querySelector('.site-header .logo svg') ? 'logo OK' : 'LOGO MISSING'"
