@@ -31,19 +31,28 @@ Schema reference: `of1-demo/knowledge/worker-config-schemas.md` § `suggestions.
 - `DOMAIN` (e.g. `frescopa.coffee`). In pipeline mode, read from repo-config. Only ask the user if not provided.
 - Discovery output at `$OF1_STATE_DIR/step-3-output.md` (for product/category knowledge)
 
-If config files already exist (from a previous run or if step 9 finished first), read them for richer suggestions:
+**REQUIRED — read step 9 outputs before generating suggestions.** This step runs AFTER step 9 completes, so these files exist:
+
 ```bash
-cat of1/config/products.json 2>/dev/null | jq '.[].name' | head -20
-cat of1/config/personas.json 2>/dev/null | jq '.[].name'
-cat of1/config/brand-voice.json 2>/dev/null | jq '.tone'
+# Product names — suggestions MUST reference only real products that exist
+cat of1/config/products.json | jq -r '.[].name'
+
+# Personas — each suggestion should target a real persona
+cat of1/config/personas.json | jq -r '.[].name'
+
+# Brand voice — respect avoid words; use vocabulary terms
+cat of1/config/brand-voice.json | jq '{tone, vocabulary, avoidWords}'
 ```
+
+**Every suggestion chip must reference products/activities that actually exist in `products.json`.** Do NOT invent product names from memory — if the site doesn't have snowboarding trips, don't suggest "skiing vs snowboarding." The product list is the ground truth.
 
 ## Process
 
 ### 1. Generate suggestions
 
-Based on discovery context (and products/personas if available), generate 8–12 quick suggestion chips that:
-- Cover different personas
+Based on the actual product catalog, personas, and brand voice, generate 8–12 quick suggestion chips that:
+- **Only reference products/categories that exist in products.json**
+- Cover different personas (from personas.json)
 - Cover different intents (compare, recommend, explore, deep-dive, budget)
 - Use natural language a real user would type
 - Are concise (under 40 characters each)

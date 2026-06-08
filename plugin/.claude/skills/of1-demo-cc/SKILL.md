@@ -54,7 +54,7 @@ The dependency graph and parallelism rules:
 ```
 2  →  3 ∥ 4  →  5  →  ┬─ 6  →  ┬─ 7-base → 7a ∥ 7b ∥ 7c ∥ 7d ∥ 7e  →  7-assemble  ─┐
                       │        └─ 8                                                   │
-                      └─ 9a ∥ 9b ∥ 10 ∥ 11  →  12  ─────────────────────────────────┴─→  13
+                      └─ 9a ∥ 9b ∥ 11  →  10  →  12  ───────────────────────────────┴─→  13
 ```
 
 **Parallelism is mandatory** — at each fan-out point, dispatch all eligible step Agents **in a single message with multiple Agent tool-use blocks**. Do NOT serialize what the graph says is parallel.
@@ -62,9 +62,10 @@ The dependency graph and parallelism rules:
 | Trigger | Dispatch in one message |
 |---------|-------------------------|
 | Step 2 done | Step 3 AND Step 4 |
-| Step 5 done | Step 6 AND Steps 9a, 9b, 10, 11 (5 agents in one message) |
+| Step 5 done | Step 6 AND Steps 9a, 9b, 11 (4 agents in one message) |
 | Step 6 done | Step 7-base (1 agent, sequential — must finish before intent fan-out) AND Step 8 |
 | Step 7-base done | Steps 7a–7e (5 intent agents in one message) |
+| Steps 9a + 9b done | Step 10 (needs products.json + brand-voice.json to ground suggestions in real content) |
 | Steps 7a–7e all done | Step 7-assemble (1 agent, sequential) |
 | Steps 7-assemble + 8 done AND Step 12 approved | Step 13 |
 

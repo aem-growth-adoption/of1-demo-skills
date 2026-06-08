@@ -228,7 +228,8 @@ The pipeline has TWO parallel tracks that MUST run concurrently. **Do NOT serial
 
 | Trigger | Spawn immediately |
 |---------|-------------------|
-| Step 5 (Prototype) approved | **Track A:** Step 6 (Snowflake) AND **Track B:** Steps 9, 10, 11 (all three at once) |
+| Step 5 (Prototype) approved | **Track A:** Step 6 (Snowflake) AND **Track B:** Steps 9a, 9b, 11 (three scoops at once) |
+| Steps 9a + 9b done | Step 10 (Suggestions — needs products.json + brand-voice.json) |
 | Step 6 (Snowflake) done | Step 8 (OF1 styling) AND Steps 7a–7e (5 intent scoops in parallel) — 6 scoops at once |
 | Steps 7a–7e ALL complete | Step 7-assemble — 1 scoop, sequential after the fan-out |
 | Steps 9-11 ALL complete | Step 12 (Config review) — run inline by the cone |
@@ -266,7 +267,7 @@ Steps 1→2 (sequential)
 3. **Step 7 (Templates) waits for Step 6** — it needs the template CSS structure from the snowflake conversion
 4. **Step 7 is FANNED OUT into 5 parallel intent scoops (7a–7e) + 1 assemble scoop** — see "Step 7 fan-out detail" below
 5. **Step 8 runs in parallel with Steps 7a–7e** — 6 scoops at once after Step 6
-6. **Steps 9, 10, 11 ALL run at once** — spawn all 3 scoops simultaneously
+6. **Steps 9a, 9b, 11 run at once** — spawn all 3 scoops simultaneously. **Step 10 waits for step 9 to finish** (it needs products.json + brand-voice.json to ground suggestions in real content)
 7. **Push each status as it arrives** — don't wait for all parallel steps to finish before updating the sprinkle
 
 ### Step 7 fan-out detail
@@ -434,7 +435,7 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 
 **Track A (EDS Site):** Step 6 starts after Step 5 → Step 8 AND Steps 7a–7e (5 parallel intent scoops) start in parallel after Step 6 → Step 7-assemble runs once 7a–7e all complete
 
-**Track B (Config):** Steps 9 + 10 + 11 (ALL parallel, start immediately after step 5) → Step 12 (Config review)
+**Track B (Config):** Steps 9a + 9b + 11 (parallel, start after step 5) → Step 10 (after 9 done) → Step 12 (Config review)
 
 **Both tracks start after Step 5 is approved.** Track B does NOT wait for Step 6. Step 8 DOES wait for Step 6 — it must commit AFTER S6 so it doesn't get overwritten.
 
