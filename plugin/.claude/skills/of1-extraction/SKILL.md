@@ -38,14 +38,14 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 
 This step's whole job is to delegate to `stardust:extract`. **Do NOT use `playwright-cli`, `curl`, `wget`, or any other scraping mechanism here** — the stardust skill owns crawling, token extraction, screenshot capture, and brand-review authoring. Reimplementing it in this skill is the most common failure mode.
 
-Invoke the `stardust:extract` skill. The argument is the homepage URL plus a page cap matching the discovery output (typically 5 — homepage + 2-3 category/product pages).
+Invoke the `stardust:extract` skill. The argument is the homepage URL plus a page cap of 3 (homepage + 2 key category/product pages from discovery). More pages are slower without meaningfully better tokens.
 
 **How to invoke in each runtime:**
 
 - **Claude Code:** use the `Skill` tool:
   ```
   Skill: stardust:extract
-  Args:  https://${DOMAIN} --cap 5
+  Args:  https://${DOMAIN} --cap 3
   ```
 
 - **SLICC:** read the skill and execute it inline:
