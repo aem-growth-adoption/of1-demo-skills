@@ -193,16 +193,15 @@ The system prompt MUST include:
 
 Review steps without a deliverable URL will show the summary but no open link — always include one.
 
-**After spawning the step scoop, YOU must immediately poll for the status file and push to the sprinkle when it appears.** Use a loop:
+**After spawning a step scoop, END YOUR TURN.** You will be automatically notified (via lick) when the scoop finishes. On notification:
 
-```bash
-while [ ! -f /shared/of1-demo/step-N-status.json ]; do sleep 5; done
-cat /shared/of1-demo/step-N-status.json
-```
+1. Read the scoop's status file (`/shared/of1-demo/step-N-status.json`)
+2. Call `sprinkle send of1-demo '<contents>'` to update the UI
+3. Proceed to dispatch the next step(s) per the dependency graph
 
-Then read the file and call `sprinkle send of1-demo '<contents>'` immediately.
+**Do NOT use `while/sleep` polling loops.** They block your turn, burn compute, and prevent you from receiving other licks (user input, parallel scoop completions). The platform notifies you — just yield and wait.
 
-Only the of1-demo scoop may call `sprinkle send`. Step scoops write files; the orchestrator reads them and pushes to the sprinkle.
+Only the of1-demo cone may call `sprinkle send`. Step scoops write files; the cone reads them and pushes to the sprinkle.
 
 ## Parallelism — CRITICAL for Speed
 
@@ -296,7 +295,7 @@ Step 9 used to be a single scoop that ran `of1-brand-voice-extractor` and `of1-c
 
 The content scoop **MUST use `download-images.py`** (parallel: 8 workers, content-type sniffing, mount-or-API fallback) — NOT a per-image `curl` loop. The skill documents this in its Step 9 section; no separate injection needed.
 
-Once both `/shared/of1-demo/step-9-brand-status.json` AND `step-9-content-status.json` exist, the orchestrator merges them into a single `/shared/of1-demo/step-9-status.json` (so the sprinkle's polling loop sees a single completion for Step 9):
+Once both `/shared/of1-demo/step-9-brand-status.json` AND `step-9-content-status.json` exist, the orchestrator merges them into a single `/shared/of1-demo/step-9-status.json`:
 
 ```bash
 if [ -f /shared/of1-demo/step-9-brand-status.json ] \
@@ -311,69 +310,27 @@ if [ -f /shared/of1-demo/step-9-brand-status.json ] \
 fi
 ```
 
-### Polling pattern for parallel steps:
+### Handling scoop completions (event-driven, NOT polling)
+
+When parallel scoops are running, you receive a lick/notification each time one completes. On each notification:
+
+1. Read the completed scoop's status file
+2. Push to sprinkle: `sprinkle send of1-demo "$(cat /shared/of1-demo/step-N-status.json)"`
+3. Check if this completion unblocks the next dispatch (per the dependency graph)
+4. If yes, spawn the next scoop(s) and end your turn again
+
+**Step 9 merge logic:** when both `step-9-brand-status.json` and `step-9-content-status.json` exist, merge them:
 
 ```bash
-# Poll for all active step status files and push each as it arrives.
-# Step 7 has a two-phase shape: 5 intent status files appear first, then the
-# orchestrator spawns of1-s7-assemble which writes the canonical step-7 status.
-S7_INTENTS="comparison recommendation deep-dive budget discovery"
-S7_ASSEMBLE_SPAWNED=false
-
-while true; do
-  ALL_DONE=true
-
-  # Step 9 is fanned out into of1-s9-brand + of1-s9-content. Merge their
-  # sub-statuses into a single step-9-status.json once both arrive.
-  if [ -f /shared/of1-demo/step-9-brand-status.json ] \
-     && [ -f /shared/of1-demo/step-9-content-status.json ] \
-     && [ ! -f /shared/of1-demo/step-9-status.json ]; then
-    BRAND_SUM=$(jq -r .summary /shared/of1-demo/step-9-brand-status.json)
-    CONTENT_SUM=$(jq -r .summary /shared/of1-demo/step-9-content-status.json)
-    jq -n --arg s1 "$BRAND_SUM" --arg s2 "$CONTENT_SUM" \
-      '{step:9, status:"done", summary:($s1 + " | " + $s2)}' \
-      > /shared/of1-demo/step-9-status.json
-  fi
-
-  # Standard single-status-file steps (step 9 status is synthesized above)
-  for STEP in 6 8 9 10 11; do
-    STATUS_FILE="/shared/of1-demo/step-${STEP}-status.json"
-    PUSHED_FILE="/shared/of1-demo/step-${STEP}-pushed"
-    if [ -f "$STATUS_FILE" ] && [ ! -f "$PUSHED_FILE" ]; then
-      sprinkle send of1-demo "$(cat "$STATUS_FILE")"
-      touch "$PUSHED_FILE"
-    fi
-    if [ ! -f "$STATUS_FILE" ]; then
-      ALL_DONE=false
-    fi
-  done
-
-  # Step 7 fan-out: wait for all 5 intent status files, then spawn assemble.
-  ALL_INTENTS_DONE=true
-  for INTENT in $S7_INTENTS; do
-    if [ ! -f "/shared/of1-demo/step-7-intent-${INTENT}-status.json" ]; then
-      ALL_INTENTS_DONE=false
-    fi
-  done
-  if [ "$ALL_INTENTS_DONE" = true ] && [ "$S7_ASSEMBLE_SPAWNED" = false ]; then
-    # Spawn of1-s7-assemble (see Step 7 fan-out detail)
-    S7_ASSEMBLE_SPAWNED=true
-    # (orchestrator: scoop_scoop call here for of1-s7-assemble)
-  fi
-  STEP7_STATUS_FILE="/shared/of1-demo/step-7-status.json"
-  STEP7_PUSHED_FILE="/shared/of1-demo/step-7-pushed"
-  if [ -f "$STEP7_STATUS_FILE" ] && [ ! -f "$STEP7_PUSHED_FILE" ]; then
-    sprinkle send of1-demo "$(cat "$STEP7_STATUS_FILE")"
-    touch "$STEP7_PUSHED_FILE"
-  fi
-  if [ ! -f "$STEP7_STATUS_FILE" ]; then
-    ALL_DONE=false
-  fi
-
-  if [ "$ALL_DONE" = true ]; then break; fi
-  sleep 5
-done
+BRAND_SUM=$(jq -r .summary /shared/of1-demo/step-9-brand-status.json)
+CONTENT_SUM=$(jq -r .summary /shared/of1-demo/step-9-content-status.json)
+jq -n --arg s1 "$BRAND_SUM" --arg s2 "$CONTENT_SUM" \
+  '{step:9, status:"done", summary:($s1 + " | " + $s2)}' \
+  > /shared/of1-demo/step-9-status.json
+sprinkle send of1-demo "$(cat /shared/of1-demo/step-9-status.json)"
 ```
+
+**Step 7 fan-out logic:** when all 5 `step-7-intent-<intent>-status.json` files exist, run assemble (inline or spawn — see Phase 3 above). Only push step 7 status after assemble writes `step-7-status.json`.
 
 ### Handling scoop completion without status file:
 
@@ -382,7 +339,7 @@ Sometimes a scoop completes its work but forgets to write the status file (it sh
 2. If the work IS done, write the status file manually
 3. Push to sprinkle
 
-For step 9 see "Step 9 split detail" above — the polling loop merges the two sub-status files into a single `step-9-status.json` before pushing to the sprinkle.
+For step 9 see "Step 9 split detail" above — the merge logic combines the two sub-status files into a single `step-9-status.json` before pushing to the sprinkle.
 
 ### `approve:<step>:<domain>`
 User approved step N. The sprinkle auto-marks it done. No action needed unless the next step should auto-start.
@@ -758,7 +715,7 @@ For each step scoop, record timing and status when the status file appears:
 # When dispatching a step:
 STEP_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# When the status file appears (poll loop sees it):
+# When the scoop's completion notification arrives:
 STEP_END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 STEP_DURATION_MS=$(( $(date +%s -d "$STEP_END") - $(date +%s -d "$STEP_START") ))
 ```
