@@ -94,9 +94,37 @@ In short: substitute `${BRANCH}` wherever snowflake's prompts use `snowflake-${N
 
 Loop over all prototypes, applying this override on every invocation.
 
-### 3. Verify all pages render
+### 3. Verify critical artifacts exist (hard gate)
 
-After snowflake completes for every prototype, sanity-check the demo-branch preview URL for each converted page:
+After snowflake completes for every prototype, verify the most important outputs exist. **Step 7 (template generation) depends on `templates/prototype-*.html`** — if these are missing, step 7 has no reference for how `data-slot` markers work and will produce degraded templates.
+
+```bash
+cd "$OF1_DEMO_REPO"
+FAIL=false
+
+for SLUG in $PROTOTYPES; do
+  # Slot-marked overlay template — THE critical output for step 7
+  [ -f "templates/${SLUG}.html" ] || { echo "✗ MISSING: templates/${SLUG}.html"; FAIL=true; }
+  # Per-template CSS
+  [ -f "styles/${SLUG}.css" ] || { echo "✗ MISSING: styles/${SLUG}.css"; FAIL=true; }
+  # Header/footer fragments — step 8 reads these for /of1 page chrome
+  [ -f "fragments/${SLUG}/header.html" ] || { echo "✗ MISSING: fragments/${SLUG}/header.html"; FAIL=true; }
+  [ -f "fragments/${SLUG}/footer.html" ] || { echo "✗ MISSING: fragments/${SLUG}/footer.html"; FAIL=true; }
+done
+
+if [ "$FAIL" = true ]; then
+  echo "" >&2
+  echo "FAIL: snowflake was NOT invoked correctly — critical artifacts missing." >&2
+  echo "The snowflake skill (read_file /workspace/skills/snowflake/SKILL.md) produces" >&2
+  echo "templates/, styles/, and fragments/ as its Phase 3 output. If they're missing," >&2
+  echo "you likely improvised the conversion by hand instead of following the skill." >&2
+  echo "Go back and invoke snowflake properly." >&2
+  exit 1
+fi
+echo "✓ All templates, styles, and fragments present"
+```
+
+### 4. Verify all pages render on EDS preview
 
 ```bash
 for SLUG in $PROTOTYPES; do
