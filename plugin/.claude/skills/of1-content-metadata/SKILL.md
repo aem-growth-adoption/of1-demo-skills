@@ -222,6 +222,15 @@ python3 "$SKILL_DIR/assets/download-images.py" \
 
 The `--update-products` flag rewrites `products.json[*].images` to DA URLs automatically.
 
+#### Clean up temp files before any commit
+
+```bash
+rm -rf /tmp/image-manifest.json /tmp/image-mapping.json
+rm -rf of1/config/img-tmp of1/config/da-token.json of1/config/image-manifest.json
+```
+
+These are working files from `download-images.py` — do NOT commit them to git.
+
 #### Verify
 
 ```bash
