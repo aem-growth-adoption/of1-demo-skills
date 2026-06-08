@@ -23,12 +23,11 @@
     ]
   },
   "dependencies": [
-    "stardust",
-    "snowflake",
-    "impeccable"
+    "stardust@adobe-skills",
+    "aem-edge-delivery-services@adobe-skills",
+    "impeccable@impeccable"
   ],
   "_notes": {
-    "dependencies": "stardust + snowflake + impeccable live in adobe/skills@feat/eds-snowflake-da-content (stardust is built on top of impeccable). They must be published as a Claude Code plugin/marketplace before plugin-install can resolve them. Until then, of1-setup verifies presence and emits install instructions if missing.",
     "entrypoints": "of1-demo-cc is the Claude Code orchestrator. of1-demo is the SLICC variant (kept for SLICC users). Pick one to invoke based on the runtime."
   }
 }
