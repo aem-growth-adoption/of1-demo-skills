@@ -25,17 +25,18 @@ BRANCH=$(jq -r .branch <<<"$REPO_CONFIG")
 DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 ```
 
-`playwright-cli` calls below use the legacy verb/flag shape (`visit`, `--output`). SLICC environments run that natively; CC environments install the modern `@playwright/cli` binary plus the shim in `of1-setup/scripts/playwright-cli-shim.sh` (which translates legacy syntax to the modern binary). Either way, write code as if the legacy syntax just works.
+`playwright-cli` calls below use `open` + `--fullPage=true` + `--filename` — the native SLICC syntax. CC environments with the shim at `of1-setup/scripts/playwright-cli-shim.sh` also accept this syntax (shim passes it through unchanged).
 
 ## Process
 
-The crawl is bounded to ~4 pages: homepage + at most 3 nav pages. Don't visit product detail pages, about pages, or sustainability pages — stick to top-level category/listing pages.
+The crawl is bounded to ~4 pages: homepage + at most 3 nav pages. Don't visit product detail pages, about pages, FAQ pages, or sustainability pages — stick to top-level category/listing pages.
 
 ### 1. Crawl the homepage
 
 ```bash
-playwright-cli visit "https://${DOMAIN}" --headed
-playwright-cli screenshot --full-page --output "$OF1_STATE_DIR/discovery-home.png"
+playwright-cli open "https://${DOMAIN}"
+sleep 3
+playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/discovery-home.png"
 ```
 
 Analyze:
@@ -50,8 +51,9 @@ Analyze:
 Follow top-nav links to the most visual/product-rich pages. Pick the 2–3 best — you don't need every category.
 
 ```bash
-playwright-cli visit "https://${DOMAIN}/{path}" --headed
-playwright-cli screenshot --full-page --output "$OF1_STATE_DIR/discovery-{slug}.png"
+playwright-cli open "https://${DOMAIN}/{path}"
+sleep 3
+playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/discovery-{slug}.png"
 ```
 
 For each page, note:
@@ -118,7 +120,14 @@ Generate a self-contained HTML report at `$OF1_DEMO_REPO/deliverables/discovery.
 --heading-font: 'Cormorant Garamond', serif;
 ```
 
-Include the site overview, proposed demo, key pages, page-structure analysis, and the screenshots from `$OF1_STATE_DIR/discovery-*.png` (embed as base64 or reference by absolute path). Load Google Fonts (JetBrains Mono + Cormorant Garamond) from CDN.
+Include the site overview, proposed demo, key pages, page-structure analysis, and the screenshots from `$OF1_STATE_DIR/discovery-*.png` — **always embed as base64** (absolute file paths don't resolve on the EDS preview URL):
+
+```bash
+SCREENSHOT_B64=$(base64 < "$OF1_STATE_DIR/discovery-home.png")
+# In the HTML: <img src="data:image/png;base64,${SCREENSHOT_B64}">
+```
+
+Load Google Fonts (JetBrains Mono + Cormorant Garamond) from CDN.
 
 Commit and push:
 
