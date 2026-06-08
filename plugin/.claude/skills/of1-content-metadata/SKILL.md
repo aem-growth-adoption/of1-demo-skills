@@ -58,9 +58,26 @@ In standalone mode, ask:
 
 Fetch main product listing pages with WebFetch. Extract for each visible product: name, URL, category, price, short description.
 
-### 3. Extract product data
+### 3. Extract product data (parallel scraping)
 
-For each product detail page (cap at 20 in pipeline mode), extract: name, price, currency, category, features (bullets), description (2–3 sentences), specifications, use cases, target audience, image URLs, related products, tags.
+**Open all product pages in parallel tabs, then extract from each.** Do NOT scrape pages one at a time in a serial loop — that takes 2 min per page × 16 pages = 32 min. Parallel tabs take ~3 min total.
+
+```bash
+# Open all product detail pages at once (parallel)
+for URL in $PRODUCT_URLS; do
+  playwright-cli open "$URL"
+done
+sleep 5  # wait for all pages to render
+
+# Extract data from each tab
+for TAB_ID in $(playwright-cli tab-list | grep -oE '[0-9]+'); do
+  playwright-cli eval --tab "$TAB_ID" "
+    // extract name, price, description, images, features, etc.
+  "
+done
+```
+
+For each product (cap at 20 in pipeline mode), extract: name, price, currency, category, features (bullets), description (2–3 sentences), specifications, use cases, target audience, image URLs, related products, tags.
 
 ### 4. Infer personas and use cases
 
