@@ -328,7 +328,10 @@ For each of the 5 variations, write all 4 files.
 }
 ```
 
-Sample data rules: ASCII-safe text only (no `é` etc.); real image URLs from the site's extraction; realistic but simple text.
+**Sample data rules:**
+- **ASCII-safe text only** — no accented characters (`é`, `ñ`), no emoji (`🏄`, `⛷️`). Some downstream tooling chokes on non-ASCII. If you're tempted to use an emoji for an icon slot, use a short text label instead.
+- **Image URLs** — use the live site's real image URLs extracted from the prototype HTML (e.g. `https://wknd.site/content/dam/wknd/...`). Do NOT invent URLs from memory, do NOT use AEM author/publish URLs (`author-p*.adobeaemcloud.com`), do NOT use EDS `hlx.page` content-dam paths. The prototype HTML has the correct URLs — look them up.
+- **Realistic but simple text** — brand-relevant, short, no placeholder "lorem ipsum."
 
 ### Validate JSON before declaring done
 
