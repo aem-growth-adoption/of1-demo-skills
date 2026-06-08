@@ -16,7 +16,6 @@ Output:
 import sys
 import json
 import os
-import shutil
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -312,7 +311,7 @@ def main():
         for png in sorted(screenshots_stardust.glob("*.png")):
             dest = screenshots_deliver / png.name
             if not dest.exists():
-                shutil.copy2(png, dest)
+                dest.write_bytes(png.read_bytes())
 
     screenshot_paths = []
     if screenshots_deliver.exists():
