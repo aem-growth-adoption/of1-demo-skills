@@ -41,32 +41,34 @@ git rev-parse --git-dir >/dev/null 2>&1 || { echo "FAIL: $OF1_DEMO_REPO is not a
 
 # ---------- Pick or create branch ----------
 
-git fetch origin --quiet
+git fetch origin
 
-EXISTS_REMOTE=$(git ls-remote --heads origin "$BRANCH" | wc -l | tr -d ' ')
-EXISTS_LOCAL=$(git branch --list "$BRANCH" | wc -l | tr -d ' ')
+# Check branch existence using commands compatible with isomorphic-git
+# (git ls-remote and git branch --list don't work reliably in SLICC)
+EXISTS_REMOTE=$(git branch -a 2>/dev/null | grep -c "remotes/origin/${BRANCH}$" || echo "0")
+EXISTS_LOCAL=$(git branch 2>/dev/null | grep -c "^..${BRANCH}$" || echo "0")
 
 if [ "$EXISTS_REMOTE" -gt 0 ] || [ "$EXISTS_LOCAL" -gt 0 ]; then
   if [ "$BRANCH_MODE" = "continue" ]; then
     echo "Branch $BRANCH exists — continuing (reuse mode)"
     if [ "$EXISTS_LOCAL" -gt 0 ]; then
-      git checkout "$BRANCH" --quiet
+      git checkout "$BRANCH"
     else
-      git checkout -b "$BRANCH" "origin/$BRANCH" --quiet
+      git checkout -b "$BRANCH" "origin/$BRANCH"
     fi
   else
     # Fresh start: find unused suffix
     N=2
-    while git ls-remote --heads origin "${BRANCH}-${N}" | grep -q .; do
+    while git branch -a 2>/dev/null | grep -q "remotes/origin/${BRANCH}-${N}$"; do
       N=$((N + 1))
     done
     BRANCH="${BRANCH}-${N}"
     echo "Branch exists — creating fresh: $BRANCH"
-    git checkout -b "$BRANCH" origin/main --quiet
+    git checkout -b "$BRANCH" origin/main
   fi
 else
   echo "Creating new branch: $BRANCH"
-  git checkout -b "$BRANCH" origin/main --quiet
+  git checkout -b "$BRANCH" origin/main
 fi
 
 # ---------- Clean slate (demo artifacts only) ----------
