@@ -196,8 +196,10 @@ Review steps without a deliverable URL will show the summary but no open link �
 **After spawning a step scoop, END YOUR TURN.** You will be automatically notified (via lick) when the scoop finishes. On notification:
 
 1. Read the scoop's status file (`/shared/of1-demo/step-N-status.json`)
-2. Call `sprinkle send of1-demo '<contents>'` to update the UI **immediately**
+2. Push the **exact JSON contents** to the sprinkle: `sprinkle send of1-demo "$(cat /shared/of1-demo/step-N-status.json)"`
 3. Proceed to dispatch the next step(s) per the dependency graph
+
+⚠️ **Pass the status JSON through AS-IS.** Do NOT rewrite, flatten, or reformat it. Steps emit `"deliverables": [{"url":"...", "label":"..."}]` (array) — if you flatten it to a single `"deliverable": "..."` string, the sprinkle only renders one button instead of multiple. Use `cat` to pass the file content verbatim.
 
 **Push EACH step's status immediately when its notification arrives.** Do NOT batch parallel completions. If Steps 3 and 4 are running in parallel and Step 3 finishes first, push Step 3's status to the sprinkle RIGHT NOW — do not wait for Step 4 to also finish. The sprinkle's timer freezes a step's counter the moment it receives the completion status. If you delay the push, the user sees the timer counting up for a step that already finished.
 
