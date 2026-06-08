@@ -14,7 +14,7 @@
 #                      fresh = create ${BRANCH}-2, -3, etc.
 #                      continue = reuse existing branch.
 
-set -euo pipefail
+set -eu
 
 # ---------- Validate inputs ----------
 
