@@ -63,7 +63,7 @@ Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everyt
 | 7a–7e — template intents | `claude-sonnet-4-6` | Structured generation following a clear pattern + EDS visual reference. 5 parallel scoops — biggest cost saving. |
 | 7-base | `claude-sonnet-4-6` | Reads prototype CSS → writes `styles/of1-template-base.css` (shared tokens). Sequential, before intent fan-out. |
 | 7-assemble | `claude-sonnet-4-6` | Verifies base CSS exists, runs `assemble-catalog.py` + `fill-template.py`, installs gallery, single commit + push. Bump to opus if quality dips. |
-| 8 — OF1 styling | `claude-sonnet-4-6` | CSS generation matching prototype-home. Clear reference; not deep reasoning. |
+| 8 — OF1 styling | `claude-opus-4-6` | CSS generation + /of1 page setup. Must follow multi-step instructions precisely (copy base CSS, patch scripts.js, create template/fragments, upload DA content). Sonnet deviates from the procedure. |
 | 9a — brand voice | `claude-sonnet-4-6` | Synthesis from existing extraction JSON. |
 | 9b — content metadata | `claude-sonnet-4-6` | Scrape product pages + run `download-images.py`. Structured. |
 | 10 — quick suggestions | `claude-sonnet-4-6` | Generate 12 chips from discovery narrative. |

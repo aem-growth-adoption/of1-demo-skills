@@ -122,7 +122,7 @@ Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritan
 | 7-base | `sonnet` | Reads prototype CSS → writes `:root` tokens. Structured extraction. |
 | 7a–7e — template intents | `sonnet` | Structured generation from a clear pattern. 5 parallel = biggest cost block. |
 | 7-assemble | `sonnet` | Runs scripts + one commit. Bump to `opus` if quality dips. |
-| 8 — OF1 styling | `sonnet` | CSS generation + /of1 page setup. Clear reference material. |
+| 8 — OF1 styling | `opus` | CSS generation + /of1 page setup. Must follow multi-step instructions precisely (copy base CSS, patch scripts.js, copy fragments, upload DA content). Sonnet deviates from the procedure. |
 | 9a — brand voice | `sonnet` | Synthesis from existing extraction JSON. |
 | 9b — content metadata | `sonnet` | Scrape product pages + run download-images.py. Structured. |
 | 10 — quick suggestions | `sonnet` | Generate 12 chips from discovery narrative. |
