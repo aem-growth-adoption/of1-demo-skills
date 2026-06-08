@@ -196,8 +196,14 @@ Review steps without a deliverable URL will show the summary but no open link �
 **After spawning a step scoop, END YOUR TURN.** You will be automatically notified (via lick) when the scoop finishes. On notification:
 
 1. Read the scoop's status file (`/shared/of1-demo/step-N-status.json`)
-2. Call `sprinkle send of1-demo '<contents>'` to update the UI
+2. Call `sprinkle send of1-demo '<contents>'` to update the UI **immediately**
 3. Proceed to dispatch the next step(s) per the dependency graph
+
+**Push EACH step's status immediately when its notification arrives.** Do NOT batch parallel completions. If Steps 3 and 4 are running in parallel and Step 3 finishes first, push Step 3's status to the sprinkle RIGHT NOW — do not wait for Step 4 to also finish. The sprinkle's timer freezes a step's counter the moment it receives the completion status. If you delay the push, the user sees the timer counting up for a step that already finished.
+
+⚠️ **Do NOT use `scoop_wait({ scoop_names: ["of1-s3", "of1-s4"] })` to wait for multiple parallel scoops at once.** This batches both completions into one cone turn, which delays pushing the first one's status. Instead, either:
+- Don't use `scoop_wait` at all — just end your turn and handle each notification as it arrives (preferred)
+- If you must use `scoop_wait`, wait for ONE scoop at a time, push its status, then wait for the next
 
 **Do NOT use `while/sleep` polling loops.** They block your turn, burn compute, and prevent you from receiving other licks (user input, parallel scoop completions). The platform notifies you — just yield and wait.
 
