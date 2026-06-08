@@ -5,13 +5,23 @@ description: Verify all OF1 demo pipeline dependencies are installed. Read-only 
 
 # OF1 Setup — Verify Dependencies
 
-Read-only verifier. Reports any missing prerequisite and, on success, writes resolved paths to `$OF1_STATE_DIR/setup.json` for downstream steps.
+**Run this exact command. Nothing else. Do NOT substitute with ad-hoc checks.**
 
 ```bash
-bash "$SKILL_DIR/scripts/verify.sh"
+OF1_DEMO_REPO="${OF1_DEMO_REPO:-/workspace/of1-demo}" \
+OF1_STATE_DIR="${OF1_STATE_DIR:-/shared/of1-demo}" \
+ADOBE_IMS_TOKEN="${ADOBE_IMS_TOKEN:-$(oauth-token adobe 2>/dev/null || true)}" \
+bash "${SKILL_DIR:-/workspace/skills/of1-setup}/scripts/verify.sh"
 ```
 
-Exit `0` on success, `1` on any blocker (one `✗ <reason>` line per failure). The orchestrator MUST stop on failure — every subsequent step assumes everything below is in place.
+That's it. One command. The script checks everything and writes `setup.json` on success. Do NOT:
+- Run `command -v` checks yourself instead of the script
+- Skip the script because "it's simple" or "I can check faster"
+- Write setup.json by hand
+
+If exit code is `0`: step 1 is done. If `1`: report the exact error lines and STOP.
+
+Downstream steps (starting with step 2) **structurally depend on `$OF1_STATE_DIR/setup.json` existing** — they will fail immediately if it's missing. There is no workaround for skipping this script.
 
 ## What it checks
 

@@ -31,6 +31,17 @@ DA_TOKEN="${ADOBE_IMS_TOKEN:-$(jq -r .access_token "$OF1_TOKEN_FILE")}"
 
 ## Process
 
+### 0. Verify step 1 ran (hard gate)
+
+```bash
+[ -f "$OF1_STATE_DIR/setup.json" ] || {
+  echo "FAIL: $OF1_STATE_DIR/setup.json does not exist." >&2
+  echo "Step 1 (of1-setup) was either skipped or its verify.sh script was not executed." >&2
+  echo "Go back and run: bash /workspace/skills/of1-setup/scripts/verify.sh" >&2
+  exit 1
+}
+```
+
 ### 1. Verify the clone exists
 
 ```bash
