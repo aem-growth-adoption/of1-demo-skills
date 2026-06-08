@@ -38,12 +38,25 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 
 This step's whole job is to delegate to `stardust:extract`. **Do NOT use `playwright-cli`, `curl`, `wget`, or any other scraping mechanism here** — the stardust skill owns crawling, token extraction, screenshot capture, and brand-review authoring. Reimplementing it in this skill is the most common failure mode.
 
-Invoke the `stardust:extract` skill via the platform's sub-skill mechanism (in Claude Code, the `Skill` tool; in SLICC, the equivalent skill-invocation primitive). The argument is the homepage URL plus a page cap matching the discovery output (typically 5 — homepage + 2-3 category/product pages):
+Invoke the `stardust:extract` skill. The argument is the homepage URL plus a page cap matching the discovery output (typically 5 — homepage + 2-3 category/product pages).
 
-```
-Skill: stardust:extract
-Args:  https://${DOMAIN} --cap 5
-```
+**How to invoke in each runtime:**
+
+- **Claude Code:** use the `Skill` tool:
+  ```
+  Skill: stardust:extract
+  Args:  https://${DOMAIN} --cap 5
+  ```
+
+- **SLICC:** read the skill and execute it inline:
+  ```bash
+  # 1. Read the skill instructions
+  read_file /workspace/skills/extract/SKILL.md
+  # 2. Follow those instructions directly — the skill IS the procedure.
+  #    It will use playwright-cli to crawl, extract tokens, capture screenshots,
+  #    and write all outputs under stardust/current/.
+  ```
+  Do NOT invent your own extraction approach. The stardust:extract skill already knows how to crawl, extract CSS tokens, capture screenshots, and write `pages/*.json` files with image URLs. Just read it and do what it says.
 
 Wait for the extraction to finish. On success it writes all of the following under `$OF1_DEMO_REPO/`:
 
@@ -52,6 +65,7 @@ Wait for the extraction to finish. On success it writes all of the following und
 - `stardust/current/DESIGN.md` — design direction
 - `stardust/current/DESIGN.json` — design tokens (colors, typography, spacing, shapes)
 - `stardust/current/brand-review.html` — visual reference page
+- `stardust/current/pages/*.json` — one JSON per crawled page with exact image URLs from the live DOM (step 5 reads these to get real image URLs instead of constructing them)
 - `stardust/current/assets/logo.svg` — brand logo
 - `stardust/current/assets/screenshots/*.png` — full-page screenshots per key page
 
@@ -64,8 +78,12 @@ test -f stardust/current/DESIGN.md       || { echo "FAIL: DESIGN.md missing"; ex
 test -f stardust/current/assets/logo.svg || { echo "FAIL: logo.svg missing"; exit 1; }
 ls stardust/current/assets/screenshots/*.png >/dev/null 2>&1 \
   || { echo "FAIL: no screenshots"; exit 1; }
+ls stardust/current/pages/*.json >/dev/null 2>&1 \
+  || { echo "FAIL: no pages/*.json — stardust:extract was not invoked correctly"; exit 1; }
 echo "✓ Extraction outputs present"
 ```
+
+If `pages/*.json` is missing, it means `stardust:extract` was NOT actually invoked — the scoop improvised its own extraction. Go back and invoke the stardust skill properly.
 
 If anything is missing, re-run `stardust:extract` with `--refresh` for the failing page.
 
