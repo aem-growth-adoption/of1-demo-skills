@@ -39,10 +39,25 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 
 ## Process
 
-### 1. Run the fill script
+### 1. Verify all config files are present (hard gate)
+
+The fill script silently reads whatever is on disk — it won't fail if a file is stale or empty. Guard against running too early (before step 9 finishes):
 
 ```bash
-cd "$OF1_DEMO_REPO" && python3 "$SKILL_DIR/assets/fill-config-review.py" . "$DOMAIN"
+cd "$OF1_DEMO_REPO"
+for f in products brand-voice personas use-cases features faqs suggestions cta-template; do
+  [ -s "of1/config/${f}.json" ] || {
+    echo "FAIL: of1/config/${f}.json missing or empty." >&2
+    echo "Step 9 may not have finished. Wait for all parallel steps to complete before running step 12." >&2
+    exit 1
+  }
+done
+```
+
+### 2. Run the fill script
+
+```bash
+python3 "$SKILL_DIR/assets/fill-config-review.py" . "$DOMAIN"
 ```
 
 The script reads `of1/config/{products,brand-voice,personas,suggestions,use-cases,features,cta-template}.json`, uses the template at `$SKILL_DIR/assets/config-review.html`, and writes `deliverables/config-review.html`.
