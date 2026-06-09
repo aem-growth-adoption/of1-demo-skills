@@ -60,20 +60,29 @@ Fetch main product listing pages with WebFetch. Extract for each visible product
 
 ### 3. Extract product data (parallel scraping)
 
-**Open all product pages in parallel tabs, then extract from each.** Do NOT scrape pages one at a time in a serial loop — that takes 2 min per page × 16 pages = 32 min. Parallel tabs take ~3 min total.
+**Open product pages in parallel batches of 5, then extract from each batch.** Do NOT scrape pages one at a time in a serial loop — that takes 2 min per page × 16 pages = 32 min. Batches of 5 take ~5 min total.
 
 ```bash
-# Open all product detail pages at once (parallel)
-for URL in $PRODUCT_URLS; do
-  playwright-cli open "$URL"
-done
-sleep 5  # wait for all pages to render
+# Process in batches of 5 tabs at a time
+BATCH_SIZE=5
+for ((i=0; i<${#PRODUCT_URLS[@]}; i+=BATCH_SIZE)); do
+  # Open this batch
+  for URL in "${PRODUCT_URLS[@]:i:BATCH_SIZE}"; do
+    playwright-cli open "$URL"
+  done
+  sleep 5  # wait for batch to render
 
-# Extract data from each tab
-for TAB_ID in $(playwright-cli tab-list | grep -oE '[0-9]+'); do
-  playwright-cli eval --tab "$TAB_ID" "
-    // extract name, price, description, images, features, etc.
-  "
+  # Extract data from each tab in this batch
+  for TAB_ID in $(playwright-cli tab-list | grep -oE '[0-9]+'); do
+    playwright-cli eval --tab "$TAB_ID" "
+      // extract name, price, description, images, features, etc.
+    "
+  done
+
+  # Close batch tabs before opening the next batch
+  playwright-cli tab-list | grep -oE '[0-9]+' | while read TAB; do
+    playwright-cli tab-close "$TAB" 2>/dev/null
+  done
 done
 ```
 
