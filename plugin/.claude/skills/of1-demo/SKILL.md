@@ -62,10 +62,10 @@ Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everyt
 | 6 — snowflake | `claude-sonnet-4-6` | Invokes the adobe `snowflake` skill once per prototype. Thin wrapper. |
 | 7a–7e — template intents | `claude-sonnet-4-6` | Structured generation following a clear pattern + EDS visual reference. 5 parallel scoops — biggest cost saving. |
 | 7-base | `claude-sonnet-4-6` | Reads prototype CSS → writes `styles/of1-template-base.css` (shared tokens). Sequential, before intent fan-out. |
-| 7-assemble | `claude-sonnet-4-6` | Verifies base CSS exists, runs `assemble-catalog.py` + `fill-template.py`, installs gallery, single commit + push. Bump to opus if quality dips. |
+| 7-assemble | `claude-sonnet-4-6` | Verifies base CSS exists, runs `assemble-catalog.jsh` + `fill-template.jsh`, installs gallery, single commit + push. Bump to opus if quality dips. |
 | 8 — OF1 styling | `claude-opus-4-6` | CSS generation + /of1 page setup. Must follow multi-step instructions precisely (copy base CSS, patch scripts.js, create template/fragments, upload DA content). Sonnet deviates from the procedure. |
 | 9a — brand voice | `claude-sonnet-4-6` | Synthesis from existing extraction JSON. |
-| 9b — content metadata | `claude-sonnet-4-6` | Scrape product pages + run `download-images.py`. Structured. |
+| 9b — content metadata | `claude-sonnet-4-6` | Scrape product pages + run `download-images.jsh`. Structured. |
 | 10 — quick suggestions | `claude-sonnet-4-6` | Generate 12 chips from discovery narrative. |
 | 11 — CTA template | `claude-sonnet-4-6` | Generate one JSON file from DESIGN.json tokens. |
 | 13 — deploy + verify | `claude-sonnet-4-6` | Scripted sync + verification curls + screenshots. |
@@ -131,16 +131,16 @@ done
 Intent scoops do NOT need DA mount access — they only write to the local repo.
 
 **Phase 3 — assemble (sequential, after all 5 intents finish):** spawn once all five `/shared/of1-demo/step-7-intent-<intent>-status.json` files exist:
-**Phase 3 — assemble (cone inline preferred, or a scoop):** once all 5 intent status files exist, run assemble. Since assemble is purely scripted (run `assemble-catalog.py` + `fill-template.py` + git push), the cone can run it **inline** without spawning a scoop — this is faster and avoids timeout risk:
+**Phase 3 — assemble (cone inline preferred, or a scoop):** once all 5 intent status files exist, run assemble. Since assemble is purely scripted (run `assemble-catalog.jsh` + `fill-template.jsh` + git push), the cone can run it **inline** without spawning a scoop — this is faster and avoids timeout risk:
 
 ```bash
 cd "$REPO_DIR"
-python3 /workspace/skills/of1-template-generation/assets/assemble-catalog.py . "$OWNER" "$REPO" "$BRANCH"
+run_jsh /workspace/skills/of1-template-generation/assets/assemble-catalog.jsh . "$OWNER" "$REPO" "$BRANCH"
 mkdir -p tools drafts gallery
-cp /workspace/skills/of1-template-generation/assets/fill-template.py tools/fill-template.py
+cp /workspace/skills/of1-template-generation/assets/fill-template.jsh tools/fill-template.jsh
 for TPL in templates/of1-*.html; do
   NAME=$(basename "$TPL" .html)
-  [ -f "templates/${NAME}.sample.json" ] && python3 tools/fill-template.py "$TPL" "templates/${NAME}.sample.json" "drafts/${NAME}-sample.html"
+  [ -f "templates/${NAME}.sample.json" ] && run_jsh tools/fill-template.jsh "$TPL" "templates/${NAME}.sample.json" "drafts/${NAME}-sample.html"
 done
 cp /workspace/skills/of1-template-generation/assets/gallery.html gallery/index.html
 git add styles/of1-template-base.css styles/of1-*.css templates/ of1/config/templates.json drafts/ tools/ gallery/
@@ -305,7 +305,7 @@ Step 7 (template generation) is split into 7 scoops across 3 phases plus a small
 - **Pre-fan-out (inline, orchestrator):** capture EDS-rendered visual references of all prototypes so the intent scoops see the actual rendered design system (see "Pre-fan-out: capture EDS visual reference" below).
 - **7-base (sequential, 1 scoop):** named `of1-s7-base`. Runs `of1-template-generation` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all per-template CSS files `@import`. Writes `/shared/of1-demo/step-7-base-status.json`. Must finish before intent scoops start.
 - **7a–7e (parallel, 5 scoops):** named `of1-s7-comparison`, `of1-s7-recommendation`, `of1-s7-deep-dive`, `of1-s7-budget`, `of1-s7-discovery`. Each runs with `OF1_TG_MODE=intent` and `OF1_TG_INTENT=<intent>`. Each writes only its own `templates/of1-{intent}-*` + `styles/of1-{intent}-*` files. **No git operations.** Each writes `/shared/of1-demo/step-7-intent-<intent>-status.json` on completion.
-- **7-assemble (sequential after 7a–7e):** named `of1-s7-assemble`. Same skill with `OF1_TG_MODE=assemble`. Verifies base CSS exists, assembles the fully-inlined catalog via `assemble-catalog.py`, runs `fill-template.py`, installs the gallery, single commit + push. Writes the canonical `/shared/of1-demo/step-7-status.json` that the sprinkle reads.
+- **7-assemble (sequential after 7a–7e):** named `of1-s7-assemble`. Same skill with `OF1_TG_MODE=assemble`. Verifies base CSS exists, assembles the fully-inlined catalog via `assemble-catalog.jsh`, runs `fill-template.jsh`, installs the gallery, single commit + push. Writes the canonical `/shared/of1-demo/step-7-status.json` that the sprinkle reads.
 
 ### Pre-fan-out: capture EDS visual reference (inline)
 
@@ -339,7 +339,7 @@ Step 9 used to be a single scoop that ran `of1-brand-voice-extractor` and `of1-c
 - **`of1-s9-brand`** — runs `of1-brand-voice-extractor`. Produces `of1/config/brand-voice.json`. Writes `/shared/of1-demo/step-9-brand-status.json`. ~1–2 min.
 - **`of1-s9-content`** — runs `of1-content-metadata`. Produces `of1/config/{products,personas,use-cases,features,faqs}.json` + uploads all product images. Writes `/shared/of1-demo/step-9-content-status.json`. ~3–5 min.
 
-The content scoop **MUST use `download-images.py`** (parallel: 8 workers, content-type sniffing, mount-or-API fallback) — NOT a per-image `curl` loop. The skill documents this in its Step 9 section; no separate injection needed.
+The content scoop **MUST use `download-images.jsh`** (parallel: 8 workers, content-type sniffing, mount-or-API fallback) — NOT a per-image `curl` loop. The skill documents this in its Step 9 section; no separate injection needed.
 
 Once both `/shared/of1-demo/step-9-brand-status.json` AND `step-9-content-status.json` exist, the orchestrator merges them into a single `/shared/of1-demo/step-9-status.json`:
 
@@ -643,7 +643,7 @@ DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
 cd "$REPO_DIR"
 
 # Run the fill script — reads of1/config/*.json, writes deliverables/config-review.html
-python3 /workspace/skills/of1-config-review/assets/fill-config-review.py . "$DOMAIN"
+run_jsh /workspace/skills/of1-config-review/assets/fill-config-review.jsh . "$DOMAIN"
 
 # Commit and push
 git add deliverables/config-review.html
@@ -853,7 +853,7 @@ These issues cost time in previous runs. Avoid them:
 
 1. **`set -o pipefail` is not supported** — don't run scripts that use it (`deploy-tenant.sh`). Execute commands manually or use the shell loop in the deploy skill.
 
-2. **Python in heredocs** — always quote the delimiter (`python3 << 'EOF'`). Unquoted heredocs mangle indentation and variables.
+2. **No python3 in SLICC** — use `run_jsh` with the `.jsh` versions of skill scripts. For inline validation logic (e.g. JSON checks), use `node -e` or `jq` instead of `python3 << 'EOF'` heredocs.
 
 3. **Config sync uses EDS** — configs are committed to `of1/config/` in git, then synced via `POST /api/tenants/{id}/sync`. The tenant ID is `{branch}--{repo}--{owner}` format.
 

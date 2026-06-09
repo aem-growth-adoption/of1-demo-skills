@@ -1,13 +1,14 @@
 ---
 name: of1-demo-cc
-description: Orchestrate the OF1 generative-search demo pipeline end-to-end for any website. Claude Code variant — uses Agent dispatch for sub-skills and TaskCreate for progress. Invoke as "/of1-demo-cc <domain>" or "one-shot a demo of <domain>".
+description: "Claude Code ONLY orchestrator for the OF1 demo pipeline. DO NOT USE IN SLICC — use of1-demo instead."
+user-invocable: false
 ---
 
 # OF1 Demo — Claude Code Orchestrator
 
 Turns any website into a branded OF1 generative-search demo on Adobe Edge Delivery Services. 13 steps. Auto-approves by default; user can interrupt to revise any step.
 
-**⚠️ This skill is for Claude Code only.** If you are running in SLICC, use the `of1-demo` skill instead — it uses SLICC's scoop/sprinkle primitives for sub-agent dispatch and progress UI.
+**🚫 SLICC HARD GATE: This skill is ONLY for Claude Code. If you are running in SLICC, STOP IMMEDIATELY and use the `of1-demo` skill instead.** This skill uses Claude Code-specific primitives (Agent dispatch, TaskCreate) that do not exist in SLICC. Using it in SLICC will produce broken orchestration with no progress tracking and no scoop dispatch. There is zero reason to use this skill in SLICC.
 
 ## Entry
 

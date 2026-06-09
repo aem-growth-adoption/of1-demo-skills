@@ -14,7 +14,7 @@ Delegate site-extraction to the `stardust:extract` skill, then publish the resul
 |-----|---------|
 | `OF1_STATE_DIR` | state + IPC dir; receives `step-4-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
-| `SKILL_DIR`     | absolute path to this skill's directory (used to find `assets/fill-brand-review.py`) |
+| `SKILL_DIR`     | absolute path to this skill's directory (used to find `assets/fill-brand-review.*`) |
 
 Read `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` from `repo-config.json`:
 
@@ -91,7 +91,11 @@ If anything is missing, re-run `stardust:extract` with `--refresh` for the faili
 
 ```bash
 cd "$OF1_DEMO_REPO"
+# Claude Code (python3 available):
 python3 "$SKILL_DIR/assets/fill-brand-review.py" . "$DOMAIN"
+
+# SLICC (use .jsh — no python3 in SLICC runtime):
+# run_jsh "$SKILL_DIR/assets/fill-brand-review.jsh" . "$DOMAIN"
 ```
 
 This reads `stardust/current/DESIGN.json` + screenshots + logo and writes `deliverables/brand-review.html` with absolute paths that resolve on the EDS preview URL.

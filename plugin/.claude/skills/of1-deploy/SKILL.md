@@ -14,7 +14,7 @@ Commit config files, trigger sync to the OF1 worker, generate the demo hub, run 
 |-----|---------|
 | `OF1_STATE_DIR` | state + IPC dir; receives `step-13-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
-| `SKILL_DIR` | absolute path to this skill (used to find `assets/fill-demo-hub.py`) |
+| `SKILL_DIR` | absolute path to this skill (used to find `assets/fill-demo-hub.*`) |
 | `ADOBE_IMS_TOKEN` | raw DA token (preferred) |
 | `OF1_TOKEN_FILE` | path to a `{"access_token":"…"}` JSON (fallback) |
 
@@ -71,6 +71,7 @@ done
 
 ```bash
 curl -s -H "Authorization: Bearer $DA_TOKEN" \
+  -H "x-content-source-authorization: Bearer $DA_TOKEN" \
   "https://admin.da.live/list/${OWNER}/${REPO}/${BRANCH}" \
   | jq -r '.[] | select(.ext == "html") | .name + ".html"' > /tmp/da-pages.txt
 
@@ -78,7 +79,11 @@ curl -s -H "Authorization: Bearer $DA_TOKEN" \
 [ -s /tmp/da-pages.txt ] || echo "WARN: no DA pages found — hub will be missing EDS page links"
 
 # Generate the demo hub from the template
+# Claude Code (python3 available):
 python3 "$SKILL_DIR/assets/fill-demo-hub.py" . "${DOMAIN}"
+
+# SLICC (use .jsh — no python3 in SLICC runtime):
+# run_jsh "$SKILL_DIR/assets/fill-demo-hub.jsh" . "${DOMAIN}"
 ```
 
 This reads all config, finds prototypes, discovers EDS pages from `/tmp/da-pages.txt`, and writes `deliverables/index.html`. Do NOT hand-write the hub HTML.

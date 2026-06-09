@@ -14,7 +14,7 @@ Generate the config-review.html deliverable for an OF1 demo using the proper tem
 |-----|---------|
 | `OF1_STATE_DIR` | state + IPC dir; receives `step-12-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
-| `SKILL_DIR` | absolute path to this skill (used to find `assets/fill-config-review.py`) |
+| `SKILL_DIR` | absolute path to this skill (used to find `assets/fill-config-review.*`) |
 
 Read repo config:
 
@@ -35,7 +35,7 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 ## Prerequisites
 
 - Config JSON files must already exist under `of1/config/` in the repo
-- The fill script at `$SKILL_DIR/assets/fill-config-review.py`
+- The fill script at `$SKILL_DIR/assets/fill-config-review.py` (or `.jsh` in SLICC)
 
 ## Process
 
@@ -57,7 +57,11 @@ done
 ### 2. Run the fill script
 
 ```bash
+# Claude Code (python3 available):
 python3 "$SKILL_DIR/assets/fill-config-review.py" . "$DOMAIN"
+
+# SLICC (use .jsh — no python3 in SLICC runtime):
+# run_jsh "$SKILL_DIR/assets/fill-config-review.jsh" . "$DOMAIN"
 ```
 
 The script reads `of1/config/{products,brand-voice,personas,suggestions,use-cases,features,cta-template}.json`, uses the template at `$SKILL_DIR/assets/config-review.html`, and writes `deliverables/config-review.html`.

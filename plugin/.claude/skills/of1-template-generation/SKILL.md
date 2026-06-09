@@ -14,7 +14,7 @@ Produce the template library for the OF1 worker: 25 slot-based HTML templates (5
 |-----|---------|
 | `OF1_STATE_DIR` | state + IPC dir; receives status JSON |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
-| `SKILL_DIR` | absolute path to this skill (used to find `assets/{assemble-catalog.py, fill-template.py, gallery.html}`) |
+| `SKILL_DIR` | absolute path to this skill (used to find `assets/{assemble-catalog.*, fill-template.*, gallery.html}`) |
 
 Read repo config once at the top:
 
@@ -378,7 +378,11 @@ COUNT_CSS=$(ls styles/of1-*.css 2>/dev/null | grep -v 'of1-template-base.css' | 
 ### 2. Assemble the catalog (fully inlined)
 
 ```bash
+# Claude Code (python3 available):
 python3 "$SKILL_DIR/assets/assemble-catalog.py" "$OF1_DEMO_REPO" "$OWNER" "$REPO" "$BRANCH"
+
+# SLICC (use .jsh — no python3 in SLICC runtime):
+# run_jsh "$SKILL_DIR/assets/assemble-catalog.jsh" "$OF1_DEMO_REPO" "$OWNER" "$REPO" "$BRANCH"
 ```
 
 Produces `templates/templates-catalog.json` + `of1/config/templates.json`. Fails fast if any of the 25 templates is missing HTML; warns if any intent is missing from the catalog.
@@ -387,13 +391,22 @@ Produces `templates/templates-catalog.json` + `of1/config/templates.json`. Fails
 
 ```bash
 mkdir -p tools drafts
-cp "$SKILL_DIR/assets/fill-template.py" tools/fill-template.py
 
+# Claude Code (python3 available):
+cp "$SKILL_DIR/assets/fill-template.py" tools/fill-template.py
 for TPL in templates/of1-*.html; do
   NAME=$(basename "$TPL" .html)
   SAMPLE="templates/${NAME}.sample.json"
   [ -f "$SAMPLE" ] && python3 tools/fill-template.py "$TPL" "$SAMPLE" "drafts/${NAME}-sample.html"
 done
+
+# SLICC (use .jsh — no python3 in SLICC runtime):
+# cp "$SKILL_DIR/assets/fill-template.jsh" tools/fill-template.jsh
+# for TPL in templates/of1-*.html; do
+#   NAME=$(basename "$TPL" .html)
+#   SAMPLE="templates/${NAME}.sample.json"
+#   [ -f "$SAMPLE" ] && run_jsh tools/fill-template.jsh "$TPL" "$SAMPLE" "drafts/${NAME}-sample.html"
+# done
 ```
 
 ### 4. Install gallery

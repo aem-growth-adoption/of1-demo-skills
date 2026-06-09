@@ -14,7 +14,7 @@ Crawl a website to extract product data, user personas, use cases, features, and
 |-----|---------|
 | `OF1_STATE_DIR` | state + IPC dir; receives `step-9-content-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
-| `SKILL_DIR` | absolute path to this skill (used to find `assets/download-images.py`) |
+| `SKILL_DIR` | absolute path to this skill (used to find `assets/download-images.*`) |
 | `ADOBE_IMS_TOKEN` | raw DA token (preferred) |
 | `OF1_TOKEN_FILE` | path to a `{"access_token":"…"}` JSON (fallback) |
 
@@ -239,11 +239,19 @@ print(f"Manifest: {len(manifest)} products with images")
 EOF
 
 # Parallel download + upload + rewrite products.json with DA URLs
+# Claude Code (python3 available):
 python3 "$SKILL_DIR/assets/download-images.py" \
   --input /tmp/image-manifest.json \
   --owner "$OWNER" --repo "$REPO" --branch "$BRANCH" \
   --output /tmp/image-mapping.json \
   --update-products
+
+# SLICC (use .jsh — no python3 in SLICC runtime):
+# run_jsh "$SKILL_DIR/assets/download-images.jsh" \
+#   --input /tmp/image-manifest.json \
+#   --owner "$OWNER" --repo "$REPO" --branch "$BRANCH" \
+#   --output /tmp/image-mapping.json \
+#   --update-products
 ```
 
 The `--update-products` flag rewrites `products.json[*].images` to DA URLs automatically.

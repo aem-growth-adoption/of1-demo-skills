@@ -77,6 +77,8 @@ Snowflake gathers prerequisites at the start of each run. Supply these values (d
 | `assetStrategy` | `da-media` (binaries uploaded to DA media bus; URLs branch-independent and reusable across runs) |
 | DA token | snowflake reads `$DA_TOKEN` from env automatically |
 
+**DA auth note:** All calls to `admin.da.live` or `admin.hlx.page` MUST include BOTH `Authorization: Bearer $DA_TOKEN` AND `x-content-source-authorization: Bearer $DA_TOKEN` headers. If snowflake's instructions only show one header, add the second yourself.
+
 ### ⚠️ Critical override of snowflake's branch handling
 
 Snowflake's Phase 5 default is to create a **per-run feature branch** named `${branchPrefix}${NNN}` (e.g. `snowflake-001`, `snowflake-002`) and push artifacts there. **DO NOT FOLLOW THAT.** Our demo needs every prototype on the existing `${BRANCH}` (e.g. `frescopa`) so the preview URLs resolve at `https://${BRANCH}--${REPO}--${OWNER}.aem.page/…`.
