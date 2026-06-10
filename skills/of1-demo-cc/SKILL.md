@@ -119,7 +119,7 @@ Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritan
 | 3 — discovery | `opus` | Brand/narrative synthesis from crawled pages. Drives demo story. |
 | 4 — extraction | `opus` | Design-token extraction. Wrong tokens cascade everywhere. |
 | 5 — prototype | `opus` | Pixel-perfect HTML requiring visual judgment. |
-| 6 — snowflake | `sonnet` | Invokes the adobe snowflake skill. Thin wrapper. |
+| 6 — snowflake | `opus` | Invokes the adobe snowflake skill. Complex multi-phase conversion requiring precise instruction-following. |
 | 7-base | `sonnet` | Reads prototype CSS → writes `:root` tokens. Structured extraction. |
 | 7a–7e — template intents | `sonnet` | Structured generation from a clear pattern. 5 parallel = biggest cost block. |
 | 7-assemble | `sonnet` | Runs scripts + one commit. Bump to `opus` if quality dips. |
