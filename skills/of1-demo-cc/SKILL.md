@@ -134,7 +134,7 @@ Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritan
 
 ## Step dispatch template
 
-Each step is a single `Agent` call. Sub-agents see none of this conversation — the prompt must be self-contained. **Always pass the `model` parameter.**
+Each step is a single `Agent` call. Sub-agents see none of this conversation — the prompt must be self-contained. **Always pass `model` and `mode: "bypassPermissions"`.**
 
 ```
 You are executing **Step N (<step-name>)** of the OF1 demo pipeline for `<DOMAIN>`.

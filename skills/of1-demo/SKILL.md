@@ -62,7 +62,7 @@ Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everyt
 | 6 — snowflake | `claude-sonnet-4-6` | Invokes the adobe `snowflake` skill once per prototype. Thin wrapper. |
 | 7a–7e — template intents | `claude-sonnet-4-6` | Structured generation following a clear pattern + EDS visual reference. 5 parallel scoops — biggest cost saving. |
 | 7-base | `claude-sonnet-4-6` | Reads prototype CSS → writes `styles/of1-template-base.css` (shared tokens). Sequential, before intent fan-out. |
-| 7-assemble | `claude-sonnet-4-6` | Verifies base CSS exists, runs `assemble-catalog.jsh` + `fill-template.jsh`, installs gallery, single commit + push. Bump to opus if quality dips. |
+| 7-assemble | inline (no scoop) | Purely scripted: runs `assemble-catalog.jsh` + `fill-template.jsh`, installs gallery, single commit + push. Runs inline in the orchestrator — no LLM reasoning needed. |
 | 8 — OF1 styling | `claude-opus-4-6` | CSS generation + /of1 page setup. Must follow multi-step instructions precisely (copy base CSS, patch scripts.js, create template/fragments, upload DA content). Sonnet deviates from the procedure. |
 | 9a — brand voice | `claude-sonnet-4-6` | Synthesis from existing extraction JSON. |
 | 9b — content metadata | `claude-sonnet-4-6` | Scrape product pages + run `download-images.jsh`. Structured. |
@@ -79,10 +79,10 @@ If a Sonnet step produces visibly degraded output in practice, bump *that step* 
 scoop_scoop({
   name: "of1-s6",
   model: "claude-sonnet-4-6",
-  writablePaths: ["/scoops/of1-s6/", "/shared/", "/workspace/{REPO_NAME}/", "/mnt/da/"]
+  writablePaths: ["/scoops/of1-s6/", "/shared/", "/workspace/{REPO_NAME}/"]
 })
 ```
-This allows the scoop to write blocks, styles, and content directly into the repo AND upload DA content via the mount without permission errors.
+This allows the scoop to write blocks, styles, and content directly into the repo. DA uploads use the admin.da.live API (no mount needed).
 
 **For step 9 (Brand voice + Content metadata), spawn TWO parallel scoops** — see "Step 9 split detail" below:
 
@@ -93,17 +93,17 @@ scoop_scoop({
   writablePaths: ["/scoops/of1-s9-brand/", "/shared/", "/workspace/{REPO_NAME}/"]
 })
 
-# Content metadata also needs DA mount access for parallel image uploads.
+# Content metadata uploads images via admin.da.live API (no mount needed).
 scoop_scoop({
   name: "of1-s9-content",
   model: "claude-sonnet-4-6",
-  writablePaths: ["/scoops/of1-s9-content/", "/shared/", "/workspace/{REPO_NAME}/", "/mnt/da/"]
+  writablePaths: ["/scoops/of1-s9-content/", "/shared/", "/workspace/{REPO_NAME}/"]
 })
 ```
 
 Run these in the same orchestrator turn as scoops 10 + 11 (four scoops in one batch after step 5).
 
-**For step 7 (Templates), spawn SEVEN scoops across 3 phases — one `base` scoop + five parallel intent scoops + one `assemble` scoop** (see "Step 7 fan-out detail" below for the rationale):
+**For step 7 (Templates), spawn SIX scoops across 2 phases — one `base` scoop + five parallel intent scoops — then run assemble INLINE** (see "Step 7 fan-out detail" below for the rationale):
 
 ⚠️ **NEVER use `OF1_TG_MODE=all` (single-scoop mode).** It runs all 25 templates serially in one scoop (~18+ min) and produces incomplete output. Always use the 3-phase fan-out below. The `all` mode exists in the skill only as a fallback for environments that cannot fan out — SLICC CAN fan out, so always do so.
 
@@ -130,8 +130,7 @@ done
 ```
 Intent scoops do NOT need DA mount access — they only write to the local repo.
 
-**Phase 3 — assemble (sequential, after all 5 intents finish):** spawn once all five `/shared/of1-demo/step-7-intent-<intent>-status.json` files exist:
-**Phase 3 — assemble (cone inline preferred, or a scoop):** once all 5 intent status files exist, run assemble. Since assemble is purely scripted (run `assemble-catalog.jsh` + `fill-template.jsh` + git push), the cone can run it **inline** without spawning a scoop — this is faster and avoids timeout risk:
+**Phase 3 — assemble (ALWAYS inline, NEVER a scoop):** once all 5 intent status files (`/shared/of1-demo/step-7-intent-<intent>-status.json`) exist, run assemble **inline in the orchestrator**. Assemble is purely scripted — no LLM reasoning needed. Do NOT spawn a scoop; it adds 15+ min of scheduling overhead for zero benefit.
 
 ```bash
 cd "$REPO_DIR"
@@ -148,18 +147,6 @@ git commit -m "feat: 25 OF1 templates (5 intents × 5 variations) for ${DOMAIN}"
 git push origin "$BRANCH"
 echo '{"step":7,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/gallery/index.html","summary":"25 templates assembled."}' > /shared/of1-demo/step-7-status.json
 ```
-
-If you prefer a scoop for isolation:
-```
-scoop_scoop({
-  name: "of1-s7-assemble",
-  model: "claude-sonnet-4-6",
-  writablePaths: ["/scoops/of1-s7-assemble/", "/shared/", "/workspace/{REPO_NAME}/"],
-  env: { OF1_TG_MODE: "assemble" }
-})
-```
-
-**If `env` is not supported by the scoop runtime,** pass the mode + intent in the scoop's system prompt instead — the skill reads them from env first, but the orchestrator can equivalently inject `export OF1_TG_MODE=intent OF1_TG_INTENT=<intent>` at the top of the prompt.
 
 ```
 feed_scoop("of1-demo-step-N", <system prompt with skill instructions + context>)
@@ -190,7 +177,7 @@ and what artifacts to produce. Read it. Follow it. Do not deviate.
 ## DA Auth
 
 - Get IMS token: DA_TOKEN=$(oauth-token adobe)
-- Upload content: use `-d "$HTML_VAR"` for short content or DA mount `/mnt/da/{branch}/`
+- Upload content: use `-d "$HTML_VAR"` for short HTML or DA API multipart POST for binaries (images). NEVER use /mnt/da/ — writes appear to succeed locally but don't persist on the DA backend.
 - Trigger preview: curl -X POST -H "Authorization: Bearer $DA_TOKEN" -H "x-content-source-authorization: Bearer $DA_TOKEN" https://admin.hlx.page/preview/{owner}/{repo}/{branch}/{branch}/{page}
 - admin.da.live and admin.hlx.page are allowed for curl
 - DO NOT use npx/da-auth-helper or ~/.aem/da-token.json (don't exist)
@@ -259,7 +246,7 @@ The pipeline has TWO parallel tracks that MUST run concurrently. **Do NOT serial
 | Step 5 (Prototype) approved | **Track A:** Step 6 (Snowflake) AND **Track B:** Steps 9a, 9b, 11 (three scoops at once) |
 | Steps 9a + 9b done | Step 10 (Suggestions — needs products.json + brand-voice.json) |
 | Step 6 (Snowflake) done | Step 8 (OF1 styling) AND Steps 7a–7e (5 intent scoops in parallel) — 6 scoops at once |
-| Steps 7a–7e ALL complete | Step 7-assemble — 1 scoop, sequential after the fan-out |
+| Steps 7a–7e ALL complete | Step 7-assemble — run INLINE in orchestrator (no scoop) |
 | Steps 9-11 ALL complete | Step 12 (Config review) — run inline by the cone |
 | Steps 7-assemble + 8 done AND Step 12 approved | Step 13 (Deploy) |
 
@@ -305,7 +292,7 @@ Step 7 (template generation) is split into 7 scoops across 3 phases plus a small
 - **Pre-fan-out (inline, orchestrator):** capture EDS-rendered visual references of all prototypes so the intent scoops see the actual rendered design system (see "Pre-fan-out: capture EDS visual reference" below).
 - **7-base (sequential, 1 scoop):** named `of1-s7-base`. Runs `of1-template-generation` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all per-template CSS files `@import`. Writes `/shared/of1-demo/step-7-base-status.json`. Must finish before intent scoops start.
 - **7a–7e (parallel, 5 scoops):** named `of1-s7-comparison`, `of1-s7-recommendation`, `of1-s7-deep-dive`, `of1-s7-budget`, `of1-s7-discovery`. Each runs with `OF1_TG_MODE=intent` and `OF1_TG_INTENT=<intent>`. Each writes only its own `templates/of1-{intent}-*` + `styles/of1-{intent}-*` files. **No git operations.** Each writes `/shared/of1-demo/step-7-intent-<intent>-status.json` on completion.
-- **7-assemble (sequential after 7a–7e):** named `of1-s7-assemble`. Same skill with `OF1_TG_MODE=assemble`. Verifies base CSS exists, assembles the fully-inlined catalog via `assemble-catalog.jsh`, runs `fill-template.jsh`, installs the gallery, single commit + push. Writes the canonical `/shared/of1-demo/step-7-status.json` that the sprinkle reads.
+- **7-assemble (inline, after 7a–7e):** runs in the orchestrator (NOT a scoop). Purely scripted: runs `assemble-catalog.jsh`, `fill-template.jsh`, installs the gallery, single commit + push. Writes the canonical `/shared/of1-demo/step-7-status.json` that the sprinkle reads.
 
 ### Pre-fan-out: capture EDS visual reference (inline)
 
@@ -318,6 +305,7 @@ REF_PATH="/workspace/of1-demo/deliverables/eds-prototype-home.png"
 playwright-cli open "$EDS_HOME_URL"
 sleep 6
 playwright-cli screenshot --fullPage=true --filename "$REF_PATH"
+playwright-cli tab-close "$(playwright-cli tab-list | grep -oE '[0-9]+' | tail -1)"
 
 [ -s "$REF_PATH" ] && [ "$(stat -c%s "$REF_PATH" 2>/dev/null)" -gt 51200 ] \
   && echo "EDS reference saved: $REF_PATH" \
@@ -326,7 +314,7 @@ playwright-cli screenshot --fullPage=true --filename "$REF_PATH"
 
 Do NOT commit this PNG — it's local reference material for the intent scoops only. If the screenshot fails, intent scoops fall back to the prototype HTML + snowflake CSS files (degraded fidelity but still functional).
 
-Spawn 7a–7e and Step 8 in the **same orchestrator turn** (6 scoops total). After all 5 intent status files exist, spawn `of1-s7-assemble`. The sprinkle UI shows a single "Step 7" row; the orchestrator only pushes the step-7 status after `of1-s7-assemble` writes `step-7-status.json`.
+Spawn 7a–7e and Step 8 in the **same orchestrator turn** (6 scoops total). After all 5 intent status files exist, run assemble **inline** (no scoop). The sprinkle UI shows a single "Step 7" row; the orchestrator only pushes the step-7 status after the inline assemble writes `step-7-status.json`.
 
 **Writable paths for ALL 6 step-7 scoops** (intent and assemble): the project repo (`/workspace/of1-demo/`) and `/shared/`. Intent scoops do not need DA mount access (no uploads from this step).
 
@@ -477,7 +465,7 @@ The repo is already cloned at `/workspace/of1-demo`. The step:
 1. Fetches latest from origin
 2. Creates a branch named after the domain (without TLD, e.g., `frescopa` for `frescopa.coffee`)
 3. Creates `output/{DOMAIN}/` directory for deliverables
-4. Verifies DA mount at `/mnt/da`
+4. Verifies DA API access (oauth-token adobe)
 
 The step outputs `/shared/of1-demo/repo-config.json` which all subsequent steps use:
 ```json
@@ -597,7 +585,7 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 2 (Branch setup)** needs: domain. Creates branch on `aem-growth-adoption/of1-demo` and outputs `repo-config.json`.
 - **Step 3 (Discovery)** needs: domain — runs in PARALLEL with step 4
 - **Step 4 (Extraction)** needs: domain only (does NOT need discovery output). Extracts design tokens, colors, typography, logo, and screenshots from the live site. Produces PRODUCT.md, DESIGN.json, screenshots, logo, and brand-review.html under `stardust/current/`. Runs in PARALLEL with step 3.
-- **Step 5 (Prototype)** needs: domain + extraction outputs from step 4 (`stardust/current/`) + discovery output from step 3 (key pages and narrative). Waits for BOTH S3 and S4 to complete.
+- **Step 5 (Prototype)** needs: domain + extraction outputs from step 4 (`stardust/current/`) + discovery output from step 3 (key pages and narrative). Waits for BOTH S3 and S4 to complete. When composing the step-5 prompt, list ALL key pages from discovery and require prototypes for each. Never say "focus on homepage" or "if time permits" — all pages are equally mandatory. The scoop must produce one prototype per key page.
 - **Step 6 (Snowflake)** needs: domain, prototypes from step 5, repo-config.json
 - **Step 7 (Templates)** is fanned out into 1 `base` + 5 parallel `intent` + 1 `assemble` scoop (see "Step 7 fan-out detail"):
   - The base scoop needs: prototype CSS files from step 6, `DESIGN.json` from step 4. It generates `styles/of1-template-base.css`.
@@ -610,9 +598,11 @@ Each step scoop needs context from prior steps. Key dependencies:
 
 When spawning a step scoop, read the relevant prior outputs and include key info in the prompt (or instruct the scoop to read specific files).
 
-## Step 12 — Config Review (orchestrator-inline)
+## Step 12 — Config Review (ALWAYS inline, NEVER a scoop)
 
-Once all parallel steps (9–11) are done, the orchestrator runs step 12 **inline** (no scoop needed). This is a review gate where the user validates all the config that will be deployed.
+⚠️ **DO NOT spawn a scoop for step 12.** It is purely scripted (run `fill-config-review.jsh` + git push) — no LLM reasoning needed. Spawning a scoop wastes 12+ min of scheduling overhead for a 30-second task. Run it inline in the orchestrator.
+
+Once all parallel steps (9–11) are done, the orchestrator runs step 12 **inline**. This is a review gate where the user validates all the config that will be deployed.
 
 ### What it shows
 
@@ -865,9 +855,9 @@ These issues cost time in previous runs. Avoid them:
 
 7. **DA preview auth** — use `oauth-token adobe` to get the IMS token. For preview triggers, pass BOTH `Authorization: Bearer <token>` AND `x-content-source-authorization: Bearer <token>` headers to `admin.hlx.page`.
 
-8. **DA uploads in SLICC** — both `--data-binary @file` AND `cat file | curl --data-binary @-` silently store the literal string instead of file contents. The ONLY reliable upload methods are:
-   - **Shell variable:** `curl -d "$HTML_VAR" ...` (works for short content like DA pages — the OF1 skills already use this pattern)
-   - **DA mount:** `cat file > /mnt/da/${BRANCH}/path.html` (works for larger content like fragments)
+8. **DA uploads in SLICC** — both `--data-binary @file` AND `cat file | curl --data-binary @-` silently store the literal string instead of file contents. **NEVER use `/mnt/da/`** — writes appear to succeed locally but binaries (images) do NOT persist on the DA backend (content.da.live returns 404). The ONLY reliable upload methods are:
+   - **Shell variable:** `curl -d "$HTML_VAR" ...` (works for short HTML content like DA pages)
+   - **DA API multipart POST:** for binary files (images), use the `admin.da.live` multipart upload endpoint (see `download-images.jsh` for the pattern)
    Always verify the upload by reading back: `curl -s -H "Authorization: Bearer $DA_TOKEN" "https://admin.da.live/source/..."` and checking the response contains expected content.
 
 9. **Deliverable HTML with images** — When HTML deliverables reference images (screenshots, logos), paths must be absolute from the repo root (e.g., `/deliverables/assets/screenshots/home.png`) so they resolve on the EDS preview URL. Relative paths like `assets/screenshots/...` break because the HTML is served at `/deliverables/brand-review.html` while images are at `/deliverables/assets/screenshots/`. Always commit the image assets alongside the HTML.
@@ -886,6 +876,18 @@ These issues cost time in previous runs. Avoid them:
 
 16. **NEVER use `git add .` or `git add -A` in a scoop** — SLICC scoops may have an incomplete working tree (they only see files they touched). `git add .` creates a commit containing ONLY the local files, which on push **deletes everything else in the repo**. Always add specific paths: `git add templates/ styles/ fragments/ of1/config/`. The only safe place for `git add -A` is the orchestrator's branch-setup (which is removing files intentionally from a complete tree).
 
+17. **Always close Playwright tabs after use** — open tabs consume significant memory and accumulate across steps. After every `playwright-cli open` + screenshot/eval sequence, close the tab immediately:
+    ```bash
+    # After you're done with a tab:
+    playwright-cli tab-close "$TAB_ID"
+    
+    # Or close all tabs at the end of a step:
+    playwright-cli tab-list | grep -oE '[0-9]+' | while read TAB; do
+      playwright-cli tab-close "$TAB" 2>/dev/null
+    done
+    ```
+    This applies to ALL steps that use playwright-cli (discovery, extraction, prototype, snowflake, styling, deploy). Never leave tabs open after completing your work.
+
 ## DA Authentication & Content Upload (SLICC-specific)
 
 **This is the #1 time waster in previous runs. Follow these rules exactly:**
@@ -896,40 +898,35 @@ DA_TOKEN=$(oauth-token adobe)
 ```
 That's it. No npx, no da-auth-helper, no browser flow, no manual paste. Works instantly.
 
-### Writing DA content — Mount (preferred) OR admin.da.live API
+### Writing DA content — admin.da.live API ONLY
 
-**Option A — Mount (preferred, fastest):**
+**⚠️ NEVER use `/mnt/da/`.** The DA mount is unreliable — writes appear to succeed locally but binaries (images) do NOT persist on the DA backend. `content.da.live` returns 404 for files "uploaded" via the mount. Always use the API.
 
-The DA mount at `/mnt/da/` handles auth automatically. It is mounted at the REPO root level (`da://aem-growth-adoption/of1-demo`).
-
-**Path structure:**
-```
-/mnt/da/                    ← repo root (da://aem-growth-adoption/of1-demo)
-/mnt/da/{branch}/           ← content subfolder for this demo (e.g., /mnt/da/frescopa/)
-/mnt/da/{branch}/page.html  ← a DA content page
-```
-
-**To upload a page:**
-```bash
-cp /path/to/content.html /mnt/da/${BRANCH}/page-name.html
-```
-
-**Option B — admin.da.live API (fallback if mount has permission issues):**
-
-`admin.da.live` IS now in the allowed secret domains. Use it when the mount fails:
-
+**For short HTML content (DA pages, fragments):**
 ```bash
 DA_TOKEN=$(oauth-token adobe)
+HTML_CONTENT=$(cat /path/to/content.html)
 
-# Upload HTML content to DA via API
-cat /path/to/content.html | curl -s -X PUT \
+curl -s -X PUT \
   -H "Authorization: Bearer ${DA_TOKEN}" \
   -H "Content-Type: text/html" \
-  --data-binary @- \
+  -d "$HTML_CONTENT" \
   "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/page-name.html"
 ```
 
-**⚠️ IMPORTANT: `--data-binary @-` and `--data-binary @file` both fail silently in SLICC scoops** (store the literal string instead of content). For short HTML, use `-d "$VAR"` with the content in a shell variable. For larger content, use the DA mount at `/mnt/da/`. Always verify uploads by reading back from admin.da.live.
+**For binary files (images) — multipart POST:**
+```bash
+DA_TOKEN=$(oauth-token adobe)
+
+curl -s -X POST \
+  -H "Authorization: Bearer ${DA_TOKEN}" \
+  -F "data=@/path/to/image.png;type=image/png" \
+  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/media/filename.png"
+```
+
+See `download-images.jsh` for the full parallel upload pattern with verification.
+
+**⚠️ IMPORTANT: `--data-binary @-` and `--data-binary @file` both fail silently in SLICC scoops** (they store the literal string instead of content). For HTML, use `-d "$VAR"` with content in a shell variable. For binary uploads, use `-F "data=@file"` (multipart form). Always verify uploads by reading back from admin.da.live.
 
 **DO NOT:**
 - Use `npx da-auth-helper` — it doesn't work in this environment

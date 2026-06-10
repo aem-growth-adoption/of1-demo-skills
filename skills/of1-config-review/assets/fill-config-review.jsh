@@ -131,7 +131,7 @@ function renderFeatures(features) {
 
 async function main() {
   if (process.argv.length < 3) {
-    echo('Usage: fill-config-review.jsh <repo-dir> <domain> [template-path]');
+    console.log('Usage: fill-config-review.jsh <repo-dir> <domain> [template-path]');
     process.exit(1);
   }
 
@@ -223,8 +223,8 @@ async function main() {
   const outPath = `${repoDir}/deliverables/config-review.html`;
   await fs.writeFile(outPath, output);
 
-  echo(`✓ Config review written to ${outPath}`);
-  echo(`  ${products.length} products, ${totalImages} images, ${personas.length} personas, ${suggestions.length} suggestions, ${features.length} features, ${useCases.length} use cases`);
+  console.log(`✓ Config review written to ${outPath}`);
+  console.log(`  ${products.length} products, ${totalImages} images, ${personas.length} personas, ${suggestions.length} suggestions, ${features.length} features, ${useCases.length} use cases`);
 }
 
 await main();

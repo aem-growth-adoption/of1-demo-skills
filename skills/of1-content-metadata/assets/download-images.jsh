@@ -45,7 +45,7 @@ function parseArgs(argv) {
     input: null, owner: null, repo: null, branch: null,
     output: 'image-mapping.json', maxPerProduct: 5, workers: DEFAULT_WORKERS,
     updateProducts: false, productsJson: 'of1/config/products.json',
-    tokenFile: null, mountDir: '/mnt/da',
+    tokenFile: null, mountDir: null,
   };
   const raw = argv.slice(1); // argv[0] is script name
   for (let i = 0; i < raw.length; i++) {
@@ -87,7 +87,7 @@ async function resolveToken(tokenFileArg) {
   if (process.env.ADOBE_IMS_TOKEN) return process.env.ADOBE_IMS_TOKEN;
   if (process.env.OF1_TOKEN_FILE) return await readTokenFile(process.env.OF1_TOKEN_FILE);
   try {
-    const result = await exec('oauth-token adobe');
+    const { stdout: result } = await exec('oauth-token adobe');
     const trimmed = result.trim();
     if (trimmed) return trimmed;
   } catch (e) { /* ignore */ }
@@ -210,7 +210,7 @@ async function main() {
     }
   }
 
-  echo(`Processing ${tasks.length} images across ${manifest.length} products (workers=${args.workers}, mount=${mountDir ? 'yes' : 'no'})`);
+  console.log(`Processing ${tasks.length} images across ${manifest.length} products (workers=${args.workers}, mount=${mountDir ? 'yes' : 'no'})`);
 
   const run = semaphore(args.workers);
   const results = await Promise.all(
@@ -219,15 +219,15 @@ async function main() {
 
   for (const r of results) {
     if (r.ok) {
-      echo(`  ok ${r.product_id}[${r.n}]: ${Math.floor(r.size / 1024)}KB -> ${r.method}  (${r.filename})`);
+      console.log(`  ok ${r.product_id}[${r.n}]: ${Math.floor(r.size / 1024)}KB -> ${r.method}  (${r.filename})`);
     } else {
-      echo(`  FAIL ${r.product_id}[${r.n}]: ${r.stage} ${r.err}`);
+      console.log(`  FAIL ${r.product_id}[${r.n}]: ${r.stage} ${r.err}`);
     }
   }
 
   const okN = results.filter(r => r.ok).length;
   const failN = results.length - okN;
-  echo(`\nSummary: ${okN} uploaded, ${failN} failed.`);
+  console.log(`\nSummary: ${okN} uploaded, ${failN} failed.`);
 
   // Build mapping
   const mapping = {};
@@ -244,7 +244,7 @@ async function main() {
   }
 
   await fs.writeFile(args.output, JSON.stringify(mapping, null, 2));
-  echo(`Mapping written to: ${args.output}`);
+  console.log(`Mapping written to: ${args.output}`);
 
   if (args.updateProducts) {
     try {
@@ -259,7 +259,7 @@ async function main() {
         }
       }
       await fs.writeFile(args.productsJson, JSON.stringify(products, null, 2));
-      echo(`Updated ${updated} products in ${args.productsJson}`);
+      console.log(`Updated ${updated} products in ${args.productsJson}`);
     } catch (e) {
       console.error(`WARN: --update-products requested but ${args.productsJson} not found`);
     }

@@ -166,7 +166,7 @@ ${out}
 `;
 
   await fs.writeFile(outPath, standalone);
-  echo(`wrote ${outPath} (${standalone.length} bytes, ${itemCount} items)`);
+  console.log(`wrote ${outPath} (${standalone.length} bytes, ${itemCount} items)`);
 }
 
 await main();

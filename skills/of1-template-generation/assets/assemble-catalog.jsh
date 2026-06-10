@@ -23,7 +23,8 @@ async function main() {
   // Find metadata files
   let metaFilesRaw;
   try {
-    metaFilesRaw = await exec(`ls ${templateDir}/of1-*.metadata.json 2>/dev/null || true`);
+    const { stdout } = await exec(`ls ${templateDir}/of1-*.metadata.json 2>/dev/null || true`);
+    metaFilesRaw = stdout;
   } catch (e) {
     console.error(`templates/ not found at ${templateDir}`);
     process.exit(1);
@@ -96,7 +97,7 @@ async function main() {
 
   const catalogPath = `${templateDir}/templates-catalog.json`;
   await fs.writeFile(catalogPath, JSON.stringify(catalog, null, 2));
-  echo(`Wrote ${catalogPath} with ${templates.length} fully-inlined templates`);
+  console.log(`Wrote ${catalogPath} with ${templates.length} fully-inlined templates`);
 
   // Write routing config
   const configDir = `${repoDir}/of1/config`;
@@ -107,7 +108,7 @@ async function main() {
   };
   const routingPath = `${configDir}/templates.json`;
   await fs.writeFile(routingPath, JSON.stringify(routing, null, 2));
-  echo(`Wrote ${routingPath}`);
+  console.log(`Wrote ${routingPath}`);
 
   // Check for missing expected intents
   const intentsSeen = Object.keys(sortedByIntent);
@@ -117,7 +118,7 @@ async function main() {
     console.error(`WARNING: catalog is missing intents: ${JSON.stringify(missingIntents)}`);
   }
 
-  echo(`By intent: ${JSON.stringify(sortedByIntent, null, 2)}`);
+  console.log(`By intent: ${JSON.stringify(sortedByIntent, null, 2)}`);
 }
 
 await main();

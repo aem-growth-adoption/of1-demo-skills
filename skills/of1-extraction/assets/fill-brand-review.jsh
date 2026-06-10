@@ -261,7 +261,7 @@ async function main() {
   // Locate screenshots — list via shell since VFS has no readdir
   let screenshotPaths = [];
   try {
-    const lsResult = await exec(`ls ${repoDir}/deliverables/assets/screenshots/*.png 2>/dev/null || ls ${repoDir}/stardust/current/assets/screenshots/*.png 2>/dev/null || true`);
+    const { stdout: lsResult } = await exec(`ls ${repoDir}/deliverables/assets/screenshots/*.png 2>/dev/null || ls ${repoDir}/stardust/current/assets/screenshots/*.png 2>/dev/null || true`);
     const files = lsResult.trim().split('\n').filter(Boolean).sort();
     for (const filePath of files) {
       const name = filePath.split('/').pop();
@@ -316,11 +316,11 @@ async function main() {
   const outPath = `${repoDir}/deliverables/brand-review.html`;
   await fs.writeFile(outPath, output);
 
-  echo(`✓  Brand review written to: ${outPath}`);
-  echo(`   Colors:       ${Object.keys(colors).length} extracted`);
-  echo(`   Fonts:        ${Object.keys(typography).length} extracted`);
-  echo(`   Logo:         ${logoSvgContent ? 'found' : 'not found'}`);
-  echo(`   Screenshots:  ${screenshotPaths.length} found`);
+  console.log(`✓  Brand review written to: ${outPath}`);
+  console.log(`   Colors:       ${Object.keys(colors).length} extracted`);
+  console.log(`   Fonts:        ${Object.keys(typography).length} extracted`);
+  console.log(`   Logo:         ${logoSvgContent ? 'found' : 'not found'}`);
+  console.log(`   Screenshots:  ${screenshotPaths.length} found`);
 }
 
 await main();

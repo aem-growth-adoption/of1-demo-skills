@@ -37,6 +37,7 @@ The crawl is bounded to ~4 pages: homepage + at most 3 nav pages. Don't visit pr
 playwright-cli open "https://${DOMAIN}"
 sleep 3
 playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/discovery-home.png"
+playwright-cli tab-close "$(playwright-cli tab-list | grep -oE '[0-9]+' | tail -1)"
 ```
 
 Analyze:
@@ -54,6 +55,7 @@ Follow top-nav links to the most visual/product-rich pages. Pick the 2–3 best 
 playwright-cli open "https://${DOMAIN}/{path}"
 sleep 3
 playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/discovery-{slug}.png"
+playwright-cli tab-close "$(playwright-cli tab-list | grep -oE '[0-9]+' | tail -1)"
 ```
 
 For each page, note:

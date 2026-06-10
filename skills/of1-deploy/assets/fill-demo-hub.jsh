@@ -28,7 +28,7 @@ async function loadText(path) {
 
 async function countTemplates(repoDir) {
   try {
-    const result = await exec(`ls ${repoDir}/templates/of1-*.html 2>/dev/null | wc -l`);
+    const { stdout: result } = await exec(`ls ${repoDir}/templates/of1-*.html 2>/dev/null | wc -l`);
     return parseInt(result.trim(), 10) || 0;
   } catch (e) { return 0; }
 }
@@ -148,7 +148,7 @@ async function findEdsPages(repoDir, branch, owner, repo) {
   // Fallback: check snowflake projects
   if (pages.length === 0) {
     try {
-      const result = await exec(`find ${repoDir}/.snowflake/projects -name '*.html' -path '*/da/*' 2>/dev/null || true`);
+      const { stdout: result } = await exec(`find ${repoDir}/.snowflake/projects -name '*.html' -path '*/da/*' 2>/dev/null || true`);
       for (const line of result.trim().split('\n').filter(Boolean).sort()) {
         const slug = line.split('/').pop().replace('.html', '');
         const label = slug.replace(/-/g, ' ').replace(/prototype /g, '').replace(/\b\w/g, c => c.toUpperCase());
@@ -172,7 +172,7 @@ async function renderPrototypes(repoDir, previewBase) {
 
   // Check stardust prototypes
   try {
-    const result = await exec(`ls ${repoDir}/stardust/current/prototypes/*.html 2>/dev/null || true`);
+    const { stdout: result } = await exec(`ls ${repoDir}/stardust/current/prototypes/*.html 2>/dev/null || true`);
     for (const line of result.trim().split('\n').filter(Boolean).sort()) {
       const name = line.split('/').pop().replace('.html', '');
       const label = name.replace(/-/g, ' ').replace(/prototype /g, '').replace(/\b\w/g, c => c.toUpperCase());
@@ -183,7 +183,7 @@ async function renderPrototypes(repoDir, previewBase) {
   // Fallback: check deliverables
   if (!html) {
     try {
-      const result = await exec(`ls ${repoDir}/deliverables/prototype-*.html 2>/dev/null || true`);
+      const { stdout: result } = await exec(`ls ${repoDir}/deliverables/prototype-*.html 2>/dev/null || true`);
       for (const line of result.trim().split('\n').filter(Boolean).sort()) {
         const filename = line.split('/').pop();
         const label = filename.replace('prototype-', '').replace('.html', '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -223,7 +223,7 @@ function renderConfigSummary(products, personas, suggestions, templatesJson) {
 
 async function main() {
   if (process.argv.length < 3) {
-    echo('Usage: fill-demo-hub.jsh <repo-dir> <domain>');
+    console.log('Usage: fill-demo-hub.jsh <repo-dir> <domain>');
     process.exit(1);
   }
 
@@ -305,8 +305,8 @@ async function main() {
   const outPath = `${repoDir}/deliverables/index.html`;
   await fs.writeFile(outPath, html);
 
-  echo(`✓ Demo hub written to ${outPath}`);
-  echo(`  ${products.length} products, ${numTemplates} templates, ${personas.length} personas, ${numSuggestions} suggestions, ${edsPages.length} EDS pages`);
+  console.log(`✓ Demo hub written to ${outPath}`);
+  console.log(`  ${products.length} products, ${numTemplates} templates, ${personas.length} personas, ${numSuggestions} suggestions, ${edsPages.length} EDS pages`);
 }
 
 await main();

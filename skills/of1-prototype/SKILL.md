@@ -136,6 +136,8 @@ Invoke the `stardust:prototype` skill:
 
 The skill reads `stardust/current/{DESIGN.json,assets/logo.svg,pages/*.json}`, generates self-contained HTML with all CSS inlined, runs visual-diff loops against the captured screenshots, and writes prototypes to `stardust/prototypes/prototype-*.html`.
 
+**ALL directed pages are MANDATORY.** Discovery identified multiple key pages and step 2 marked them all as "directed" in `stardust/state.json`. You must generate a prototype for EVERY directed page — not just the homepage. The step is not complete until every directed page has a corresponding `prototype-*.html`. There is no "if time permits" — all pages are required.
+
 ### 4. Verify outputs
 
 ```bash
