@@ -244,6 +244,7 @@
 }
 
 /* ─── Generated Hero ──────────────────────────────────────── */
+/* EDS DOM: .hero-wrapper > .hero.block > div (row) > div (text cell) + div (image cell with picture > img) */
 
 .generated-section .hero-wrapper {
   max-width: 100% !important;
@@ -260,9 +261,14 @@
   border-radius: var(--radius-card);
 }
 
-.generated-section .hero img {
+.generated-section .hero picture {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.generated-section .hero picture img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -317,13 +323,14 @@
 }
 
 /* ─── Generated Cards ─────────────────────────────────────── */
+/* EDS DOM: .cards-wrapper > .cards.block > div (one per card) > div (cell content) */
 
 .generated-section .cards-wrapper {
   max-width: 1200px;
   margin: 0 auto;
 }
 
-.generated-section .cards > div {
+.generated-section .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 24px;
@@ -332,7 +339,7 @@
   margin: 0 auto;
 }
 
-.generated-section .cards > div > div {
+.generated-section .cards > div {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
@@ -340,7 +347,7 @@
   transition: box-shadow var(--transition), transform var(--transition);
 }
 
-.generated-section .cards > div > div:hover {
+.generated-section .cards > div:hover {
   box-shadow: var(--shadow-lift);
   transform: translateY(-2px);
 }
@@ -413,32 +420,43 @@
 }
 
 /* ─── Generated Tables ────────────────────────────────────── */
+/* EDS DOM: .table-wrapper > .table.block > div (row) > div + div (cells) — NO <table>/<th>/<td> */
 
-.generated-section table {
-  width: 100%;
+.generated-section .table-wrapper {
   max-width: 1000px;
   margin: 0 auto;
-  border-collapse: collapse;
+}
+
+.generated-section .table {
+  width: 100%;
   font-family: var(--font-body);
   font-size: 0.875rem;
 }
 
-.generated-section th {
+.generated-section .table > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  border-bottom: 1px solid var(--border);
+}
+
+.generated-section .table > div:first-child {
   background: var(--surface-dark);
   color: #fff;
   font-weight: 500;
-  text-align: left;
-  padding: 12px 16px;
 }
 
-.generated-section td {
+.generated-section .table > div:first-child > div {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text);
+  color: #fff;
 }
 
-.generated-section tr:nth-child(even) td {
+.generated-section .table > div:nth-child(even) {
   background: var(--surface-muted);
+}
+
+.generated-section .table > div > div {
+  padding: 12px 16px;
+  color: var(--text);
 }
 
 /* ─── Follow-up Suggestions ───────────────────────────────── */
@@ -587,7 +605,7 @@
     padding: 32px;
   }
 
-  .generated-section .cards > div {
+  .generated-section .cards {
     grid-template-columns: 1fr;
   }
 
@@ -605,12 +623,9 @@
 }
 
 /* ─── Full-width fix for generated sections ───────────────── */
-/* EDS wraps each section in .<name>-wrapper which has default max-width.
-   Generated sections MUST be full-width; only inner content constrains width. */
+/* Generated sections themselves are full-width; wrappers for content blocks
+   (cards, columns, table) keep their max-width to constrain inner content. */
 .generated-section,
-.generated-section .section,
-.generated-section [class*="-wrapper"],
-.generated-section [class*="-container"],
 main > .section.generated-section {
   max-width: 100% !important;
   width: 100% !important;
@@ -621,10 +636,13 @@ main > .section.generated-section {
   box-sizing: border-box !important;
 }
 
+/* Hero wrapper is full-bleed */
+.generated-section .hero-wrapper {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
 /* Inner content areas that SHOULD have constrained width */
-.generated-section .of1-hero-grid,
-.generated-section .of1-cmp-grid,
-.generated-section [data-grid-items],
 .generated-section .default-content-wrapper {
   max-width: 1200px;
   margin-left: auto;

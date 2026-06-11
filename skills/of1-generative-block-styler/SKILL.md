@@ -166,6 +166,73 @@ After `decorateMain` + `loadSections`, the DOM structure is:
 </main>
 ```
 
+## EDS Block DOM Reference (after decorateMain)
+
+**This is the actual DOM you are styling. Do NOT assume any other structure.**
+
+EDS's `decorateMain()` always produces this three-level wrapper for every block:
+
+```
+.section.<blockname>-container > .<blockname>-wrapper > .<blockname>.block > div (rows) > div (cells)
+```
+
+### Hero
+```
+.section.hero-container
+  > .hero-wrapper
+    > .hero.block
+      > div                    ← row (flexbox item)
+        > div                  ← cell: h1, p, a (text content)
+        > div                  ← cell: <picture><img> (NOT img directly on .hero)
+```
+- The `.hero` div does NOT contain the image directly — it's inside a `<picture>` inside a cell inside a row
+- Text and image are sibling cells within a row div
+
+### Cards
+```
+.section.cards-container
+  > .cards-wrapper
+    > .cards.block             ← THIS is the grid container
+      > div                    ← one per card (row)
+        > div                  ← cell content (picture, h3, p, a)
+```
+- `.cards` itself is the grid container — NOT `.cards > div`
+- Each direct child `> div` of `.cards` is one card
+
+### Columns
+```
+.section.columns-container
+  > .columns-wrapper
+    > .columns.block
+      > div                    ← single row
+        > div + div            ← column cells (2+ siblings)
+```
+
+### Table
+```
+.section.table-container
+  > .table-wrapper
+    > .table.block
+      > div                    ← header row (div-based, NOT <th>)
+        > div + div + div      ← cells (NOT <td>)
+      > div                    ← data row
+        > div + div + div      ← cells
+```
+- **NO `<table>`, `<th>`, `<td>` elements** — everything is div-based
+- First `> div` child = header row; subsequent `> div` children = data rows
+
+### Common selector mistakes to avoid
+
+| Wrong selector | Why it fails | Correct selector |
+|---|---|---|
+| `.cards > div` as grid | That targets individual cards, not the grid | `.cards` is the grid |
+| `.cards > div > div` for cards | That's cell content inside a card | `.cards > div` for each card |
+| `table`, `th`, `td` | EDS uses divs, not HTML table elements | `.table > div` for rows, `.table > div > div` for cells |
+| `.hero img` positioned absolute | img is inside `<picture>` inside a cell div | `.hero picture` positioned absolute |
+| `[class*="-wrapper"] { max-width: 100% }` | Kills content constraint on cards/columns/table wrappers | Only override `.hero-wrapper` for full-bleed |
+
+---
+
 Target selectors for generated content use the `.generated-section` class added by the OF1 block JS:
 
 ```css
@@ -265,15 +332,82 @@ curl -s -X PUT \
 
 # Trigger preview so the URLs are live
 for SLUG in of1 nav footer; do
-  curl -s -X POST \
+  PREVIEW_RESP=$(curl -s -w "\n%{http_code}" -X POST \
     -H "Authorization: Bearer ${DA_TOKEN}" \
     -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
-    -o /dev/null \
-    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${BRANCH}/${SLUG}"
+    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${BRANCH}/${SLUG}")
+  PREVIEW_STATUS=$(echo "$PREVIEW_RESP" | tail -1)
+  if [ "$PREVIEW_STATUS" -lt 200 ] || [ "$PREVIEW_STATUS" -ge 300 ]; then
+    echo "FAIL: preview trigger for /${SLUG} returned HTTP ${PREVIEW_STATUS}" >&2
+    echo "Response: $(echo "$PREVIEW_RESP" | sed '$d')" >&2
+    exit 1
+  fi
 done
 ```
 
 **Do NOT include a `<title>` tag in the DA HTML** — EDS will render it as visible content.
+
+### Step 7b — Gate: verify DA content is live and renders correctly
+
+**Do NOT proceed to Step 8 until this gate passes.** The preview triggers above can silently fail (401, stale cache, missing auth headers). Verify the pages actually exist and return valid HTML.
+
+```bash
+# Verify each page returns 200 and contains expected content
+OF1_PREVIEW="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/of1"
+NAV_PREVIEW="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/nav"
+FOOTER_PREVIEW="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/footer"
+
+echo "Verifying DA content is live..."
+
+# Check /of1 page exists and has the template metadata
+OF1_BODY=$(curl -s -w "\n%{http_code}" "$OF1_PREVIEW")
+OF1_STATUS=$(echo "$OF1_BODY" | tail -1)
+OF1_HTML=$(echo "$OF1_BODY" | sed '$d')
+
+if [ "$OF1_STATUS" != "200" ]; then
+  echo "FAIL: /of1 page returned HTTP ${OF1_STATUS} — preview trigger likely failed (auth issue?)" >&2
+  echo "Re-run the preview trigger with both Authorization and x-content-source-authorization headers." >&2
+  exit 1
+fi
+
+# Verify the template meta is present (proves DA content was processed correctly)
+if ! echo "$OF1_HTML" | grep -q 'template.*of1\|meta.*template'; then
+  echo "WARN: /of1 page returned 200 but template metadata not found in HTML." >&2
+  echo "The DA content may be stale. Re-triggering preview..." >&2
+  curl -s -X POST \
+    -H "Authorization: Bearer ${DA_TOKEN}" \
+    -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
+    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${BRANCH}/of1"
+  sleep 3
+  # Re-check
+  OF1_RECHECK=$(curl -s "$OF1_PREVIEW")
+  if ! echo "$OF1_RECHECK" | grep -q 'template.*of1\|meta.*template'; then
+    echo "FAIL: /of1 page still missing template metadata after re-trigger." >&2
+    exit 1
+  fi
+fi
+
+# Check nav and footer exist
+for SLUG in nav footer; do
+  URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/${SLUG}"
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+  if [ "$STATUS" != "200" ]; then
+    echo "FAIL: /${SLUG} returned HTTP ${STATUS} — content not live" >&2
+    exit 1
+  fi
+done
+
+echo "✓ All DA content verified live: /of1 (with template=of1), /nav, /footer"
+```
+
+Common failures at this gate:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| 401 on preview trigger | Missing `x-content-source-authorization` header or expired token | Re-authenticate DA token and re-run |
+| 200 but no template metadata | DA content uploaded but preview not triggered (stale cache) | Re-trigger preview with both auth headers |
+| 404 on /of1 | PUT to DA source failed silently | Check the PUT response; verify `admin.da.live/source/...` path matches repo config |
+| 404 on /nav or /footer | Preview trigger ran before PUT completed | Re-run PUTs then re-trigger |
 
 ### Step 8 — Commit and push
 
@@ -303,6 +437,34 @@ playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/of1-render-
 ```
 
 Open the screenshot — the branded nav should be at the top, the branded footer at the bottom, and the OF1 search UI (title, input, suggestion chips) in the middle.
+
+### Step 9b — Verify generated content styling
+
+The page chrome rendering (Step 9) is necessary but not sufficient. You MUST also verify that generated blocks render with proper layout — not just raw text.
+
+1. Trigger a test query by clicking a suggestion chip or entering a query
+2. Wait for generated content to appear (sections stream in)
+3. Screenshot the result and verify:
+   - **Cards** render as a grid (not a vertical list of unstyled divs)
+   - **Hero** shows image as background with text overlay (not image then text stacked)
+   - **Table** renders with visible header row and aligned columns (not a blob of text)
+   - **Columns** sit side-by-side (not stacked vertically on desktop)
+4. If any block renders as unstyled/broken, inspect the DOM and compare selectors in `of1.css` against the actual EDS DOM structure documented in Step 4
+
+```bash
+# Click first suggestion chip to trigger generation
+playwright-cli click ".of1-chip:first-child"
+sleep 8  # wait for LLM to generate + render
+
+# Screenshot the generated result
+playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/of1-generated-check.png"
+
+# Spot-check that blocks decorated correctly
+playwright-cli eval "document.querySelector('.generated-section .cards') ? 'cards OK' : 'CARDS MISSING'"
+playwright-cli eval "document.querySelector('.generated-section .hero') ? 'hero OK' : 'HERO MISSING'"
+```
+
+If selectors don't match, the CSS is targeting the wrong DOM structure. Refer to the EDS Block DOM Reference in Step 4 and fix `blocks/of1/of1.css` accordingly.
 
 Common failures:
 
