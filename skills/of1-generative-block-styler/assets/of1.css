@@ -225,15 +225,20 @@
 /* ─── Generated Sections ──────────────────────────────────── */
 
 .generated-section {
+  animation: of1-fade-in 0.4s ease-out both;
+}
+
+/* Legacy flow sections (EDS-decorated divs) need full-width overrides.
+   Template-routed sections (<section>) have their own CSS — don't touch. */
+div.generated-section {
   padding: 0;
   margin: 0;
   max-width: none;
   width: 100%;
-  animation: of1-fade-in 0.4s ease-out both;
 }
 
-.generated-section > .section,
-.generated-section > section {
+div.generated-section > .section,
+div.generated-section > section {
   max-width: none;
   width: 100%;
 }
