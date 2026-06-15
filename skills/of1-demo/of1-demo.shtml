@@ -768,7 +768,7 @@
 (function () {
   var STEPS = [
     { name: 'Install dependencies', skill: 'of1-setup', review: false, desc: 'Verify skills, tools, and prerequisites are ready', track: null, requires: [] },
-    { name: 'Branch setup', skill: 'of1-branch-setup', review: false, desc: 'Create domain branch on of1-demo repo, set up output directory, verify DA mount', track: null, requires: [0], openLabel: 'Repo' },
+    { name: 'Repo setup', skill: 'of1-repo-setup', review: false, desc: 'Set up EDS repo, create demo branch, clean slate, verify preview', track: null, requires: [0], openLabel: 'Repo' },
     { name: 'Discovery', skill: 'of1-discovery', review: true, desc: 'Crawl site, identify products, propose demo focus', reviewNote: 'Demo focus and narrative', track: null, requires: [1], openLabel: 'Discovery' },
     { name: 'Extraction', skill: 'of1-extraction', review: true, desc: 'Extract design tokens, fonts, colors, and page structure', reviewNote: 'Brand review page', track: null, requires: [2], openLabel: 'Brand Review' },
     { name: 'Prototype', skill: 'of1-prototype', review: true, desc: 'Generate pixel-perfect HTML reproductions of key pages', reviewNote: 'HTML prototypes', track: null, requires: [3], openLabel: 'Prototypes' },

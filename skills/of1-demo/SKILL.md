@@ -434,7 +434,7 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 | Step | Name | Skill(s) | Review | Track | Depends on |
 |------|------|-----------|--------|-------|------------|
 | 1 | Install dependencies | `of1-setup` | No | — | nothing |
-| 2 | Branch setup | `of1-branch-setup` | No | — | step 1 |
+| 2 | Repo setup | `of1-repo-setup` | No | — | step 1 |
 | 3 | Discovery | `of1-discovery` | Yes | — | step 2 |
 | 4 | Extraction | `of1-extraction` | Yes | — | step 2 (runs parallel with step 3) |
 | 5 | Prototype | `of1-prototype` | Yes | — | steps 3 + 4 (needs both) |
@@ -874,7 +874,7 @@ These issues cost time in previous runs. Avoid them:
 
 15. **Static file URLs need `.html` extension** — EDS serves git-committed static HTML files at their exact path including the extension. A file at `deliverables/config-review.html` is served at `/deliverables/config-review.html` — NOT at `/deliverables/config-review` (that 404s). Always include the `.html` extension in deliverable URLs sent to the sprinkle. DA-authored content pages (like `/home`, `/block-catalog`) do NOT need the extension.
 
-16. **NEVER use `git add .` or `git add -A` in a scoop** — SLICC scoops may have an incomplete working tree (they only see files they touched). `git add .` creates a commit containing ONLY the local files, which on push **deletes everything else in the repo**. Always add specific paths: `git add templates/ styles/ fragments/ of1/config/`. The only safe place for `git add -A` is the orchestrator's branch-setup (which is removing files intentionally from a complete tree).
+16. **NEVER use `git add .` or `git add -A` in a scoop** — SLICC scoops may have an incomplete working tree (they only see files they touched). `git add .` creates a commit containing ONLY the local files, which on push **deletes everything else in the repo**. Always add specific paths: `git add templates/ styles/ fragments/ of1/config/`. The only safe place for `git add -A` is the orchestrator's repo-setup (which is removing files intentionally from a complete tree).
 
 17. **Always close Playwright tabs after use** — open tabs consume significant memory and accumulate across steps. After every `playwright-cli open` + screenshot/eval sequence, close the tab immediately:
     ```bash

@@ -48,7 +48,7 @@ fix_cmd() {
 # ---------- 1. OF1 step skills (project- or user-scoped) ----------
 
 REQUIRED_SKILLS=(
-  of1-branch-setup of1-discovery of1-extraction of1-prototype
+  of1-repo-setup of1-discovery of1-extraction of1-prototype
   of1-snowflake of1-template-generation of1-generative-block-styler
   of1-brand-voice-extractor of1-content-metadata of1-quick-suggestions
   of1-cta-template-builder of1-config-review of1-deploy

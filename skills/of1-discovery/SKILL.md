@@ -15,7 +15,7 @@ Crawl the target site to understand what it offers, then propose a demo focus an
 | `OF1_STATE_DIR` | state + IPC dir; receives `step-3-output.md`, screenshots, and `step-3-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 
-Read `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` from the contract `of1-branch-setup` wrote:
+Read `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` from the contract `of1-repo-setup` wrote:
 
 ```bash
 REPO_CONFIG=$(cat "$OF1_STATE_DIR/repo-config.json")

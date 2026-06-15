@@ -25,7 +25,7 @@ Steps 1→2→3→4→5 (sequential)
 | Step | Name | Skill | Depends on |
 |------|------|-------|------------|
 | 1 | Install dependencies | `of1-setup` | — |
-| 2 | Branch setup | `of1-branch-setup` | Step 1 |
+| 2 | Repo setup | `of1-repo-setup` | Step 1 |
 | 3 | Discovery | `of1-discovery` | Step 2 |
 | 4 | Extraction | `of1-extraction` | Step 3 |
 | 5 | Prototype | `of1-prototype` | Step 4 |
@@ -44,7 +44,7 @@ Steps 1→2→3→4→5 (sequential)
 |-------|-------------|
 | `of1-demo` | Orchestrate full demo preparation — user-driven step pipeline via sprinkle UI |
 | `of1-setup` | Verify prerequisites — skills, tools, and repo state |
-| `of1-branch-setup` | Create a git branch and output directory for the demo domain |
+| `of1-repo-setup` | Set up EDS repo (existing or new from boilerplate) + create demo branch |
 | `of1-discovery` | Crawl a target website and propose a demo focus/narrative |
 | `of1-extraction` | Extract design tokens, brand identity, and page structure from a live site |
 | `of1-prototype` | Generate pixel-perfect HTML prototypes of key pages |

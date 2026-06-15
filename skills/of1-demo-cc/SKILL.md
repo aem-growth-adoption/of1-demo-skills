@@ -31,7 +31,7 @@ Use **TaskCreate** with one task per pipeline step:
 
 ```
 1.  Setup           (already done if you got here)
-2.  Branch setup    — create branch on of1-demo repo
+2.  Repo setup      — set up EDS repo + create demo branch
 3.  Discovery       — crawl site, propose narrative
 4.  Extraction      — design tokens, logo, screenshots (parallel with 3)
 5.  Prototype       — pixel-perfect HTML (needs 3 + 4)
@@ -264,7 +264,7 @@ After every Agent dispatch returns, record the step's telemetry from the `<usage
 | Field | Source |
 |---|---|
 | `step` | Step number |
-| `name` | Step name (e.g. "branch-setup") |
+| `name` | Step name (e.g. "repo-setup") |
 | `model` | Model used for this dispatch |
 | `startedAt` | ISO timestamp when the Agent was dispatched |
 | `durationMs` | From the `<usage>` block: `duration_ms` |
@@ -308,7 +308,7 @@ Include both in the audit file's top-level fields.
   "steps": [
     {
       "step": 2,
-      "name": "branch-setup",
+      "name": "repo-setup",
       "model": "sonnet",
       "startedAt": "...",
       "durationMs": 12400,

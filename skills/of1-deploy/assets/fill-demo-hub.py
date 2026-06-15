@@ -262,7 +262,7 @@ def main():
     repo_config = load_json(repo_config_path)
     if not repo_config:
         print(f"ERROR: {repo_config_path} is missing or empty. "
-              f"Run of1-branch-setup first to write it.", file=sys.stderr)
+              f"Run of1-repo-setup first to write it.", file=sys.stderr)
         sys.exit(1)
     missing = [k for k in ('owner', 'repo', 'branch') if not repo_config.get(k)]
     if missing:

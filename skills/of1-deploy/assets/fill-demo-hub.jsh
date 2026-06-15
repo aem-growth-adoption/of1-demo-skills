@@ -235,7 +235,7 @@ async function main() {
   const repoConfigPath = `${stateDir}/repo-config.json`;
   const repoConfig = await loadJson(repoConfigPath);
   if (!repoConfig || Object.keys(repoConfig).length === 0) {
-    console.error(`ERROR: ${repoConfigPath} is missing or empty. Run of1-branch-setup first to write it.`);
+    console.error(`ERROR: ${repoConfigPath} is missing or empty. Run of1-repo-setup first to write it.`);
     process.exit(1);
   }
   const missing = ['owner', 'repo', 'branch'].filter(k => !repoConfig[k]);
