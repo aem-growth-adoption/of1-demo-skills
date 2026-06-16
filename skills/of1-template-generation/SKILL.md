@@ -1,12 +1,12 @@
 ---
 name: of1-template-generation
-description: Generate 25 branded OF1 templates (5 intents × 5 variations) for the OF1 worker — slot-based HTML pages it fills with personalized content at runtime, plus a shared design-token stylesheet, an inlined catalog, and a review gallery.
+description: Generate 15 branded OF1 templates (5 intents × 3 variations) for the OF1 worker — slot-based HTML pages it fills with personalized content at runtime, plus a shared design-token stylesheet, an inlined catalog, and a review gallery.
 user-invocable: false
 ---
 
 # OF1 Template Generation
 
-Produce the template library for the OF1 worker: 25 slot-based HTML templates (5 intents × 5 variations), one shared design-token stylesheet, a fully-inlined catalog the worker reads at runtime, and a browseable gallery for review.
+Produce the template library for the OF1 worker: 15 slot-based HTML templates (5 intents × 3 variations), one shared design-token stylesheet, a fully-inlined catalog the worker reads at runtime, and a browseable gallery for review.
 
 ## Env — orchestrator exports these (see `of1-setup`)
 
@@ -29,14 +29,14 @@ cd "$OF1_DEMO_REPO"
 
 ## Modes
 
-Selected by `OF1_TG_MODE`. The orchestrator runs the three phases in order: `base` → `intent × 5` (parallel) → `assemble`.
+Selected by `OF1_TG_MODE`. The orchestrator runs the three phases in order: `base` → `intent × 5` (parallel, each generating 3 variations) → `assemble`.
 
 | Mode | What it does | Dispatched by |
 |---|---|---|
 | `base` | Generate `styles/of1-template-base.css` from the prototype CSS + `DESIGN.json`. Must finish before any `intent` agent starts — intent agents read the base CSS to see the exact token surface they can reference. | Orchestrator FIRST (sequential, 1 agent) |
-| `intent` | Generate 5 variations for ONE intent (`$OF1_TG_INTENT`). Reads the base CSS (already on disk), writes only `templates/of1-{intent}-*` and `styles/of1-{intent}-*`. Does NOT commit. | Orchestrator fan-out (5 agents in parallel) after `base` |
+| `intent` | Generate 3 variations for ONE intent (`$OF1_TG_INTENT`). Reads the base CSS (already on disk), writes only `templates/of1-{intent}-*` and `styles/of1-{intent}-*`. Does NOT commit. | Orchestrator fan-out (5 agents in parallel) after `base` |
 | `assemble` | Run ONCE after all 5 intent agents finish. Verifies base CSS exists, assembles the catalog, runs `fill-template.py`, installs gallery, single commit + push. | Orchestrator after all intents return |
-| `all` (default) | Legacy fallback — runs `base` → 5 intents serially → assemble, inline in one agent. ~5× slower than the fan-out. | Single agent when orchestrator can't fan out |
+| `all` (default) | Legacy fallback — runs `base` → 5 intents serially → assemble, inline in one agent. ~3× slower than the fan-out. | Single agent when orchestrator can't fan out |
 
 **Race-safety:** intent agents write disjoint files (`of1-{intent}-*` prefixes don't collide). `styles/of1-template-base.css` is owned by the `base` agent; intent agents only read it. The catalog, gallery, and git are owned by `assemble`.
 
@@ -46,7 +46,7 @@ Available before invocation, in addition to the env above:
 
 - Design tokens → `$OF1_DEMO_REPO/stardust/current/DESIGN.json` (from step 4)
 - Demo narrative → `$OF1_STATE_DIR/step-3-output.md` (from step 3)
-- Slot-marked overlay templates → `$OF1_DEMO_REPO/templates/prototype-*.html` (from step 6 / snowflake) — real examples of the `<section>` + `data-slot` pattern your 25 templates will follow
+- Slot-marked overlay templates → `$OF1_DEMO_REPO/templates/prototype-*.html` (from step 6 / snowflake) — real examples of the `<section>` + `data-slot` pattern your 15 templates will follow
 - Prototype CSS → `$OF1_DEMO_REPO/styles/prototype-*.css` (from step 6 / snowflake) — extracted styling rules (padding, radius, hover states, exact values)
 - EDS-rendered screenshots → `$OF1_DEMO_REPO/deliverables/eds-prototype-*.png` (captured by orchestrator before fan-out)
 
@@ -89,6 +89,7 @@ The OF1 worker materializes templates from EDS into R2 after `POST /api/tenants/
 - Item cards MUST be `<article data-card="N">` for auto-hide
 - `<div data-grid-items>` gets `data-item-count="N"` injected at render
 - NO `<!DOCTYPE>`, `<html>`, `<head>`, `<body>` — just `<main>…</main>`
+- **Interactive components MUST include inline JS** — templates have no external JS runtime. If using tabs, accordions, carousels, or toggles, include a `<script>` tag at the end of `<main>` with the minimal JS needed to make them work (e.g., click handlers to show/hide panels). Keep scripts short (<30 lines), vanilla JS, no dependencies. The first tab/panel MUST be visible by default (no JS needed for initial render).
 
 ### `metadata.json` shape
 
@@ -157,7 +158,7 @@ Extract and reuse VERBATIM:
 | Typography (h1–h4 sizes, weights, margins) | All | All text elements |
 | Pricing / tables | Detail | budget intent |
 | Fact lists / spec rows | Detail | deep-dive, comparison |
-| Tabs / accordions | Detail | deep-dive |
+| Tabs / accordions (with inline JS) | Detail | deep-dive |
 
 The EDS-rendered screenshots at `deliverables/eds-prototype-*.png` are the **visual ground truth** — inspect them; the prototype CSS explains *why* the rendered versions look the way they do, and the slot-marked templates show how that visual structure maps to `data-slot` markers.
 
@@ -232,7 +233,7 @@ echo "{\"step\":7,\"substep\":\"base\",\"status\":\"done\",\"summary\":\"Generat
 
 ## Process — Mode: `intent`
 
-Generate the 5 variations for one intent. Precondition: `$OF1_TG_INTENT` ∈ {`comparison`, `recommendation`, `deep-dive`, `budget`, `discovery`}.
+Generate the 3 variations for one intent. Precondition: `$OF1_TG_INTENT` ∈ {`comparison`, `recommendation`, `deep-dive`, `budget`, `discovery`}.
 
 ```bash
 INTENT="${OF1_TG_INTENT:?OF1_TG_INTENT required in intent mode}"
@@ -244,10 +245,10 @@ esac
 
 ### Writes (only these — disjoint from other intents)
 
-- `templates/of1-${INTENT}-{variation}.html` × 5
-- `templates/of1-${INTENT}-{variation}.metadata.json` × 5
-- `templates/of1-${INTENT}-{variation}.sample.json` × 5
-- `styles/of1-${INTENT}-{variation}.css` × 5
+- `templates/of1-${INTENT}-{variation}.html` × 3
+- `templates/of1-${INTENT}-{variation}.metadata.json` × 3
+- `templates/of1-${INTENT}-{variation}.sample.json` × 3
+- `styles/of1-${INTENT}-{variation}.css` × 3
 
 ### Does NOT touch
 
@@ -256,27 +257,26 @@ esac
 - `gallery/`, `drafts/`, `tools/` (owned by `assemble`)
 - Any git operations
 
-### Generate 5 structurally distinct variations
+### Generate 3 structurally distinct variations
 
-The 5 variations must differ in:
+The 3 variations must differ in:
 - Section count (4 vs 5 vs 6 — never fewer than 4)
 - Layout pattern (grid vs stack vs split vs single-column)
-- Content density (headline-only vs rich detail)
-- Interaction metaphor (table vs cards vs timeline vs accordion)
+- Interaction metaphor (table vs cards vs timeline vs tabs/accordion)
 
 Suggested variation slugs (use others if more distinctive for the site):
 
 | Intent | Slugs |
 |---|---|
-| `comparison` | `table`, `versus`, `pros-cons`, `decision-tree`, `matrix` |
-| `recommendation` | `hero-pick`, `ranked-list`, `personal-fit`, `curated-bundle`, `spotlight-pair` |
-| `deep-dive` | `longform`, `anatomy`, `timeline`, `faq-explainer`, `feature-explorer` |
-| `budget` | `price-tiers`, `cost-breakdown`, `by-tier`, `value-comparison`, `roi-story` |
-| `discovery` | `gallery`, `by-category`, `curated-collections`, `magazine-mix`, `map-strip` |
+| `comparison` | `table`, `versus`, `pros-cons` |
+| `recommendation` | `hero-pick`, `ranked-list`, `curated-bundle` |
+| `deep-dive` | `longform`, `timeline`, `faq-explainer` |
+| `budget` | `price-tiers`, `cost-breakdown`, `roi-story` |
+| `discovery` | `gallery`, `by-category`, `curated-collections` |
 
 ### Per-variation files
 
-For each of the 5 variations, write all 4 files.
+For each of the 3 variations, write all 4 files.
 
 **`templates/of1-${INTENT}-{variation}.html`** — slot-based body (just `<main>…</main>`, per HTML rules above). Example shape:
 
@@ -345,23 +345,23 @@ done
 
 ### Completion (intent mode)
 
-End with a one-line summary listing the 5 file basenames. Status file (SLICC sprinkle IPC; CC ignores):
+End with a one-line summary listing the 3 file basenames. Status file (SLICC sprinkle IPC; CC ignores):
 
 ```bash
-echo "{\"step\":7,\"substep\":\"intent-${INTENT}\",\"status\":\"done\",\"summary\":\"Generated 5 ${INTENT} variations.\"}" \
+echo "{\"step\":7,\"substep\":\"intent-${INTENT}\",\"status\":\"done\",\"summary\":\"Generated 3 ${INTENT} variations.\"}" \
   > "$OF1_STATE_DIR/step-7-intent-${INTENT}-status.json"
 ```
 
 ## Process — Mode: `assemble`
 
-Precondition: all 5 intent agents have completed; verify 25 of each artifact exist:
+Precondition: all 5 intent agents have completed; verify 15 of each artifact exist:
 
 ```bash
 COUNT_HTML=$(ls templates/of1-*.html 2>/dev/null | wc -l)
 COUNT_META=$(ls templates/of1-*.metadata.json 2>/dev/null | wc -l)
 COUNT_CSS=$(ls styles/of1-*.css 2>/dev/null | grep -v 'of1-template-base.css' | wc -l)
-[ "$COUNT_HTML" -ge 25 ] && [ "$COUNT_META" -ge 25 ] && [ "$COUNT_CSS" -ge 25 ] \
-  || { echo "FAIL: expected 25 of each (html=$COUNT_HTML meta=$COUNT_META css=$COUNT_CSS)" >&2; exit 1; }
+[ "$COUNT_HTML" -ge 15 ] && [ "$COUNT_META" -ge 15 ] && [ "$COUNT_CSS" -ge 15 ] \
+  || { echo "FAIL: expected 15 of each (html=$COUNT_HTML meta=$COUNT_META css=$COUNT_CSS)" >&2; exit 1; }
 ```
 
 ### 1. Verify the base CSS is in place
@@ -385,7 +385,7 @@ python3 "$SKILL_DIR/assets/assemble-catalog.py" "$OF1_DEMO_REPO" "$OWNER" "$REPO
 # run_jsh "$SKILL_DIR/assets/assemble-catalog.jsh" "$OF1_DEMO_REPO" "$OWNER" "$REPO" "$BRANCH"
 ```
 
-Produces `templates/templates-catalog.json` + `of1/config/templates.json`. Fails fast if any of the 25 templates is missing HTML; warns if any intent is missing from the catalog.
+Produces `templates/templates-catalog.json` + `of1/config/templates.json`. Fails fast if any of the 15 templates is missing HTML; warns if any intent is missing from the catalog.
 
 ### 3. Install fill-template + generate previews
 
@@ -427,7 +427,7 @@ git add styles/of1-template-base.css styles/of1-*.css \
         drafts/of1-*-sample.html \
         tools/fill-template.py \
         gallery/index.html
-git commit -m "feat: 25 OF1 templates (5 intents × 5 variations) for ${DOMAIN}"
+git commit -m "feat: 15 OF1 templates (5 intents × 3 variations) for ${DOMAIN}"
 git push origin "$BRANCH"
 ```
 
@@ -446,10 +446,10 @@ curl -s -o /dev/null -w "Gallery: HTTP %{http_code} — ${GALLERY_URL}\n" "$GALL
 - ❌ `https://${BRANCH}--${REPO}--${OWNER}.aem.page/templates/templates-catalog.json`
 
 ```bash
-# Final guard — a degraded gallery (<25 templates) is the most visible failure
+# Final guard — a degraded gallery (<15 templates) is the most visible failure
 # mode of this pipeline. Do not ship silently.
 COUNT=$(ls templates/of1-*.html 2>/dev/null | wc -l | tr -d ' ')
-[ "$COUNT" -ge 25 ] || { echo "ABORT: only ${COUNT} templates exist" >&2; exit 1; }
+[ "$COUNT" -ge 15 ] || { echo "ABORT: only ${COUNT} templates exist" >&2; exit 1; }
 
 GALLERY_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/gallery/index.html"
 cat > "$OF1_STATE_DIR/step-7-status.json" <<EOF
@@ -487,11 +487,11 @@ OF1_TG_MODE=assemble # re-invoke this skill's assemble path
 
 - `of1/config/templates.json` — routing config
 - `styles/of1-template-base.css` — shared design tokens
-- 25 × `templates/of1-*.html` — slot-based templates
-- 25 × `templates/of1-*.metadata.json` — slot contracts
-- 25 × `styles/of1-*.css` — per-template stylesheets (each `@imports` the base)
-- 25 × `templates/of1-*.sample.json` — sample data for gallery
-- 25 × `drafts/of1-*-sample.html` — filled previews
+- 15 × `templates/of1-*.html` — slot-based templates
+- 15 × `templates/of1-*.metadata.json` — slot contracts
+- 15 × `styles/of1-*.css` — per-template stylesheets (each `@imports` the base)
+- 15 × `templates/of1-*.sample.json` — sample data for gallery
+- 15 × `drafts/of1-*-sample.html` — filled previews
 - `templates/templates-catalog.json` — template index (fully inlined)
 - `gallery/index.html` — browseable review UI
 - `tools/fill-template.py` — fill script

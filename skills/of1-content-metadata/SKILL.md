@@ -204,7 +204,7 @@ Verify all ID references are consistent across files. Fix mismatches.
 
 **ALL product images MUST be self-hosted on DA.** Never leave external CDN URLs in `products.json` — external URLs break due to CORS, referrer policies, encoding issues, and EDS image optimization rewriting.
 
-**Minimum 2 images per product, up to 5.** The pre-launch checklist FAILS if any product has fewer than 2. If a product page has only 1 image, look on the category/listing page, manufacturer press galleries, or related model pages for additional angles.
+**Minimum 4 images per product, up to 8.** The pre-launch checklist FAILS if any product has fewer than 4. Templates often render 3–6 item cards with images — fewer than 4 images per product leaves visible gaps. If a product page has only 1–3 images, look on the category/listing page, manufacturer press galleries, related model pages, or lifestyle/editorial pages for additional angles.
 
 #### Extract source URLs
 
@@ -277,8 +277,8 @@ with open("of1/config/products.json") as f:
 all_good = True
 for p in products:
     images = p.get("images", [])
-    if len(images) < 2:
-        print(f"  ✗ {p['name']}: only {len(images)} image(s) — MUST have ≥2")
+    if len(images) < 4:
+        print(f"  ✗ {p['name']}: only {len(images)} image(s) — MUST have ≥4")
         all_good = False
     else:
         r = subprocess.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", images[0]], capture_output=True, text=True)
@@ -288,13 +288,13 @@ for p in products:
             all_good = False
 
 if not all_good:
-    print("\n✗ FAIL: Fix products with <2 images before completing!")
+    print("\n✗ FAIL: Fix products with <4 images before completing!")
     sys.exit(1)
-print("\n✓ All products have ≥2 accessible images")
+print("\n✓ All products have ≥4 accessible images")
 EOF
 ```
 
-**Do NOT write the completion status until this passes.** Go back and download more images if any product has fewer than 2.
+**Do NOT write the completion status until this passes.** Go back and download more images if any product has fewer than 4.
 
 ## Tips
 
