@@ -53,6 +53,12 @@ User clicked Run on step N. Parse the step number, skill name, and domain from t
 
 Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everything-to-Opus was the old rule and made representative runs cost ~$50 / take ~55 min. Most sub-steps are pattern-matching, scripted tool use, or structured generation that Sonnet 4.6 handles equivalently. Use Opus only for the steps whose output quality cascades into everything downstream.
 
+**Required model versions:**
+- `claude-opus-4-6` → must resolve to Opus 4.6 v1 1M context (`us.anthropic.claude-opus-4-6-v1[1m]`)
+- `claude-sonnet-4-6` → must resolve to Sonnet 4.6 1M context (`claude-sonnet-4-6-v1[1m]`)
+
+⚠️ Do NOT use `claude-sonnet-4-5` or any older model — Sonnet 4.5 produces visibly degraded output for this pipeline.
+
 | Step | Model | Why |
 |------|-------|-----|
 | 2 — branch setup | `claude-sonnet-4-6` | Mechanical: `git checkout`, `git push`, write `of1-endpoint.json`. No reasoning. |
@@ -70,7 +76,7 @@ Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everyt
 | 11 — CTA template | `claude-sonnet-4-6` | Generate one JSON file from DESIGN.json tokens. |
 | 13 — deploy + verify | `claude-sonnet-4-6` | Scripted sync + verification curls + screenshots. |
 
-**Rule of thumb:** keep Opus only for steps that **author content the downstream pipeline depends on for quality** (discovery's narrative, extraction's tokens, prototype's HTML). Everything else — including template generation, which surprises people — should be Sonnet.
+**Rule of thumb:** keep Opus only for steps that **author content the downstream pipeline depends on for quality** (discovery's narrative, extraction's tokens, prototype's HTML). Everything else — including template generation, which surprises people — should be Sonnet 4.6.
 
 If a Sonnet step produces visibly degraded output in practice, bump *that step* to Opus — not the whole pipeline.
 

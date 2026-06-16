@@ -113,6 +113,12 @@ Steps 9a and 9b are independent — both consume Step 4's extraction output and 
 
 Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritance puts every sub-agent on Opus, which is wasteful.
 
+**Required model versions:**
+- `opus` → Claude Opus 4.6 v1 1M context (`us.anthropic.claude-opus-4-6-v1[1m]`)
+- `sonnet` → Claude Sonnet 4.6 1M context (`claude-sonnet-4-6-v1[1m]`)
+
+⚠️ Do NOT use `haiku` — it resolves to Sonnet 4.5 which is insufficient for this pipeline.
+
 | Step | Model | Why |
 |------|-------|-----|
 | 2 — branch setup | `sonnet` | Mechanical: git ops + write config JSON. |
@@ -130,7 +136,7 @@ Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritan
 | 11 — CTA template | `sonnet` | Generate one JSON file from DESIGN.json tokens. |
 | 13 — deploy + verify | `sonnet` | Scripted sync + verification curls + screenshots. |
 
-**Rule of thumb:** Opus only for steps that author content the downstream pipeline depends on for quality (discovery narrative, extraction tokens, prototype HTML). Everything else should be Sonnet.
+**Rule of thumb:** Opus only for steps that author content the downstream pipeline depends on for quality (discovery narrative, extraction tokens, prototype HTML). Everything else should be Sonnet 4.6.
 
 ## Step dispatch template
 
