@@ -50,6 +50,8 @@ Mark task 1 completed immediately. Mark each task `in_progress` when its dispatc
 
 ## Phase 2 — Run the pipeline
 
+**Completion tracking:** Maintain a mental ledger of which steps have returned `"status": "done"`. Before dispatching ANY step, verify its prerequisites are ALL in the "done" set. If you're unsure, do NOT dispatch — wait for the pending Agent results first.
+
 The dependency graph and parallelism rules:
 
 ```
@@ -60,15 +62,24 @@ The dependency graph and parallelism rules:
 
 **Parallelism is mandatory** — at each fan-out point, dispatch all eligible step Agents **in a single message with multiple Agent tool-use blocks**. Do NOT serialize what the graph says is parallel.
 
-| Trigger | Dispatch in one message |
+**HARD RULE — dependency enforcement:** You MUST NOT dispatch a step until ALL of its listed prerequisites have returned `done`. No exceptions. No "it's probably fine." Wait for the Agent result, confirm `"status": "done"`, THEN dispatch the next step. Violating this corrupts the pipeline output.
+
+| Trigger (ALL must be done) | Dispatch in one message |
 |---------|-------------------------|
 | Step 2 done | Step 3 AND Step 4 |
+| Steps 3 + 4 done | Step 5 |
 | Step 5 done | Step 6 AND Steps 9a, 9b, 11 (4 agents in one message) |
-| Step 6 done | Step 7-base (1 agent, sequential — must finish before intent fan-out) AND Step 8 |
+| Step 6 done | Step 7-base AND Step 8 (Step 7-base must finish before intent fan-out) |
 | Step 7-base done | Steps 7a–7e (5 intent agents in one message) |
-| Steps 9a + 9b done | Step 10 (needs products.json + brand-voice.json to ground suggestions in real content) |
+| Steps 9a + 9b done | Step 10 (needs products.json + brand-voice.json) |
 | Steps 7a–7e all done | Step 7-assemble (1 agent, sequential) |
-| Steps 7-assemble + 8 done AND Step 12 approved | Step 13 |
+| Steps 9a + 9b + 10 + 11 ALL done | Step 12 (inline — do NOT run until all four are confirmed done) |
+| Steps 7-assemble + 8 + 12 ALL done | Step 13 |
+
+**Common mistakes to avoid:**
+- Do NOT run Step 12 as soon as 9a finishes — it needs 9a + 9b + 10 + 11 ALL completed.
+- Do NOT run Step 7-base before Step 6 returns — 7 reads from 6's output files.
+- Do NOT run Step 10 before BOTH 9a and 9b return — it needs both brand-voice.json and products.json.
 
 ### Step 7 fan-out detail
 
@@ -213,7 +224,9 @@ The user can interrupt at any time ("revise step N") — re-dispatch with their 
 
 ## Step 12 — Config review (inline, no Agent)
 
-Once steps 9a + 9b + 10 + 11 are all done, run inline:
+**PREREQUISITE GATE:** Do NOT execute this step until you have confirmed ALL FOUR of these steps returned `"status": "done"`: 9a (brand voice), 9b (content metadata), 10 (suggestions), 11 (CTA template). If ANY of these is still running or has not been dispatched yet, WAIT.
+
+Once all four are confirmed done, run inline:
 
 ```bash
 cd "$OF1_REPO"
