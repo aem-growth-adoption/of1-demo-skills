@@ -70,7 +70,7 @@ Snowflake gathers prerequisites at the start of each run. Supply these values (d
 |---|---|
 | `SOURCE_URL` | `https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/${SLUG}.html` |
 | Target EDS repo | `${OWNER}/${REPO}` (local clone at `$OF1_DEMO_REPO`) |
-| `DA_ROOT` | `/${BRANCH}` |
+| `DA_ROOT` | `/` |
 | `PAGE_SLUG` | `${SLUG}` (e.g. `prototype-home`) |
 | `TEMPLATE_NAME` | `${SLUG}` (matches the fragment path step 8 reads) |
 | `level` | `page` (overlay — preserves the prototype DOM byte-for-byte) |

@@ -676,7 +676,7 @@ If a step fails or the user requests revisions:
 
 ### Check 1: OF1 page loads with styled search UI
 ```bash
-playwright-cli open "${PREVIEW_BASE}/${BRANCH}/of1"
+playwright-cli open "${PREVIEW_BASE}/of1"
 sleep 8
 playwright-cli screenshot --tab <tab_id> --output /tmp/check-of1.png
 open --view /tmp/check-of1.png
@@ -685,7 +685,7 @@ Pass: branded header, search input, suggestion chips visible, no raw unstyled co
 
 ### Check 2: OF1 nav/footer matches prototype-home
 ```bash
-playwright-cli open "${PREVIEW_BASE}/${BRANCH}/prototype-home"
+playwright-cli open "${PREVIEW_BASE}/prototype-home"
 sleep 8
 playwright-cli screenshot --tab <tab_id> --output /tmp/check-home.png
 open --view /tmp/check-home.png
@@ -736,8 +736,8 @@ Pass: 25+ of1-* templates across all 5 intents.
 for URL in discovery.html brand-review.html config-review.html index.html; do
   curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/deliverables/${URL}"
 done
-curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/${BRANCH}/prototype-home"
-curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/${BRANCH}/of1"
+curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/prototype-home"
+curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/of1"
 curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/gallery/index.html"
 ```
 Pass: All return 200.

@@ -152,7 +152,7 @@ ALL checks must pass before marking the demo done. If any fail, fix the issue an
 ### Check 1: OF1 page loads with styled search UI
 
 ```bash
-playwright-cli open "${PREVIEW_BASE}/${BRANCH}/of1"
+playwright-cli open "${PREVIEW_BASE}/of1"
 sleep 6
 playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/check-of1.png"
 ```
@@ -164,7 +164,7 @@ playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/check-of1.p
 ### Check 2: OF1 nav/footer matches prototype-home
 
 ```bash
-playwright-cli open "${PREVIEW_BASE}/${BRANCH}/of1"
+playwright-cli open "${PREVIEW_BASE}/of1"
 sleep 6
 # Verify concrete elements exist — not just a visual comparison
 playwright-cli eval "document.querySelector('.site-header .logo svg') ? 'logo OK' : 'LOGO MISSING'"
@@ -241,9 +241,9 @@ EOF
 LINKS=(
   "${PREVIEW_BASE}/deliverables/discovery.html"
   "${PREVIEW_BASE}/deliverables/brand-review.html"
-  "${PREVIEW_BASE}/${BRANCH}/prototype-home"
+  "${PREVIEW_BASE}/prototype-home"
   "${PREVIEW_BASE}/gallery/index.html"
-  "${PREVIEW_BASE}/${BRANCH}/of1"
+  "${PREVIEW_BASE}/of1"
   "${PREVIEW_BASE}/deliverables/config-review.html"
   "${PREVIEW_BASE}/deliverables/index.html"
 )
@@ -302,7 +302,7 @@ Present final report:
 ## Demo Ready: ${DOMAIN}
 
 **Demo Hub:** ${PREVIEW_BASE}/deliverables/index.html
-**OF1 page:** ${PREVIEW_BASE}/${BRANCH}/of1
+**OF1 page:** ${PREVIEW_BASE}/of1
 **Gallery:** ${PREVIEW_BASE}/gallery/index.html
 **Worker tenant:** ${TENANT_ID} (synced + verified)
 
@@ -311,7 +311,7 @@ Pre-launch checklist: 5/5 passed ✓
 
 ```bash
 HUB_URL="${PREVIEW_BASE}/deliverables/index.html"
-OF1_URL="${PREVIEW_BASE}/${BRANCH}/of1"
+OF1_URL="${PREVIEW_BASE}/of1"
 cat > "$OF1_STATE_DIR/step-13-status.json" <<EOF
 {
   "step": 13,
