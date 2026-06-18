@@ -335,7 +335,7 @@ for SLUG in of1 nav footer; do
   PREVIEW_RESP=$(curl -s -w "\n%{http_code}" -X POST \
     -H "Authorization: Bearer ${DA_TOKEN}" \
     -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
-    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${BRANCH}/${SLUG}")
+    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${SLUG}")
   PREVIEW_STATUS=$(echo "$PREVIEW_RESP" | tail -1)
   if [ "$PREVIEW_STATUS" -lt 200 ] || [ "$PREVIEW_STATUS" -ge 300 ]; then
     echo "FAIL: preview trigger for /${SLUG} returned HTTP ${PREVIEW_STATUS}" >&2
@@ -353,9 +353,9 @@ done
 
 ```bash
 # Verify each page returns 200 and contains expected content
-OF1_PREVIEW="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/of1"
-NAV_PREVIEW="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/nav"
-FOOTER_PREVIEW="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/footer"
+OF1_PREVIEW="https://${BRANCH}--${REPO}--${OWNER}.aem.page/of1"
+NAV_PREVIEW="https://${BRANCH}--${REPO}--${OWNER}.aem.page/nav"
+FOOTER_PREVIEW="https://${BRANCH}--${REPO}--${OWNER}.aem.page/footer"
 
 echo "Verifying DA content is live..."
 
@@ -377,7 +377,7 @@ if ! echo "$OF1_HTML" | grep -q 'template.*of1\|meta.*template'; then
   curl -s -X POST \
     -H "Authorization: Bearer ${DA_TOKEN}" \
     -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
-    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${BRANCH}/of1"
+    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/of1"
   sleep 3
   # Re-check
   OF1_RECHECK=$(curl -s "$OF1_PREVIEW")
@@ -389,7 +389,7 @@ fi
 
 # Check nav and footer exist
 for SLUG in nav footer; do
-  URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/${SLUG}"
+  URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${SLUG}"
   STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
   if [ "$STATUS" != "200" ]; then
     echo "FAIL: /${SLUG} returned HTTP ${STATUS} — content not live" >&2
@@ -423,7 +423,7 @@ git push origin "$BRANCH"
 After the push, EDS picks up the code change automatically. Open the live OF1 page in a browser and verify the three things that have to be right before handing back to the user:
 
 ```bash
-OF1_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/of1"
+OF1_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/of1"
 playwright-cli open "$OF1_URL" --headed
 sleep 4  # EDS pulls fragments + lazy CSS
 
@@ -493,7 +493,7 @@ After pushing, mark the step as `review` and **STOP**. Do not proceed. The user 
 This is a gate — step 13 (Deploy) cannot start until both step 7 (Templates) and step 8 (this step) are approved.
 
 ```bash
-OF1_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/of1"
+OF1_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/of1"
 cat > "$OF1_STATE_DIR/step-8-status.json" <<EOF
 {
   "step": 8,

@@ -91,15 +91,13 @@ Only the fill color changes (e.g. `fill="#F4E9DC"` for dark footer backgrounds).
 ## 4. URL patterns
 
 ### 4.1 Tenant ID format
-The OF1 worker tenant ID is `{branch}--{repo}--{owner}` (e.g. `wknd-3--of1-demo--aem-growth-adoption`). Setting it to the customer domain breaks worker generation. Never use the site domain as the tenant ID.
+The OF1 worker tenant ID is `{branch}--{repo}--{owner}` (e.g. `wknd-3--labs-abc123--of1-labs`). Setting it to the customer domain breaks worker generation. Never use the site domain as the tenant ID.
 
-### 4.2 Content URLs use the branch as the path prefix
+### 4.2 Content URLs — branch is in the subdomain only
 ```
-https://{branch}--of1-demo--aem-growth-adoption.aem.page/{branch}/{page}
-                                                          ^^^^^^^^
-                                                          content prefix = branch name
+https://{branch}--{repo}--{owner}.aem.page/{page}
 ```
-Not the domain, not the repo, not any other variant.
+The branch is NOT repeated as a path prefix. Not the domain, not the repo, not any other variant.
 
 ### 4.3 Static files served from git keep their `.html` extension
 A file committed at `deliverables/config-review.html` is served at `/deliverables/config-review.html` — NOT at `/deliverables/config-review` (that 404s). DA-authored content pages (like `/of1`, `/prototype-home`) do NOT need the extension.
@@ -183,7 +181,7 @@ Pass BOTH `Authorization: Bearer <token>` AND `x-content-source-authorization: B
 curl -X POST \
   -H "Authorization: Bearer $DA_TOKEN" \
   -H "x-content-source-authorization: Bearer $DA_TOKEN" \
-  "https://admin.hlx.page/preview/$OWNER/$REPO/$BRANCH/$BRANCH/$PAGE_SLUG"
+  "https://admin.hlx.page/preview/$OWNER/$REPO/$BRANCH/$PAGE_SLUG"
 ```
 
 ### 8.2 Allowed domains for outbound `curl`

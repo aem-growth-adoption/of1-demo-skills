@@ -97,8 +97,11 @@ After Step 6 returns `done` and before dispatching 7-base, screenshot every prot
 PROTOTYPE_PAGES=$(ls "${OF1_REPO}/deliverables/"prototype-*.html 2>/dev/null \
   | xargs -n1 basename | sed 's/\.html$//')
 
+OWNER=$(jq -r .owner "$OF1_STATE_DIR/repo-config.json")
+REPO=$(jq -r .repo "$OF1_STATE_DIR/repo-config.json")
+
 for PAGE in $PROTOTYPE_PAGES; do
-  URL="https://${BRANCH}--of1-demo--aem-growth-adoption.aem.page/${BRANCH}/${PAGE}"
+  URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${PAGE}"
   REF="${OF1_REPO}/deliverables/eds-${PAGE}.png"
   playwright-cli open "$URL"
   sleep 6
@@ -168,7 +171,7 @@ export SKILL_DIR="<absolute path to the step skill's directory>"
 
 ## Project context
 - Branch: <branch>          (from repo-config.json)
-- DA owner/repo: aem-growth-adoption/of1-demo
+- DA owner/repo: <owner>/<repo>  (from repo-config.json)
 - Prior step outputs you need: <list specific files>
 
 ## Platform notes
@@ -238,7 +241,7 @@ git push origin "$BRANCH"
 
 (`$SKILL_DIR_CONFIG_REVIEW` = absolute path to `.claude/skills/of1-config-review`.)
 
-Deliverable: `https://<branch>--of1-demo--aem-growth-adoption.aem.page/deliverables/config-review.html`
+Deliverable: `https://<branch>--<repo>--<owner>.aem.page/deliverables/config-review.html`
 
 ## Step 13 — Deploy (inline)
 

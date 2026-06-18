@@ -9,7 +9,7 @@ user-invocable: false
 This step ensures the user has a working AEM Edge Delivery Services repository connected to DA, with a clean demo branch ready for downstream steps. There are two paths:
 
 1. **Bring your own repo** — user provides an existing EDS GitHub repo URL
-2. **Create a new one** — create a new repo from the `of1-boilerplate` template
+2. **Create a new one** — create a new repo from the `adobe/aem-boilerplate` template
 
 The step is considered **done** when:
 - The repo is cloned locally
@@ -42,7 +42,7 @@ The orchestrator MUST ask the user the following questions before dispatching th
 
 **If Option B (create new):**
 
-**Question 2:** What GitHub account or organization should I create the repo under? (e.g., `aem-growth-adoption`, `myorg`)
+**Question 2:** What GitHub account or organization should I create the repo under? (e.g., `of1-labs`, `myorg`)
 
 **Question 3:** What should the repo be named? (e.g., `acme-demo`, `my-demo-site`)
 
@@ -138,7 +138,7 @@ TOKEN=$(gh auth token 2>/dev/null || cat ~/.git-credentials 2>/dev/null | grep g
 curl -s -X POST \
   -H "Authorization: token $TOKEN" \
   -H "Accept: application/vnd.github+json" \
-  "https://api.github.com/repos/aem-growth-adoption/of1-boilerplate/generate" \
+  "https://api.github.com/repos/adobe/aem-boilerplate/generate" \
   -d "{
     \"owner\": \"${OWNER}\",
     \"name\": \"${REPO}\",
@@ -279,7 +279,7 @@ echo "✓ DA content cleaned for ${BRANCH}"
 mkdir -p of1/config
 cat > of1/config/of1-endpoint.json <<EOF
 {
-  "url": "https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/of1"
+  "url": "https://${BRANCH}--${REPO}--${OWNER}.aem.page/of1"
 }
 EOF
 git add of1/config/of1-endpoint.json
@@ -336,7 +336,7 @@ Every downstream step reads this file. Required fields:
 
 | Field | Type | Notes |
 |---|---|---|
-| `owner` | string | GitHub org or user (e.g. `aem-growth-adoption`) |
+| `owner` | string | GitHub org or user (e.g. `of1-labs`) |
 | `repo` | string | Repo name (e.g. `of1-demo`) |
 | `branch` | string | Demo branch name (may have suffix if fresh-start incremented) |
 | `contentPrefix` | string | Same as `branch` |

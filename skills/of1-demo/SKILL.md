@@ -175,7 +175,7 @@ and what artifacts to produce. Read it. Follow it. Do not deviate.
 
 - Domain: {DOMAIN}
 - Branch: {BRANCH}
-- Repo: /workspace/of1-demo (owner: aem-growth-adoption, repo: of1-demo)
+- Repo: /workspace/of1-demo (owner and repo read from repo-config.json)
 - State dir: /shared/of1-demo
 - repo-config.json: /shared/of1-demo/repo-config.json (read it for all paths)
 - Prior step outputs you need: {list specific files}
@@ -184,7 +184,7 @@ and what artifacts to produce. Read it. Follow it. Do not deviate.
 
 - Get IMS token: DA_TOKEN=$(oauth-token adobe)
 - Upload content: use `-d "$HTML_VAR"` for short HTML or DA API multipart POST for binaries (images). NEVER use /mnt/da/ — writes appear to succeed locally but don't persist on the DA backend.
-- Trigger preview: curl -X POST -H "Authorization: Bearer $DA_TOKEN" -H "x-content-source-authorization: Bearer $DA_TOKEN" https://admin.hlx.page/preview/{owner}/{repo}/{branch}/{branch}/{page}
+- Trigger preview: curl -X POST -H "Authorization: Bearer $DA_TOKEN" -H "x-content-source-authorization: Bearer $DA_TOKEN" https://admin.hlx.page/preview/{owner}/{repo}/{branch}/{page}
 - admin.da.live and admin.hlx.page are allowed for curl
 - DO NOT use npx/da-auth-helper or ~/.aem/da-token.json (don't exist)
 
@@ -305,7 +305,7 @@ Step 7 (template generation) is split into 7 scoops across 3 phases plus a small
 After step 6 returns `done` and before spawning 7a–7e, the orchestrator captures the EDS-rendered prototype-home and writes it to a known local path that all 5 intent scoops will read. This gives the agents the actual rendered styling stack (snowflake + OF1 + EDS base) instead of just the standalone prototype HTML.
 
 ```bash
-EDS_HOME_URL="https://${BRANCH}--of1-demo--aem-growth-adoption.aem.page/${BRANCH}/prototype-home"
+EDS_HOME_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/prototype-home"
 REF_PATH="/workspace/of1-demo/deliverables/eds-prototype-home.png"
 
 playwright-cli open "$EDS_HOME_URL"
@@ -429,9 +429,9 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 | 3 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/discovery.html` |
 | 4 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/brand-review.html` |
 | 5 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/prototype-home.html` |
-| 6 | `https://{branch}--{repo}--{owner}.aem.page/{branch}/prototype-home` |
+| 6 | `https://{branch}--{repo}--{owner}.aem.page/prototype-home` |
 | 7 | `https://{branch}--{repo}--{owner}.aem.page/gallery/index.html` |
-| 8 | `https://{branch}--{repo}--{owner}.aem.page/{branch}/of1` |
+| 8 | `https://{branch}--{repo}--{owner}.aem.page/of1` |
 | 12 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/config-review.html` |
 | 13 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/index.html` |
 
@@ -465,7 +465,7 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 
 ## Step 2 — Branch Setup
 
-This step creates a domain-specific branch on the shared `aem-growth-adoption/of1-demo` repo and sets up the output directory.
+This step creates a domain-specific branch on the EDS demo repo and sets up the output directory.
 
 The repo is already cloned at `/workspace/of1-demo`. The step:
 1. Fetches latest from origin
@@ -476,12 +476,12 @@ The repo is already cloned at `/workspace/of1-demo`. The step:
 The step outputs `/shared/of1-demo/repo-config.json` which all subsequent steps use:
 ```json
 {
-  "owner": "aem-growth-adoption",
-  "repo": "of1-demo",
+  "owner": "<org>",
+  "repo": "<repo>",
   "branch": "frescopa",
-  "repoUrl": "https://github.com/aem-growth-adoption/of1-demo",
-  "previewUrl": "https://frescopa--of1-demo--aem-growth-adoption.aem.page/",
-  "daSource": "da://aem-growth-adoption/of1-demo",
+  "repoUrl": "https://github.com/<org>/<repo>",
+  "previewUrl": "https://frescopa--<repo>--<org>.aem.page/",
+  "daSource": "da://<org>/<repo>",
   "repoDir": "/workspace/of1-demo",
   "domain": "frescopa.coffee"
 }
@@ -588,7 +588,7 @@ Name step scoops: `of1-s1`, `of1-s2`, ..., `of1-s13`. This keeps them short and 
 Each step scoop needs context from prior steps. Key dependencies:
 
 - **Step 1 (Install dependencies)** needs: nothing (can run without domain)
-- **Step 2 (Branch setup)** needs: domain. Creates branch on `aem-growth-adoption/of1-demo` and outputs `repo-config.json`.
+- **Step 2 (Branch setup)** needs: domain. Creates branch on the EDS demo repo and outputs `repo-config.json`.
 - **Step 3 (Discovery)** needs: domain — runs in PARALLEL with step 4
 - **Step 4 (Extraction)** needs: domain only (does NOT need discovery output). Extracts design tokens, colors, typography, logo, and screenshots from the live site. Produces PRODUCT.md, DESIGN.json, screenshots, logo, and brand-review.html under `stardust/current/`. Runs in PARALLEL with step 3.
 - **Step 5 (Prototype)** needs: domain + extraction outputs from step 4 (`stardust/current/`) + discovery output from step 3 (key pages and narrative). Waits for BOTH S3 and S4 to complete. When composing the step-5 prompt, list ALL key pages from discovery and require prototypes for each. Never say "focus on homepage" or "if time permits" — all pages are equally mandatory. The scoop must produce one prototype per key page.
@@ -948,19 +948,17 @@ DA_TOKEN=$(oauth-token adobe)
 curl -s -X POST \
   -H "Authorization: Bearer ${DA_TOKEN}" \
   -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
-  "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${CONTENT_PREFIX}/${PAGE_SLUG}"
+  "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${PAGE_SLUG}"
 ```
 
 ### Content URL pattern
 
-The of1-demo repo uses per-demo subfolders. Content URLs include the branch as a PATH prefix:
+The EDS demo repo uses branches to isolate demos. Content URLs use the branch in the subdomain, NOT as a path prefix:
 ```
-https://{branch}--of1-demo--aem-growth-adoption.aem.page/{branch}/{page}
-                                                          ^^^^^^^^
-                                                          content prefix (= branch name)
+https://{branch}--{repo}--{owner}.aem.page/{page}
 ```
 
-Example: `https://frescopa--of1-demo--aem-growth-adoption.aem.page/frescopa/prototype-home`
+Example: `https://frescopa--labs-abc123--of1-labs.aem.page/prototype-home`
 
 ### Summary of allowed domains for curl with oauth.adobe.token
 

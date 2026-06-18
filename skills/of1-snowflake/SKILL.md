@@ -130,7 +130,7 @@ echo "✓ All templates, styles, and fragments present"
 
 ```bash
 for SLUG in $PROTOTYPES; do
-  URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}/${SLUG}"
+  URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${SLUG}"
   CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
   echo "  ${SLUG}: ${CODE}"
 done
@@ -143,7 +143,7 @@ All should return `200`. If anything 404s, inspect `.snowflake/projects/*/state.
 Build the deliverables array — one entry per converted page (label is the slug, title-cased):
 
 ```bash
-PREVIEW_BASE="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${BRANCH}"
+PREVIEW_BASE="https://${BRANCH}--${REPO}--${OWNER}.aem.page"
 
 DELIVERABLES=$(python3 - <<PYEOF
 import json, os

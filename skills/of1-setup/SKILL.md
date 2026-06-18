@@ -37,7 +37,7 @@ Downstream steps (starting with step 2) **structurally depend on `$OF1_STATE_DIR
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_DEMO_REPO` | **required** — absolute path to a local clone of `aem-growth-adoption/of1-demo` |
+| `OF1_DEMO_REPO` | **required** — absolute path to a local clone of the EDS demo repo (any org/repo — validated via git remote) |
 | `OF1_STATE_DIR` | shared IPC + state dir. SLICC: `/shared/of1-demo`. CC: `$PWD/.of1/state` (default). |
 | `ADOBE_IMS_TOKEN` | raw token value (preferred — highest priority) |
 | `OF1_TOKEN_FILE` | path to a `{"access_token":"…"}` JSON (alternative to the env value) |
