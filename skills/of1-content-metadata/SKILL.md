@@ -202,6 +202,8 @@ Verify all ID references are consistent across files. Fix mismatches.
 
 ### 9. Download + upload product images to DA
 
+⛔ **HARD GATE — DO NOT SKIP THIS STEP. DO NOT MARK THIS SKILL AS COMPLETE WITHOUT RUNNING `download-images.py`.** If you write the completion status file without first downloading and uploading images to DA, the demo WILL fail the pre-launch checklist and the entire pipeline run is wasted. This step is NOT optional. Placeholder URLs (like `https://main--repo--org.aem.page/media/...`) are NOT valid — they will 404.
+
 **ALL product images MUST be self-hosted on DA.** Never leave external CDN URLs in `products.json` — external URLs break due to CORS, referrer policies, encoding issues, and EDS image optimization rewriting.
 
 **Minimum 4 images per product, up to 8.** The pre-launch checklist FAILS if any product has fewer than 4. Templates often render 3–6 item cards with images — fewer than 4 images per product leaves visible gaps. If a product page has only 1–3 images, look on the category/listing page, manufacturer press galleries, related model pages, or lifestyle/editorial pages for additional angles.
@@ -305,6 +307,13 @@ EOF
 - Never use invented/fabricated image URLs — only URLs extracted from the live site that actually downloaded successfully (> 10 KB)
 
 ## Completion (pipeline mode)
+
+⛔ **BEFORE writing the status file below, you MUST have:**
+1. Run `download-images.py` with `--update-products` (Step 9 above)
+2. Verified ALL product image URLs return HTTP 200 (the verify script above)
+3. Confirmed all images are `https://content.da.live/...` URLs, NOT `https://main--...aem.page/media/...`
+
+If ANY of these are false, GO BACK and complete Step 9. Do not proceed.
 
 This skill runs alongside `brand-voice-extractor` (step 9a). Both must complete before step 9 is marked done.
 
