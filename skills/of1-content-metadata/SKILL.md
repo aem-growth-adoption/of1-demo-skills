@@ -100,6 +100,16 @@ For each product (cap at 20 in pipeline mode), extract: name, price, currency, c
 
 **FAQs:** from FAQ sections or inferred from comparison points and feature explanations.
 
+### 5b. Extract testimonials
+
+Scrape any customer quotes, reviews, or social proof from the site. Look for:
+- Testimonial sections (quote cards, carousels)
+- Tweet embeds or social proof sections
+- Customer review excerpts
+- Speaker/attendee quotes (for event sites)
+
+If the site has NO real testimonials, write an empty array — never invent them.
+
 ### 6. Present summary (standalone mode only)
 
 **Skip in pipeline mode** — go directly to Step 7.
@@ -195,6 +205,22 @@ Without `persona`, `useCase`, and `keywords`, the worker cannot match user queri
   }
 ]
 ```
+
+**testimonials.json:**
+```json
+[
+  {
+    "id": "testimonial-slug",
+    "quote": "The actual quote text from the website.",
+    "author": "Real Person Name",
+    "role": "Their actual title/role",
+    "company": "Their actual company (if shown)",
+    "source": "twitter|website|review|event"
+  }
+]
+```
+
+**CRITICAL:** Only include testimonials that are **actually on the website**. Never invent quotes, names, or companies. If the site has no testimonials, write `[]`. The worker uses these to fill testimonial/quote slots in templates — hallucinated social proof is unacceptable.
 
 ### 8. Cross-reference check
 
