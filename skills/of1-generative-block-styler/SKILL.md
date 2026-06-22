@@ -424,7 +424,7 @@ After the push, EDS picks up the code change automatically. Open the live OF1 pa
 
 ```bash
 OF1_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/of1"
-playwright-cli open "$OF1_URL" --headed
+playwright-cli open "$OF1_URL"
 sleep 4  # EDS pulls fragments + lazy CSS
 
 # Confirm the branded chrome and the block are all in the DOM

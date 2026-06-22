@@ -273,6 +273,19 @@ done
 echo "✓ DA content cleaned for ${BRANCH}"
 ```
 
+### Ensure .hlxignore does NOT block of1/config/
+
+The OF1 extension reads config files from the EDS CDN (`/of1/config/*.json`). The boilerplate `.hlxignore` must NOT include `of1/` or `of1/config/`. If previous steps or conventions added such a rule, remove it:
+
+```bash
+if [ -f .hlxignore ] && grep -q '^of1' .hlxignore; then
+  sed -i '/^of1/d' .hlxignore
+  echo "✓ Removed of1 exclusion from .hlxignore"
+fi
+```
+
+**Do NOT add `of1/` to `.hlxignore`** — the config files must be served on the CDN.
+
 ### Write of1-endpoint.json + push
 
 ```bash
