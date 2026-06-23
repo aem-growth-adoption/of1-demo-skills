@@ -59,7 +59,7 @@ Never leave external CDN URLs in `products.json` — not AEM delivery URLs, not 
 
 **Required URL pattern after upload:**
 ```
-https://content.da.live/{owner}/{repo}/{branch}/media/product-{id}-{n}.{ext}
+https://content.da.live/{owner}/{repo}/media/product-{id}-{n}.{ext}
 ```
 
 **Canonical reference:** `of1-content-metadata` § "Pull Product Assets".
@@ -161,7 +161,7 @@ cat file | curl -s -X PUT \
   -H "Authorization: Bearer $DA_TOKEN" \
   -H "Content-Type: text/html" \
   --data-binary @- \
-  "https://admin.da.live/source/$OWNER/$REPO/$BRANCH/page.html"
+  "https://admin.da.live/source/$OWNER/$REPO/page.html"
 ```
 
 ### 7.6 `[CC]` IMS token comes from a file, not a command

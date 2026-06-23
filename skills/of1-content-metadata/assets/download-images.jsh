@@ -134,7 +134,7 @@ async function uploadImage(data, contentType, token, owner, repo, branch, filena
   body.set(data, headerBytes.length);
   body.set(footerBytes, headerBytes.length + data.length);
 
-  const url = `https://admin.da.live/source/${owner}/${repo}/${branch}/media/${filename}`;
+  const url = `https://admin.da.live/source/${owner}/${repo}/media/${filename}`;
   try {
     const resp = await fetch(url, {
       method: 'POST',
@@ -233,7 +233,7 @@ async function main() {
   const mapping = {};
   for (const r of results) {
     if (r.ok) {
-      const url = `https://content.da.live/${args.owner}/${args.repo}/${args.branch}/media/${r.filename}`;
+      const url = `https://content.da.live/${args.owner}/${args.repo}/media/${r.filename}`;
       if (!mapping[r.product_id]) mapping[r.product_id] = [];
       mapping[r.product_id].push({ n: r.n, url });
     }

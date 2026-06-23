@@ -134,7 +134,7 @@ def upload(tmp_file, content_type, token, owner, repo, branch, filename, mount_d
             return "mount", None
         except Exception:
             pass  # fall through to API
-    url = f"https://admin.da.live/source/{owner}/{repo}/{branch}/media/{filename}"
+    url = f"https://admin.da.live/source/{owner}/{repo}/media/{filename}"
     with open(tmp_file, "rb") as f:
         body = f.read()
     # DA requires multipart/form-data with field name "data" for binary uploads.
@@ -280,7 +280,7 @@ def main(argv):
         if r["ok"]:
             url = (
                 f"https://content.da.live/{args.owner}/{args.repo}/"
-                f"{args.branch}/media/{r['filename']}"
+                f"media/{r['filename']}"
             )
             mapping.setdefault(r["product_id"], []).append((r["n"], url))
     for pid in mapping:

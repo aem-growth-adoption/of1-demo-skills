@@ -311,7 +311,7 @@ curl -s -X PUT \
   -H "Authorization: Bearer ${DA_TOKEN}" \
   -H "Content-Type: text/html" \
   -d "$OF1_HTML" \
-  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/of1.html"
+  "https://admin.da.live/source/${OWNER}/${REPO}/of1.html"
 
 # /nav and /footer placeholders so the default EDS blocks don't 404
 NAV_HTML='<html><body><header></header><main><div><p><a href="/">Brand</a></p></div><div><ul><li><a href="#">Link 1</a></li></ul></div></main><footer></footer></body></html>'
@@ -320,7 +320,7 @@ curl -s -X PUT \
   -H "Authorization: Bearer ${DA_TOKEN}" \
   -H "Content-Type: text/html" \
   -d "$NAV_HTML" \
-  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/nav.html"
+  "https://admin.da.live/source/${OWNER}/${REPO}/nav.html"
 
 FOOTER_HTML='<html><body><header></header><main><div><p>Footer content</p></div></main><footer></footer></body></html>'
 
@@ -328,7 +328,7 @@ curl -s -X PUT \
   -H "Authorization: Bearer ${DA_TOKEN}" \
   -H "Content-Type: text/html" \
   -d "$FOOTER_HTML" \
-  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/footer.html"
+  "https://admin.da.live/source/${OWNER}/${REPO}/footer.html"
 
 # Trigger preview so the URLs are live
 for SLUG in of1 nav footer; do

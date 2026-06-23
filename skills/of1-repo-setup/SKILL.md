@@ -263,14 +263,14 @@ fi
 
 ```bash
 DA_LIST=$(curl -s -H "Authorization: Bearer $DA_TOKEN" \
-  "https://admin.da.live/list/${OWNER}/${REPO}/${BRANCH}" 2>/dev/null || echo "[]")
+  "https://admin.da.live/list/${OWNER}/${REPO}" 2>/dev/null || echo "[]")
 
 echo "$DA_LIST" | jq -r '.[] | select(.ext == "html") | .name' 2>/dev/null | while read -r name; do
   [ -n "$name" ] || continue
   curl -s -X DELETE -H "Authorization: Bearer $DA_TOKEN" \
-    "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/${name}.html" >/dev/null
+    "https://admin.da.live/source/${OWNER}/${REPO}/${name}.html" >/dev/null
 done
-echo "✓ DA content cleaned for ${BRANCH}"
+echo "✓ DA content cleaned"
 ```
 
 ### Ensure .hlxignore does NOT block of1/config/
