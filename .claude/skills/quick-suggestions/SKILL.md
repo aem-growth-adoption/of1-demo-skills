@@ -1,0 +1,104 @@
+---
+name: quick-suggestions
+description: Generate domain-specific quick suggestion chips and search UI copy for the demo
+user-invocable: true
+---
+
+# Quick Suggestions Generator
+
+Generate domain-specific quick suggestion chips, placeholder text, and search UI copy based on the site's products and content.
+
+## Inputs
+
+- `DOMAIN`: Target domain (e.g., `nvidia.com`). If provided in your prompt context (pipeline mode), use it directly. Only ask the user if not provided.
+
+## Process
+
+### Step 1: Read context
+
+Check what exists in `output/{domain}/`:
+- Read `products.json` for product names and categories
+- Read `personas.json` for persona keywords
+- Read `use-cases.json` for use case descriptions
+- Read `brand-voice.json` for tone
+
+If `DOMAIN` was provided in your prompt (pipeline mode), use it directly. Otherwise ask:
+> Which domain should I generate suggestions for?
+
+### Step 2: Generate suggestions
+
+Based on products, personas, and use cases, generate 8-12 quick suggestion chips that:
+- Cover different personas
+- Cover different intents (compare, recommend, explore, deep-dive)
+- Use natural language a real user would type
+- Are concise (under 40 characters each)
+
+Also generate:
+- Search bar placeholder text
+- Page title
+- Page subtitle
+
+### Step 3: Present
+
+```
+## Quick Suggestions: {domain}
+
+**Placeholder:** "[text]"
+**Title:** "[text]"
+**Subtitle:** "[text]"
+
+**Chips:**
+1. [suggestion]
+2. [suggestion]
+...
+
+Look good?
+```
+
+### Step 4: Write output
+
+Write to `output/{domain}/suggestions.json`:
+
+```json
+{
+  "title": "...",
+  "subtitle": "...",
+  "placeholder": "...",
+  "suggestions": [
+    { "type": "explore", "label": "Short Chip Label", "query": "full natural language query the user would type" },
+    { "type": "explore", "label": "Another Chip", "query": "another full query" }
+  ]
+}
+```
+
+**How the worker uses this file:**
+
+The worker's `suggest.js` serves `tenant.suggestions.suggestions` via `POST /api/suggest` when no query is provided. The OF1 block fetches this on page load to populate the search UI.
+
+**Field requirements:**
+- `title` → the `<h1>` heading on the /of1 page (e.g. "Find Your Next Adventure")
+- `subtitle` → supporting text below the heading
+- `placeholder` → input field placeholder text
+- `suggestions[].type` → must be `"explore"` (used by the OF1 block for chip styling)
+- `suggestions[].label` → short text shown on the chip (under 40 chars)
+- `suggestions[].query` → the full query string sent to `/api/generate` when clicked
+
+**Intent coverage:** Ensure suggestions cover the worker's intent types so demos can showcase different generation behaviors:
+- `deep-dive`: "Tell me about [specific product]" — triggers detailed single-product pages
+- `comparison`: "Compare [A] vs [B]" — triggers side-by-side layouts
+- `recommendation`: "Best [category] for [persona need]" — triggers featured product + alternatives
+- `discovery`: "Show me [broad category]" — triggers diverse card grids
+- `budget`: "[Category] under $[price]" — triggers price-focused results
+
+The OF1 block randomly picks 5 suggestions to display on each page load, so generate 8-12 for variety.
+
+## Completion (pipeline mode)
+
+When running as part of the OF1 pipeline (step 10), write a status file after generating `suggestions.json`:
+
+```bash
+mkdir -p /shared/of1-demo
+echo '{"step":10,"status":"done","summary":"Generated [N] suggestion chips covering [intents covered]."}' > /shared/of1-demo/step-10-status.json
+```
+
+Do NOT call `sprinkle send` — only the of1-demo orchestrator scoop may do that.
