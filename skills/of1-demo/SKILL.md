@@ -917,7 +917,7 @@ curl -s -X PUT \
   -H "Authorization: Bearer ${DA_TOKEN}" \
   -H "Content-Type: text/html" \
   -d "$HTML_CONTENT" \
-  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/page-name.html"
+  "https://admin.da.live/source/${OWNER}/${REPO}/page-name.html"
 ```
 
 **For binary files (images) — multipart POST:**
@@ -927,7 +927,7 @@ DA_TOKEN=$(oauth-token adobe)
 curl -s -X POST \
   -H "Authorization: Bearer ${DA_TOKEN}" \
   -F "data=@/path/to/image.png;type=image/png" \
-  "https://admin.da.live/source/${OWNER}/${REPO}/${BRANCH}/media/filename.png"
+  "https://admin.da.live/source/${OWNER}/${REPO}/media/filename.png"
 ```
 
 See `download-images.jsh` for the full parallel upload pattern with verification.

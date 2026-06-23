@@ -127,7 +127,7 @@ Write all files to `of1/config/`. Schemas below.
     "category": "category",
     "price": 999,
     "currency": "USD",
-    "images": ["https://content.da.live/owner/repo/branch/media/product-slug-1.png"],
+    "images": ["https://content.da.live/owner/repo/media/product-slug-1.png"],
     "url": "https://site.com/products/slug",
     "description": "Detailed description (2-3 sentences). Sent to the LLM for generation.",
     "features": ["Feature 1", "Feature 2"],

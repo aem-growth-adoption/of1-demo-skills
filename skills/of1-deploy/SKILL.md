@@ -72,7 +72,7 @@ done
 ```bash
 curl -s -H "Authorization: Bearer $DA_TOKEN" \
   -H "x-content-source-authorization: Bearer $DA_TOKEN" \
-  "https://admin.da.live/list/${OWNER}/${REPO}/${BRANCH}" \
+  "https://admin.da.live/list/${OWNER}/${REPO}" \
   | jq -r '.[] | select(.ext == "html") | .name + ".html"' > /tmp/da-pages.txt
 
 # Verify it's not empty
