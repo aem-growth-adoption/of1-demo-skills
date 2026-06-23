@@ -8,9 +8,10 @@
  *   - branch (optional): git branch to use. Defaults to domain without TLD (e.g. "wknd")
  *   - repo (optional): absolute path to existing clone. Defaults to cwd.
  *
- * Examples:
- *   Workflow({ name: "of1-demo", args: { domain: "wknd.site", branch: "wknd-cc-v5-1", repo: "/Users/me/of1-demo" } })
- *   Workflow({ name: "of1-demo", args: "wknd.site" })  // infers branch + repo from cwd
+ * Dependency graph (matches of1-demo-cc):
+ *   2 → 3 ∥ 4 → 5 → ┬─ 6 → ┬─ 7-base → 7a–7e → 7-assemble ─┐
+ *                     │      └─ 8                               │
+ *                     └─ 9a ∥ 9b ∥ 11 → 10 → 12 ───────────────┴─→ 13
  */
 
 export const meta = {
@@ -23,10 +24,8 @@ export const meta = {
     { title: 'Discovery & Extraction', detail: 'Crawl site + extract design tokens (parallel)' },
     { title: 'Prototype', detail: 'Pixel-perfect HTML prototypes' },
     { title: 'Snowflake + Config', detail: 'EDS conversion + brand/content extraction (parallel)' },
-    { title: 'OF1 styling + Suggestions + Template base', detail: 'Generative block CSS + chips + base tokens (parallel)' },
-    { title: 'Template intents', detail: '5 intent variations in parallel' },
-    { title: 'Template assembly', detail: 'Catalog + gallery + commit' },
-    { title: 'Config review', detail: 'Generate review page' },
+    { title: 'Track A: Templates + Styling', detail: 'OF1 styling + template generation' },
+    { title: 'Track B: Config', detail: 'Suggestions + config review' },
     { title: 'Deploy & verify', detail: 'Adversarial verify + deploy + pre-launch checklist' },
   ],
 }
@@ -128,7 +127,9 @@ Generate pixel-perfect HTML prototypes of key pages from ${DOMAIN}.
 Use the discovery narrative and extraction tokens from prior steps.
 `, { label: 'prototype', model: 'opus' })
 
-// ─── Phase 4: Snowflake + Config track (parallel fork) ────────────────────────
+// ─── Phase 4: Fork — Snowflake + Config track (parallel) ─────────────────────
+// After step 5, dispatch: 6 (snowflake) AND 9a, 9b, 11 (config track)
+// These are independent — no barrier needed between tracks.
 
 phase('Snowflake + Config')
 const [snowflake, brandVoice, contentMeta, ctaTemplate] = await parallel([
@@ -161,73 +162,109 @@ Extract the site's visual design system and generate cta-template.json.
 `, { label: 'cta-template', model: 'sonnet' }),
 ])
 
-// ─── Phase 5: OF1 styling + Suggestions + Template base (parallel) ────────────
+// ─── Tracks A + B (parallel) ──────────────────────────────────────────────────
+// After the phase 4 barrier, both tracks can run concurrently:
+//   Track A: EDS screenshots → 8 ∥ 7-base → 7a–7e → 7-assemble
+//   Track B: 10 → 12
+// Step 8 depends only on step 6.
+// Step 10 depends on 9a + 9b (both done in phase 4).
+// Step 12 depends on 9a + 9b + 10 + 11 (all done by the time 10 finishes).
+// Step 13 needs 7-assemble + 8 + 12 — i.e. both tracks complete.
 
-phase('OF1 styling + Suggestions + Template base')
-const [of1Styling, suggestions, templateBase] = await parallel([
-  () => agent(`
+const INTENTS = ['comparison', 'recommendation', 'deep-dive', 'budget', 'discovery']
+
+const [trackAResult, trackBResult] = await parallel([
+  // ─── Track A: Templates + Styling ───────────────────────────────────────────
+  async () => {
+    phase('Track A: Templates + Styling')
+
+    // Take EDS screenshots of prototype pages for intent agents (visual reference)
+    const edsScreenshots = await agent(`
+${STAY_ON_TASK('EDS screenshots')}
+${ENV_BLOCK('6-post', 'of1-snowflake')}
+After snowflake completed, take full-page screenshots of each prototype page as rendered by EDS.
+Read repo-config.json to get OWNER and REPO.
+
+For each prototype HTML file in deliverables/prototype-*.html:
+1. Derive the page slug (e.g. "prototype-home")
+2. Build the EDS URL: https://\${BRANCH}--\${REPO}--\${OWNER}.aem.page/\${SLUG}
+3. Use playwright-cli to screenshot the full page
+4. Save to deliverables/eds-\${SLUG}.png
+
+Do NOT commit these PNGs. They are local reference material for template intent agents.
+If any screenshot fails, log a warning but continue — intent agents fall back to HTML/CSS alone.
+`, { label: 'eds-screenshots', model: 'sonnet', phase: 'Track A: Templates + Styling' })
+
+    // Dispatch 8 (OF1 styling) and 7-base in parallel — both only need step 6
+    const [of1Styling, templateBase] = await parallel([
+      () => agent(`
 ${SKILL_INSTRUCTION('of1-generative-block-styler')}
 ${STAY_ON_TASK('OF1 styling')}
 ${ENV_BLOCK(8, 'of1-generative-block-styler')}
 Generate polished CSS for the OF1 generative block AND set up the /of1 page end-to-end.
-`, { label: 'of1-styling', model: 'opus' }),
+`, { label: 'of1-styling', model: 'opus', phase: 'Track A: Templates + Styling' }),
 
-  () => agent(`
-${SKILL_INSTRUCTION('of1-quick-suggestions')}
-${STAY_ON_TASK('Quick suggestions')}
-${ENV_BLOCK(10, 'of1-quick-suggestions')}
-Generate domain-specific quick suggestion chips and search UI copy.
-Uses products.json and brand-voice.json from prior steps.
-`, { label: 'suggestions', model: 'sonnet' }),
-
-  () => agent(`
+      () => agent(`
 ${SKILL_INSTRUCTION('of1-template-generation')}
 ${STAY_ON_TASK('Template generation — base mode')}
 ${ENV_BLOCK('7-base', 'of1-template-generation', 'export OF1_TG_MODE="base"')}
 Generate the shared design-token stylesheet (of1-template-base.css) from prototype CSS.
 Follow the skill's "Mode: base" section ONLY.
-`, { label: 'template-base', model: 'sonnet' }),
-])
+`, { label: 'template-base', model: 'sonnet', phase: 'Track A: Templates + Styling' }),
+    ])
 
-// ─── Phase 6: Template intents (5 parallel) ───────────────────────────────────
-
-phase('Template intents')
-const INTENTS = ['comparison', 'recommendation', 'deep-dive', 'budget', 'discovery']
-
-const intentResults = await parallel(
-  INTENTS.map((intent) => () => agent(`
+    // 7a–7e: 5 intent agents in parallel (need 7-base done)
+    const intentResults = await parallel(
+      INTENTS.map((intent) => () => agent(`
 ${SKILL_INSTRUCTION('of1-template-generation')}
 ${STAY_ON_TASK(`Template generation — intent: ${intent}`)}
 ${ENV_BLOCK(`7-${intent}`, 'of1-template-generation', `export OF1_TG_MODE="intent"\nexport OF1_TG_INTENT="${intent}"`)}
 Generate templates for the "${intent}" intent ONLY.
 Follow the skill's "Mode: intent" section. Do NOT generate base CSS, the catalog, the gallery, or commit anything.
-`, { label: `intent-${intent}`, model: 'sonnet' }))
-)
+`, { label: `intent-${intent}`, model: 'sonnet', phase: 'Track A: Templates + Styling' }))
+    )
 
-// ─── Phase 7: Template assembly ───────────────────────────────────────────────
-
-phase('Template assembly')
-const templateAssembly = await agent(`
+    // 7-assemble: needs all 7a–7e done
+    const templateAssembly = await agent(`
 ${SKILL_INSTRUCTION('of1-template-generation')}
 ${STAY_ON_TASK('Template generation — assemble mode')}
 ${ENV_BLOCK('7-assemble', 'of1-template-generation', 'export OF1_TG_MODE="assemble"')}
 Assemble the fully-inlined catalog from all 15 templates, run fill-template scripts,
 install the gallery, and commit everything. Follow the skill's "Mode: assemble" section.
 Precondition: all 15 templates + styles must exist. Fail fast if missing.
-`, { label: 'template-assemble', model: 'sonnet' })
+`, { label: 'template-assemble', model: 'sonnet', phase: 'Track A: Templates + Styling' })
 
-// ─── Phase 8: Config review ───────────────────────────────────────────────────
+    return { of1Styling, templateAssembly }
+  },
 
-phase('Config review')
-const configReview = await agent(`
+  // ─── Track B: Suggestions → Config review ─────────────────────────────────
+  async () => {
+    phase('Track B: Config')
+
+    // Step 10: needs 9a + 9b done (guaranteed by phase 4 barrier)
+    const suggestions = await agent(`
+${SKILL_INSTRUCTION('of1-quick-suggestions')}
+${STAY_ON_TASK('Quick suggestions')}
+${ENV_BLOCK(10, 'of1-quick-suggestions')}
+Generate domain-specific quick suggestion chips and search UI copy.
+Uses products.json and brand-voice.json from prior steps.
+`, { label: 'suggestions', model: 'sonnet', phase: 'Track B: Config' })
+
+    // Step 12: needs 9a + 9b + 10 + 11 — all guaranteed done at this point
+    const configReview = await agent(`
 ${SKILL_INSTRUCTION('of1-config-review')}
 ${STAY_ON_TASK('Config review')}
 ${ENV_BLOCK(12, 'of1-config-review')}
 Generate the config-review.html deliverable showing all OF1 config data for ${DOMAIN}.
 Commit and push it.
-`, { label: 'config-review', model: 'sonnet' })
+`, { label: 'config-review', model: 'sonnet', phase: 'Track B: Config' })
 
-// ─── Phase 9: Deploy + Verify ─────────────────────────────────────────────────
+    return { suggestions, configReview }
+  },
+])
+
+// ─── Phase: Deploy + Verify ──────────────────────────────────────────────────
+// Step 13 needs: 7-assemble + 8 + 12 all done (guaranteed by the parallel barrier above).
 
 phase('Deploy & verify')
 const [verifier1, verifier2] = await parallel([
