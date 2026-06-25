@@ -27,7 +27,8 @@
  * Input (args): { domain: string, branch?: string, repo?: string }
  *   - domain (required): bare hostname, e.g. "wknd.site"
  *   - branch (optional): git branch. Defaults to domain without TLD.
- *   - repo (optional): absolute path to clone. Defaults to /workspace/of1-demo.
+ *   - repo (optional): GitHub URL (https://github.com/owner/repo), owner/repo
+ *     shorthand, or absolute local path. Defaults to aem-growth-adoption/of1-demo.
  */
 
 export const meta = {
@@ -67,13 +68,42 @@ agent = (prompt, opts) => {
 
 const parsed = typeof args === 'string' ? { domain: args } : args
 const DOMAIN = parsed?.domain
-if (!DOMAIN) throw new Error('Usage: args = { domain: "wknd.site", branch?: "...", repo?: "/path/to/clone" }')
+if (!DOMAIN) throw new Error('Usage: args = { domain: "wknd.site", branch?: "...", repo?: "https://github.com/owner/repo" }')
 
 const BRANCH = parsed.branch || DOMAIN.replace(/\.[^.]+$/, '')
-const REPO_PATH = parsed.repo || '/workspace/of1-demo'
-const OWNER = 'aem-growth-adoption'
-const REPO_NAME = 'of1-demo'
+
+// Parse repo URL — accept GitHub URL or owner/repo shorthand
+function parseRepo(repoArg) {
+  if (!repoArg) return { owner: 'aem-growth-adoption', name: 'of1-demo' }
+  // GitHub URL: https://github.com/owner/repo or https://github.com/owner/repo.git
+  const ghMatch = repoArg.match(/github\.com\/([^/]+)\/([^/.]+)/)
+  if (ghMatch) return { owner: ghMatch[1], name: ghMatch[2] }
+  // owner/repo shorthand
+  const parts = repoArg.split('/')
+  if (parts.length === 2) return { owner: parts[0], name: parts[1] }
+  // Fallback — treat as local path (legacy behavior)
+  return { owner: 'aem-growth-adoption', name: 'of1-demo', localPath: repoArg }
+}
+
+const repoParsed = parseRepo(parsed.repo)
+const OWNER = repoParsed.owner
+const REPO_NAME = repoParsed.name
+const REPO_PATH = repoParsed.localPath || `/workspace/${REPO_NAME}`
+const REPO_URL = `https://github.com/${OWNER}/${REPO_NAME}`
 const PREVIEW_BASE = `https://${BRANCH}--${REPO_NAME}--${OWNER}.aem.page`
+
+// ─── Progress tracking ────────────────────────────────────────────────────────
+
+const PROGRESS_FILE = '/shared/of1-demo/progress.json'
+const progressState = { domain: DOMAIN, branch: BRANCH, repo: REPO_URL, phases: [], startedAt: new Date().toISOString() }
+
+const _phase = phase
+phase = (title) => {
+  progressState.phases.push({ title, startedAt: new Date().toISOString(), status: 'running' })
+  // Write progress file (best-effort, sync not available so we log)
+  log(`[progress] Phase: ${title} (${progressState.phases.length}/${meta.phases.length})`)
+  return _phase(title)
+}
 
 // ─── Shared prompt fragments ──────────────────────────────────────────────────
 
@@ -99,7 +129,8 @@ const PROJECT_CONTEXT = `
 - Branch: ${BRANCH}
 - Owner: ${OWNER}
 - Repo: ${REPO_NAME}
-- Repo path: ${REPO_PATH}
+- Repo URL: ${REPO_URL}
+- Repo path (local clone): ${REPO_PATH}
 - Preview base: ${PREVIEW_BASE}
 - State dir: /shared/of1-demo
 - repo-config.json: /shared/of1-demo/repo-config.json
@@ -134,19 +165,42 @@ phase('Repo setup')
 const repoSetup = await agent(`
 ${STAY_ON_TASK('Repo setup')}
 ${ENV_BLOCK(2, 'of1-repo-setup')}
-Create or switch to branch "${BRANCH}" for domain "${DOMAIN}".
-Write repo-config.json to /shared/of1-demo/repo-config.json with:
+
+## Git Repository Setup — EXACT STEPS
+
+The target repository is: ${REPO_URL}
+The local clone path is: ${REPO_PATH}
+The branch name is: ${BRANCH}
+
+Follow these steps IN ORDER:
+
+1. If ${REPO_PATH} does not exist, clone:
+   git clone ${REPO_URL} ${REPO_PATH}
+
+2. cd ${REPO_PATH}
+
+3. Check if branch "${BRANCH}" exists:
+   git branch -a | grep "${BRANCH}"
+
+4. If the branch exists remotely: git checkout ${BRANCH} && git pull
+   If not: git checkout -b ${BRANCH}
+
+5. Write repo-config.json to /shared/of1-demo/repo-config.json with EXACTLY:
 {
   "owner": "${OWNER}",
   "repo": "${REPO_NAME}",
   "branch": "${BRANCH}",
   "repoDir": "${REPO_PATH}",
   "domain": "${DOMAIN}",
-  "repoUrl": "https://github.com/${OWNER}/${REPO_NAME}",
+  "repoUrl": "${REPO_URL}",
   "previewUrl": "${PREVIEW_BASE}/",
   "daSource": "da://${OWNER}/${REPO_NAME}"
 }
-If the branch already exists, just check it out. Do NOT recreate.
+
+CRITICAL:
+- Do NOT pass branch as a positional argument to git clone (use step 3-4 instead).
+- Do NOT create directories named after flags (like "--branch=xyz").
+- The clone URL is: ${REPO_URL} — use it verbatim.
 `, { label: 'repo-setup', model: 'sonnet' })
 
 // ─── Phase 2: Discovery + Extraction (parallel) ──────────────────────────────
@@ -405,13 +459,24 @@ return {
   domain: DOMAIN,
   branch: BRANCH,
   previewBase: PREVIEW_BASE,
+  repoUrl: REPO_URL,
   urls: {
     of1: `${PREVIEW_BASE}/of1`,
     prototypeHome: `${PREVIEW_BASE}/prototype-home`,
     gallery: `${PREVIEW_BASE}/gallery/index.html`,
     configReview: `${PREVIEW_BASE}/deliverables/config-review.html`,
     discovery: `${PREVIEW_BASE}/deliverables/discovery.html`,
-    repo: `https://github.com/${OWNER}/${REPO_NAME}/tree/${BRANCH}`,
+    repo: `${REPO_URL}/tree/${BRANCH}`,
+  },
+  agentResults: {
+    setup: typeof setup === 'string' ? setup.slice(0, 200) : setup,
+    repoSetup: typeof repoSetup === 'string' ? repoSetup.slice(0, 200) : repoSetup,
+    discovery: typeof discovery === 'string' ? discovery.slice(0, 200) : discovery,
+    extraction: typeof extraction === 'string' ? extraction.slice(0, 200) : extraction,
+    prototype: typeof prototype === 'string' ? prototype.slice(0, 200) : prototype,
+    snowflake: typeof snowflake === 'string' ? snowflake.slice(0, 200) : snowflake,
+    of1Styling: typeof of1Styling === 'string' ? of1Styling.slice(0, 200) : of1Styling,
+    deploy: typeof deploy === 'string' ? deploy.slice(0, 200) : deploy,
   },
   summary: `OF1 demo pipeline complete for ${DOMAIN} on branch ${BRANCH}.`,
 }
