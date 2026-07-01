@@ -129,9 +129,9 @@ Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritan
 
 **Required model versions:**
 - `opus` → Claude Opus 4.6 v1 1M context (`us.anthropic.claude-opus-4-6-v1[1m]`)
-- `sonnet` → Claude Sonnet 4.6 1M context (`claude-sonnet-4-6-v1[1m]`)
+- `sonnet` → Claude Sonnet 5 (`us.anthropic.claude-sonnet-5`)
 
-⚠️ Do NOT use `haiku` — it resolves to Sonnet 4.5 which is insufficient for this pipeline.
+⚠️ Do NOT use `haiku` — it resolves to a smaller model insufficient for this pipeline.
 
 | Step | Model | Why |
 |------|-------|-----|

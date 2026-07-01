@@ -51,32 +51,32 @@ User clicked Run on step N. Parse the step number, skill name, and domain from t
 
 **Model selection — assign per step, NOT a blanket choice:**
 
-Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everything-to-Opus was the old rule and made representative runs cost ~$50 / take ~55 min. Most sub-steps are pattern-matching, scripted tool use, or structured generation that Sonnet 4.6 handles equivalently. Use Opus only for the steps whose output quality cascades into everything downstream.
+Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everything-to-Opus was the old rule and made representative runs cost ~$50 / take ~55 min. Most sub-steps are pattern-matching, scripted tool use, or structured generation that Sonnet 5 handles equivalently. Use Opus only for the steps whose output quality cascades into everything downstream.
 
 **Required model versions:**
 - `claude-opus-4-6` → must resolve to Opus 4.6 v1 1M context (`us.anthropic.claude-opus-4-6-v1[1m]`)
-- `claude-sonnet-4-6` → must resolve to Sonnet 4.6 1M context (`claude-sonnet-4-6-v1[1m]`)
+- `claude-sonnet-5` → must resolve to Sonnet 5 1M context (`us.anthropic.claude-sonnet-5`)
 
 ⚠️ Do NOT use `claude-sonnet-4-5` or any older model — Sonnet 4.5 produces visibly degraded output for this pipeline.
 
 | Step | Model | Why |
 |------|-------|-----|
-| 2 — branch setup | `claude-sonnet-4-6` | Mechanical: `git checkout`, `git push`, write `of1-endpoint.json`. No reasoning. |
+| 2 — branch setup | `claude-sonnet-5` | Mechanical: `git checkout`, `git push`, write `of1-endpoint.json`. No reasoning. |
 | 3 — discovery | `claude-opus-4-6` | Brand/narrative synthesis from crawled pages. Drives the demo story. |
 | 4 — extraction | `claude-opus-4-6` | Design-token + visual-system extraction. Wrong tokens cascade. |
 | 5 — prototype | `claude-opus-4-6` | Pixel-perfect HTML generation requiring visual judgment. |
-| 6 — snowflake | `claude-sonnet-4-6` | Invokes the adobe `snowflake` skill once per prototype. Thin wrapper. |
-| 7a–7e — template intents | `claude-sonnet-4-6` | Structured generation following a clear pattern + EDS visual reference. 5 parallel scoops — biggest cost saving. |
-| 7-base | `claude-sonnet-4-6` | Reads prototype CSS → writes `styles/of1-template-base.css` (shared tokens). Sequential, before intent fan-out. |
+| 6 — snowflake | `claude-sonnet-5` | Invokes the adobe `snowflake` skill once per prototype. Thin wrapper. |
+| 7a–7e — template intents | `claude-sonnet-5` | Structured generation following a clear pattern + EDS visual reference. 5 parallel scoops — biggest cost saving. |
+| 7-base | `claude-sonnet-5` | Reads prototype CSS → writes `styles/of1-template-base.css` (shared tokens). Sequential, before intent fan-out. |
 | 7-assemble | inline (no scoop) | Purely scripted: runs `assemble-catalog.jsh` + `fill-template.jsh`, installs gallery, single commit + push. Runs inline in the orchestrator — no LLM reasoning needed. |
 | 8 — OF1 styling | `claude-opus-4-6` | CSS generation + /of1 page setup. Must follow multi-step instructions precisely (copy base CSS, patch scripts.js, create template/fragments, upload DA content). Sonnet deviates from the procedure. |
-| 9a — brand voice | `claude-sonnet-4-6` | Synthesis from existing extraction JSON. |
-| 9b — content metadata | `claude-sonnet-4-6` | Scrape product pages + run `download-images.jsh`. Structured. |
-| 10 — quick suggestions | `claude-sonnet-4-6` | Generate 12 chips from discovery narrative. |
-| 11 — CTA template | `claude-sonnet-4-6` | Generate one JSON file from DESIGN.json tokens. |
-| 13 — deploy + verify | `claude-sonnet-4-6` | Scripted sync + verification curls + screenshots. |
+| 9a — brand voice | `claude-sonnet-5` | Synthesis from existing extraction JSON. |
+| 9b — content metadata | `claude-sonnet-5` | Scrape product pages + run `download-images.jsh`. Structured. |
+| 10 — quick suggestions | `claude-sonnet-5` | Generate 12 chips from discovery narrative. |
+| 11 — CTA template | `claude-sonnet-5` | Generate one JSON file from DESIGN.json tokens. |
+| 13 — deploy + verify | `claude-sonnet-5` | Scripted sync + verification curls + screenshots. |
 
-**Rule of thumb:** keep Opus only for steps that **author content the downstream pipeline depends on for quality** (discovery's narrative, extraction's tokens, prototype's HTML). Everything else — including template generation, which surprises people — should be Sonnet 4.6.
+**Rule of thumb:** keep Opus only for steps that **author content the downstream pipeline depends on for quality** (discovery's narrative, extraction's tokens, prototype's HTML). Everything else — including template generation, which surprises people — should be Sonnet 5.
 
 If a Sonnet step produces visibly degraded output in practice, bump *that step* to Opus — not the whole pipeline.
 
@@ -84,7 +84,7 @@ If a Sonnet step produces visibly degraded output in practice, bump *that step* 
 ```
 scoop_scoop({
   name: "of1-s6",
-  model: "claude-sonnet-4-6",
+  model: "claude-sonnet-5",
   writablePaths: ["/scoops/of1-s6/", "/shared/", "/workspace/{REPO_NAME}/"]
 })
 ```
@@ -95,14 +95,14 @@ This allows the scoop to write blocks, styles, and content directly into the rep
 ```
 scoop_scoop({
   name: "of1-s9-brand",
-  model: "claude-sonnet-4-6",
+  model: "claude-sonnet-5",
   writablePaths: ["/scoops/of1-s9-brand/", "/shared/", "/workspace/{REPO_NAME}/"]
 })
 
 # Content metadata uploads images via admin.da.live API (no mount needed).
 scoop_scoop({
   name: "of1-s9-content",
-  model: "claude-sonnet-4-6",
+  model: "claude-sonnet-5",
   writablePaths: ["/scoops/of1-s9-content/", "/shared/", "/workspace/{REPO_NAME}/"]
 })
 ```
@@ -117,7 +117,7 @@ Run these in the same orchestrator turn as scoops 10 + 11 (four scoops in one ba
 ```
 scoop_scoop({
   name: "of1-s7-base",
-  model: "claude-sonnet-4-6",
+  model: "claude-sonnet-5",
   writablePaths: ["/scoops/of1-s7-base/", "/shared/", "/workspace/{REPO_NAME}/"],
   env: { OF1_TG_MODE: "base" }
 })
@@ -128,7 +128,7 @@ scoop_scoop({
 for INTENT in comparison recommendation deep-dive budget discovery; do
   scoop_scoop({
     name: "of1-s7-${INTENT}",
-    model: "claude-sonnet-4-6",
+    model: "claude-sonnet-5",
     writablePaths: ["/scoops/of1-s7-${INTENT}/", "/shared/", "/workspace/{REPO_NAME}/"],
     env: { OF1_TG_MODE: "intent", OF1_TG_INTENT: "${INTENT}" }
   })
