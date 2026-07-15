@@ -156,7 +156,7 @@ def find_eds_pages(repo_dir, branch, owner, repo):
     
     Falls back to scanning the .snowflake directory for project names.
     """
-    preview_base = f'https://{branch}--{repo}--{owner}.aem.page/{branch}'
+    preview_base = f'https://{branch}--{repo}--{owner}.aem.page'
     pages = []
     
     # Try pre-generated page list
@@ -300,7 +300,7 @@ def main():
     logo_svg = get_logo_svg(repo_dir)
     
     # URLs
-    of1_url = f'{preview_base}/{branch}/of1'
+    of1_url = f'{preview_base}/of1'
     gallery_url = f'{preview_base}/gallery/index.html'
     
     # Load template

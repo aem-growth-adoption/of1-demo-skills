@@ -130,7 +130,7 @@ async function getLogoSvg(repoDir) {
 }
 
 async function findEdsPages(repoDir, branch, owner, repo) {
-  const previewBase = `https://${branch}--${repo}--${owner}.aem.page/${branch}`;
+  const previewBase = `https://${branch}--${repo}--${owner}.aem.page`;
   const pages = [];
 
   // Try pre-generated page list
@@ -269,7 +269,7 @@ async function main() {
   const logoSvg = await getLogoSvg(repoDir);
 
   // URLs
-  const of1Url = `${previewBase}/${branch}/of1`;
+  const of1Url = `${previewBase}/of1`;
   const galleryUrl = `${previewBase}/gallery/index.html`;
 
   // Load template
