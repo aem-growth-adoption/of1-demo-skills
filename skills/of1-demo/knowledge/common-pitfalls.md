@@ -54,15 +54,17 @@ EDS wraps each section in a `.<section-class>-wrapper` div with `max-width: 1440
 
 ## 2. Image handling
 
-### 2.1 ALL product images MUST be self-hosted on DA
+### 2.1 ALL product images MUST be self-hosted on DA and previewed on EDS
 Never leave external CDN URLs in `products.json` — not AEM delivery URLs, not the customer's site URLs, not third-party CDNs. External URLs break due to CORS, referrer policies, encoding, CDN token expiration, and EDS image-optimization rewriting.
 
-**Required URL pattern after upload:**
+Uploading to DA alone is not enough — the file only exists in DA's source store until it's **previewed**, which ingests it into EDS's Media Bus. `content.da.live` is DA's authoring/source store; it is access-restricted and is NOT a public delivery endpoint — links to it will fail even though the upload succeeded.
+
+**Required URL pattern after upload + preview:**
 ```
-https://content.da.live/{owner}/{repo}/media/product-{id}-{n}.{ext}
+https://{branch}--{repo}--{owner}.aem.page/media/product-{id}-{n}.{ext}
 ```
 
-**Canonical reference:** `of1-content-metadata` § "Pull Product Assets".
+**Canonical reference:** `of1-content-metadata` § "Pull Product Assets" (`download-images.py`/`.jsh` handles both the upload and the preview trigger automatically).
 
 ### 2.2 Minimum 2 images per product
 The pre-launch checklist FAILS if any product has fewer than 2 images. If a product detail page only shows 1 image, source additional ones from category/listing pages, manufacturer press pages, or related model pages.
@@ -189,8 +191,9 @@ curl -X POST \
 |---|---|
 | `admin.hlx.page` | preview/publish triggers |
 | `admin.da.live` | read/write DA content (PUT/GET) |
-| `content.da.live` | read-only content delivery (e.g. uploaded images) |
-| `*.aem.page` | EDS preview URLs |
+| `*.aem.page` | EDS preview URLs (also the correct place to link uploaded images once previewed) |
+
+`content.da.live` is DA's authoring/source store — it is access-restricted, not a public delivery endpoint. Never link images there; use the `*.aem.page` URL after triggering a preview.
 
 ---
 

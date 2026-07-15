@@ -204,7 +204,7 @@ print(f"\n✓ All {len(products)} products have ≥2 images")
 EOF
 ```
 
-All image URLs must be from `content.da.live` — never external CDN URLs.
+All image URLs must be from the site's own domain (`https://${BRANCH}--${REPO}--${OWNER}.aem.page/media/...`) — never `content.da.live` (access-restricted, not public) and never external CDN URLs.
 
 ### Check 4: Template catalog has 25 entries
 

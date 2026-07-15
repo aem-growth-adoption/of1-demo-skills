@@ -37,7 +37,7 @@ Array of products. **Required for tenant readiness. Vectorized for RAG.**
     "keywords": ["espresso", "home barista"],
     "highlights": ["Triple nozzles", "Adjustable grind", "5-cup capacity"],
     "images": [
-      "https://content.da.live/.../media/product-fresco-deluxe.png"
+      "https://main--repo--owner.aem.page/media/product-fresco-deluxe.png"
     ],
     "url": "/products/fresco-deluxe"
   }

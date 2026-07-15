@@ -861,10 +861,10 @@ These issues cost time in previous runs. Avoid them:
 
 7. **DA preview auth** — use `oauth-token adobe` to get the IMS token. For preview triggers, pass BOTH `Authorization: Bearer <token>` AND `x-content-source-authorization: Bearer <token>` headers to `admin.hlx.page`.
 
-8. **DA uploads in SLICC** — both `--data-binary @file` AND `cat file | curl --data-binary @-` silently store the literal string instead of file contents. **NEVER use `/mnt/da/`** — writes appear to succeed locally but binaries (images) do NOT persist on the DA backend (content.da.live returns 404). The ONLY reliable upload methods are:
+8. **DA uploads in SLICC** — both `--data-binary @file` AND `cat file | curl --data-binary @-` silently store the literal string instead of file contents. **NEVER use `/mnt/da/`** — writes appear to succeed locally but binaries (images) do NOT persist on the DA backend. The ONLY reliable upload methods are:
    - **Shell variable:** `curl -d "$HTML_VAR" ...` (works for short HTML content like DA pages)
    - **DA API multipart POST:** for binary files (images), use the `admin.da.live` multipart upload endpoint (see `download-images.jsh` for the pattern)
-   Always verify the upload by reading back: `curl -s -H "Authorization: Bearer $DA_TOKEN" "https://admin.da.live/source/..."` and checking the response contains expected content.
+   Always verify the upload by reading back: `curl -s -H "Authorization: Bearer $DA_TOKEN" "https://admin.da.live/source/..."` and checking the response contains expected content. Uploading is not enough to make the image reachable — you must also **trigger a preview** (`admin.hlx.page/preview/...`) so EDS's Media Bus ingests it. `content.da.live` is access-restricted and is NOT a public delivery domain; the working image URL is the site's own `{branch}--{repo}--{owner}.aem.page/media/...` path, only reachable after preview.
 
 9. **Deliverable HTML with images** — When HTML deliverables reference images (screenshots, logos), paths must be absolute from the repo root (e.g., `/deliverables/assets/screenshots/home.png`) so they resolve on the EDS preview URL. Relative paths like `assets/screenshots/...` break because the HTML is served at `/deliverables/brand-review.html` while images are at `/deliverables/assets/screenshots/`. Always commit the image assets alongside the HTML.
 
@@ -906,7 +906,7 @@ That's it. No npx, no da-auth-helper, no browser flow, no manual paste. Works in
 
 ### Writing DA content — admin.da.live API ONLY
 
-**⚠️ NEVER use `/mnt/da/`.** The DA mount is unreliable — writes appear to succeed locally but binaries (images) do NOT persist on the DA backend. `content.da.live` returns 404 for files "uploaded" via the mount. Always use the API.
+**⚠️ NEVER use `/mnt/da/`.** The DA mount is unreliable — writes appear to succeed locally but binaries (images) do NOT persist on the DA backend. Always use the API. After a successful upload, also **trigger a preview** (`admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/media/{filename}`, same dual-header auth as page previews) — without it, the file sits in DA's source store only. `content.da.live` is access-restricted (not a public delivery domain); the reachable image URL is the site's own `${BRANCH}--${REPO}--${OWNER}.aem.page/media/{filename}` path, and only after the preview trigger.
 
 **For short HTML content (DA pages, fragments):**
 ```bash
@@ -966,5 +966,5 @@ Example: `https://frescopa--labs-abc123--of1-labs.aem.page/prototype-home`
 |--------|---------|---------|
 | `admin.hlx.page` | ✅ Yes | Preview/publish triggers |
 | `admin.da.live` | ✅ Yes | Read/write DA content (PUT for upload, GET for read) |
-| `content.da.live` | ✅ Yes | Read-only content delivery |
+| `content.da.live` | ⚠️ No | Access-restricted DA source store — NOT a public delivery domain. Never link images here; link the `.aem.page` URL after preview instead. |
 | `*.adobelogin.com` | ✅ Yes | (IMS auth, handled by oauth-token) |

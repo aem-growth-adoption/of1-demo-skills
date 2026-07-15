@@ -112,6 +112,27 @@ async function downloadImage(url) {
   return { data: bytes, err: null };
 }
 
+async function triggerPreview(token, owner, repo, branch, filename) {
+  // Ingest the uploaded media file into EDS's Media Bus so it resolves at
+  // {branch}--{repo}--{owner}.aem.page/media/{filename}. Without this, the
+  // file only exists in DA's source store — content.da.live is not a public
+  // delivery endpoint (auth-gated) and the aem.page path 404s until previewed.
+  const url = `https://admin.hlx.page/preview/${owner}/${repo}/${branch}/media/${filename}`;
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'x-content-source-authorization': `Bearer ${token}`,
+      },
+    });
+    if (resp.ok) return null;
+    return `preview HTTP ${resp.status}`;
+  } catch (e) {
+    return `preview error: ${e.message}`;
+  }
+}
+
 async function uploadImage(data, contentType, token, owner, repo, branch, filename, mountDir) {
   // Try mount first
   if (mountDir) {
@@ -144,11 +165,15 @@ async function uploadImage(data, contentType, token, owner, repo, branch, filena
       },
       body: body,
     });
-    if (resp.ok) return { method: 'api', err: null };
-    return { method: null, err: `HTTP ${resp.status}` };
+    if (!resp.ok) return { method: null, err: `HTTP ${resp.status}` };
   } catch (e) {
     return { method: null, err: `upload error: ${e.message}` };
   }
+  // File is uploaded to DA's source store but not yet in the Media Bus —
+  // request a preview so it becomes reachable at the site's /media/ path.
+  const previewErr = await triggerPreview(token, owner, repo, branch, filename);
+  if (previewErr) return { method: null, err: previewErr };
+  return { method: 'api', err: null };
 }
 
 async function processOne(task, token, owner, repo, branch, mountDir) {
@@ -233,7 +258,7 @@ async function main() {
   const mapping = {};
   for (const r of results) {
     if (r.ok) {
-      const url = `https://content.da.live/${args.owner}/${args.repo}/media/${r.filename}`;
+      const url = `https://${args.branch}--${args.repo}--${args.owner}.aem.page/media/${r.filename}`;
       if (!mapping[r.product_id]) mapping[r.product_id] = [];
       mapping[r.product_id].push({ n: r.n, url });
     }

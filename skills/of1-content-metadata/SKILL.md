@@ -127,7 +127,7 @@ Write all files to `of1/config/`. Schemas below.
     "category": "category",
     "price": 999,
     "currency": "USD",
-    "images": ["https://content.da.live/owner/repo/media/product-slug-1.png"],
+    "images": ["https://branch--repo--owner.aem.page/media/product-slug-1.png"],
     "url": "https://site.com/products/slug",
     "description": "Detailed description (2-3 sentences). Sent to the LLM for generation.",
     "features": ["Feature 1", "Feature 2"],
@@ -143,7 +143,7 @@ Write all files to `of1/config/`. Schemas below.
 - `persona` (string): primary persona ID — used for RAG scoring boost
 - `useCase` (string): primary use-case ID — used for RAG scoring boost
 - `keywords` (array of 8–12 strings): search terms a user might type — each match adds +2 to score
-- `images` (array): **MUST be DA-hosted URLs** (see Step 8 below). Never external CDN URLs.
+- `images` (array): **MUST be site-domain (`.aem.page`/`.aem.live`) URLs after upload+preview** (see Step 9 below). Never external CDN URLs, never `content.da.live` (access-restricted).
 - `description` (string): must be rich enough for the LLM to generate detailed deep-dive content
 
 Without `persona`, `useCase`, and `keywords`, the worker cannot match user queries to the right products.
@@ -228,9 +228,9 @@ Verify all ID references are consistent across files. Fix mismatches.
 
 ### 9. Download + upload product images to DA
 
-⛔ **HARD GATE — DO NOT SKIP THIS STEP. DO NOT MARK THIS SKILL AS COMPLETE WITHOUT RUNNING `download-images.py`.** If you write the completion status file without first downloading and uploading images to DA, the demo WILL fail the pre-launch checklist and the entire pipeline run is wasted. This step is NOT optional. Placeholder URLs (like `https://main--repo--org.aem.page/media/...`) are NOT valid — they will 404.
+⛔ **HARD GATE — DO NOT SKIP THIS STEP. DO NOT MARK THIS SKILL AS COMPLETE WITHOUT RUNNING `download-images.py`.** If you write the completion status file without first downloading and uploading images to DA, the demo WILL fail the pre-launch checklist and the entire pipeline run is wasted. This step is NOT optional. Placeholder URLs written by hand instead of running the script are NOT valid — they will 404.
 
-**ALL product images MUST be self-hosted on DA.** Never leave external CDN URLs in `products.json` — external URLs break due to CORS, referrer policies, encoding issues, and EDS image optimization rewriting.
+**ALL product images MUST be self-hosted on DA and previewed on EDS.** Never leave external CDN URLs in `products.json` — external URLs break due to CORS, referrer policies, encoding issues, and EDS image optimization rewriting. `content.da.live` is DA's authoring/source store — it is access-restricted and NOT a public delivery endpoint. Images must be uploaded to DA AND previewed (so EDS's Media Bus ingests them), then referenced via the site's own domain: `https://${BRANCH}--${REPO}--${OWNER}.aem.page/media/{filename}`. `download-images.py`/`.jsh` does both steps automatically.
 
 **Minimum 4 images per product, up to 8.** The pre-launch checklist FAILS if any product has fewer than 4. Templates often render 3–6 item cards with images — fewer than 4 images per product leaves visible gaps. If a product page has only 1–3 images, look on the category/listing page, manufacturer press galleries, related model pages, or lifestyle/editorial pages for additional angles.
 
@@ -250,7 +250,7 @@ Stage the source URLs in `products.json`'s `images` arrays.
 
 #### Parallel download + upload
 
-Use `download-images.py` — it downloads + uploads concurrently (8 workers), sniffs content type from magic bytes, and resolves the DA token automatically.
+Use `download-images.py` — it downloads + uploads concurrently (8 workers), sniffs content type from magic bytes, triggers an EDS preview per image so it's reachable on the site's own domain, and resolves the DA token automatically.
 
 ```bash
 cd "$OF1_DEMO_REPO"
@@ -282,7 +282,7 @@ python3 "$SKILL_DIR/assets/download-images.py" \
 #   --update-products
 ```
 
-The `--update-products` flag rewrites `products.json[*].images` to DA URLs automatically.
+The `--update-products` flag rewrites `products.json[*].images` to the site's `.aem.page/media/...` URLs automatically.
 
 #### Clean up temp files before any commit
 
@@ -337,7 +337,7 @@ EOF
 ⛔ **BEFORE writing the status file below, you MUST have:**
 1. Run `download-images.py` with `--update-products` (Step 9 above)
 2. Verified ALL product image URLs return HTTP 200 (the verify script above)
-3. Confirmed all images are `https://content.da.live/...` URLs, NOT `https://main--...aem.page/media/...`
+3. Confirmed all images are `https://${BRANCH}--${REPO}--${OWNER}.aem.page/media/...` URLs (site domain, previewed), NOT `https://content.da.live/...` (access-restricted, not public)
 
 If ANY of these are false, GO BACK and complete Step 9. Do not proceed.
 

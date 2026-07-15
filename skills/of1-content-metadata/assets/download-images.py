@@ -125,15 +125,44 @@ def download(url, dest_path):
     return data, None
 
 
+def trigger_preview(token, owner, repo, branch, filename):
+    """Ingest the uploaded media file into EDS's Media Bus so it resolves at
+    {branch}--{repo}--{owner}.aem.page/media/{filename}. Without this, the
+    file only exists in DA's source store — content.da.live is not a public
+    delivery endpoint (auth-gated) and the aem.page path 404s until previewed.
+    """
+    url = f"https://admin.hlx.page/preview/{owner}/{repo}/{branch}/media/{filename}"
+    try:
+        conn = http.client.HTTPSConnection("admin.hlx.page", timeout=30)
+        conn.request(
+            "POST",
+            f"/preview/{owner}/{repo}/{branch}/media/{filename}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "x-content-source-authorization": f"Bearer {token}",
+            },
+        )
+        resp = conn.getresponse()
+        resp.read()
+        conn.close()
+    except Exception as e:
+        return f"preview error: {e}"
+    if resp.status in (200, 201, 204):
+        return None
+    return f"preview HTTP {resp.status}"
+
+
 def upload(tmp_file, content_type, token, owner, repo, branch, filename, mount_dir):
     if mount_dir:
         mount_path = Path(mount_dir) / branch / "media" / filename
         try:
             mount_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(tmp_file, mount_path)
-            return "mount", None
         except Exception:
             pass  # fall through to API
+        else:
+            err = trigger_preview(token, owner, repo, branch, filename)
+            return ("mount", err) if err else ("mount", None)
     url = f"https://admin.da.live/source/{owner}/{repo}/media/{filename}"
     with open(tmp_file, "rb") as f:
         body = f.read()
@@ -169,9 +198,14 @@ def upload(tmp_file, content_type, token, owner, repo, branch, filename, mount_d
         conn.close()
     except Exception as e:
         return None, f"upload error: {e}"
-    if resp.status in (200, 201, 204):
-        return "api", None
-    return None, f"HTTP {resp.status}"
+    if resp.status not in (200, 201, 204):
+        return None, f"HTTP {resp.status}"
+    # File is uploaded to DA's source store but not yet in the Media Bus —
+    # request a preview so it becomes reachable at the site's /media/ path.
+    err = trigger_preview(token, owner, repo, branch, filename)
+    if err:
+        return None, err
+    return "api", None
 
 
 def process_one(task, token, owner, repo, branch, mount_dir, tmpdir):
@@ -279,7 +313,7 @@ def main(argv):
     for r in results:
         if r["ok"]:
             url = (
-                f"https://content.da.live/{args.owner}/{args.repo}/"
+                f"https://{args.branch}--{args.repo}--{args.owner}.aem.page/"
                 f"media/{r['filename']}"
             )
             mapping.setdefault(r["product_id"], []).append((r["n"], url))
