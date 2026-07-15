@@ -69,12 +69,22 @@ Array of personas. Used by `persona-match` step.
     "name": "Home Barista",
     "keywords": ["espresso", "crema", "barista", "grind"],
     "description": "Enthusiast brewing cafe-quality at home.",
-    "preferences": { "brewMethod": "espresso", "skill": "intermediate" }
+    "preferences": { "brewMethod": "espresso", "skill": "intermediate" },
+    "intentProfile": {
+      "explore": 0.3,
+      "research": 0.8,
+      "compare": 0.6,
+      "purchase": 0.3,
+      "deals": 0.2,
+      "support": 0.2
+    }
   }
 ]
 ```
 
 `keywords[]` are matched (case-insensitive substring) against the user query. First hit wins; if no match, `personas[0]` is used as default.
+
+`intentProfile` (object, 0–1 per axis: `explore`/`research`/`compare`/`purchase`/`deals`/`support`) drives the demo's Intent Map radar. See `of1-content-metadata`'s SKILL.md for the full field description.
 
 ---
 
