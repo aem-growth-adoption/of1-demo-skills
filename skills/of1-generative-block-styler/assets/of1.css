@@ -629,9 +629,12 @@ div.generated-section > section {
 
 /* ─── Full-width fix for generated sections ───────────────── */
 /* Generated sections themselves are full-width; wrappers for content blocks
-   (cards, columns, table) keep their max-width to constrain inner content. */
-.generated-section,
-main > .section.generated-section {
+   (cards, columns, table) keep their max-width to constrain inner content.
+   Template-routed sections carry `.of1-section` and manage their own width
+   via their own stylesheet (see styles/of1-template-base.css) — exclude
+   them so this legacy full-bleed override doesn't stomp their max-width. */
+.generated-section:not(.of1-section),
+main > .section.generated-section:not(.of1-section) {
   max-width: 100% !important;
   width: 100% !important;
   padding-left: 0 !important;
