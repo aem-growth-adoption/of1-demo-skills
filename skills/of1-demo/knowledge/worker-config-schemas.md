@@ -69,7 +69,8 @@ Array of personas. Used by `persona-match` step.
     "name": "Home Barista",
     "keywords": ["espresso", "crema", "barista", "grind"],
     "description": "Enthusiast brewing cafe-quality at home.",
-    "preferences": { "brewMethod": "espresso", "skill": "intermediate" },
+    "priorities": ["machine quality", "brewing control"],
+    "recommendedProducts": ["fresco-deluxe"],
     "intentProfile": {
       "explore": 0.3,
       "research": 0.8,
@@ -82,9 +83,17 @@ Array of personas. Used by `persona-match` step.
 ]
 ```
 
-`keywords[]` are matched (case-insensitive substring) against the user query. First hit wins; if no match, `personas[0]` is used as default.
+| Field | Read by the worker? | Used for |
+|-------|----------------------|----------|
+| `id` | yes | `persona-match` output identity; boosts `products.json` entries where `product.persona === persona.id` |
+| `name` | yes | Prompt/logging label (`ctx.rag.persona.name`) |
+| `keywords[]` | yes | `persona-match` matches these (case-insensitive substring) against the user query — first hit wins, `personas[0]` is the default if nothing matches |
+| `description` | no | Not read by the worker pipeline. Human/LLM-readable context only. |
+| `priorities[]` | no | Not read by the worker pipeline. Consumed by of1-demo-skills' own content generation (e.g. deriving `intentProfile`). |
+| `recommendedProducts[]` | no | Not read by the worker pipeline. Consumed by the of1-labs demo UI (persona panel's "Top Interests"). |
+| `intentProfile` | no | Not read by the worker pipeline. Consumed by the of1-labs demo UI's Intent Map radar chart only — see `of1-content-metadata`'s SKILL.md for the full field description. |
 
-`intentProfile` (object, 0–1 per axis: `explore`/`research`/`compare`/`purchase`/`deals`/`support`) drives the demo's Intent Map radar. See `of1-content-metadata`'s SKILL.md for the full field description.
+Only `id`, `name`, and `keywords` are part of the worker's actual runtime contract for personas. Everything else is optional and only matters to whichever downstream consumer reads it (demo UI, content-generation skills) — it's safe to omit if that consumer isn't in play, and safe to extend further without touching the worker.
 
 ---
 
