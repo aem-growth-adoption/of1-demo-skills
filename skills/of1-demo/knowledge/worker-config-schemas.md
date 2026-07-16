@@ -83,17 +83,25 @@ Array of personas. Used by `persona-match` step.
 ]
 ```
 
-| Field | Read by the worker? | Used for |
-|-------|----------------------|----------|
+| Field | Read from `personas.json` directly? | Used for |
+|-------|--------------------------------------|----------|
 | `id` | yes | `persona-match` output identity; boosts `products.json` entries where `product.persona === persona.id` |
 | `name` | yes | Prompt/logging label (`ctx.rag.persona.name`) |
-| `keywords[]` | yes | `persona-match` matches these (case-insensitive substring) against the user query — first hit wins, `personas[0]` is the default if nothing matches |
-| `description` | no | Not read by the worker pipeline. Human/LLM-readable context only. |
-| `priorities[]` | no | Not read by the worker pipeline. Consumed by of1-demo-skills' own content generation (e.g. deriving `intentProfile`). |
-| `recommendedProducts[]` | no | Not read by the worker pipeline. Consumed by the of1-labs demo UI (persona panel's "Top Interests"). |
-| `intentProfile` | no | Not read by the worker pipeline. Consumed by the of1-labs demo UI's Intent Map radar chart only — see `of1-content-metadata`'s SKILL.md for the full field description. |
+| `keywords[]` | yes | `persona-match` matches these (case-insensitive substring) against the user's typed query — first hit wins, `personas[0]` is the default if nothing matches |
+| `description` | no | Not read by the worker. Human/LLM-readable context only. |
+| `priorities[]` | no | Not read by the worker. Consumed by of1-demo-skills' own content generation (e.g. deriving `intentProfile`). |
+| `recommendedProducts[]` / `intentProfile` | no (but see below) | Not read from `personas.json` itself, but their *shape* becomes load-bearing input to real generation once the of1-labs demo UI's "Personalize" action fires for that persona. |
 
-Only `id`, `name`, and `keywords` are part of the worker's actual runtime contract for personas. Everything else is optional and only matters to whichever downstream consumer reads it (demo UI, content-generation skills) — it's safe to omit if that consumer isn't in play, and safe to extend further without touching the worker.
+`id`/`name`/`keywords` are the only fields the worker reads straight out of tenant config for `persona-match` (typed-query mode). `priorities[]`/`description` never leave the config file.
+
+**`recommendedProducts[]` and `intentProfile` are different — they're not config the worker loads, but the of1-labs demo UI turns them into a live request payload that the worker's *personalize* pipeline directly consumes:**
+
+1. of1-labs' `buildProfileFromPersona` turns `recommendedProducts` → `profile.interests`, and reads/derives `profile.intentProfile` (see the field's own description below).
+2. Clicking "Personalize" POSTs `{ interests, intentProfile, pageVisits, ... }` to the worker's personalize endpoint.
+3. `analyze-behavior.js` explicitly normalizes this exact shape — its own comment: *"the of1-labs persona picker sends a flat score distribution (e.g. `{ explore: 0.2, research: 0.8, ... }`) with no `topIntent`"* — into `ctx.rag.behaviorAnalysis.topIntent` / `.interests` / `.intentSignals`.
+4. From there it drives real output: `intent-classify.js` sets `ctx.intent.type` from `topIntent`, which `template-select.js` uses to **pick which of the 25 templates to render**, `rag-products.js` uses to flip deep-dive retrieval behavior, `rag-vectorize.js` uses `.interests`/`.intentSignals` to bias RAG product retrieval, and `build-prompt.js`/`build-template-prompt.js` put `intent` straight into the LLM's prompt context.
+
+So while these two fields never touch the worker's tenant-config loading path, they are the actual input that determines what gets generated when a demo persona is "played" — not cosmetic, and not safe to treat as inert metadata.
 
 ---
 
