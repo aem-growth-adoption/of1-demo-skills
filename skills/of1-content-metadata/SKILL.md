@@ -90,7 +90,7 @@ For each product (cap at 20 in pipeline mode), extract: name, price, currency, c
 
 ### 4. Infer personas and use cases
 
-**Personas:** distinct buyer types with trigger keywords, priorities, and product mappings.
+**Personas:** distinct buyer types with trigger keywords, priorities, product mappings, and an intent profile (see `personas.json` schema in Step 7 — at least one axis should be clearly dominant per persona so personas are visually distinct on the demo's Intent Map).
 
 **Use cases:** activities/goals with trigger keywords and recommended products.
 
@@ -157,10 +157,22 @@ Without `persona`, `useCase`, and `keywords`, the worker cannot match user queri
     "description": "Who this represents and what they're looking for",
     "keywords": ["trigger", "words", "user", "would", "type", "in", "search"],
     "priorities": ["what", "they", "value"],
-    "recommendedProducts": ["product-id-1", "product-id-2"]
+    "recommendedProducts": ["product-id-1", "product-id-2"],
+    "intentProfile": {
+      "explore": 0.3,
+      "research": 0.8,
+      "compare": 0.6,
+      "purchase": 0.3,
+      "deals": 0.2,
+      "support": 0.2
+    }
   }
 ]
 ```
+
+`intentProfile` (object, 0–1 per axis): where this persona typically sits on the shopping-intent funnel — `explore` (browsing broadly, no target yet), `research` (digging into specs/details), `compare` (weighing alternatives), `purchase` (ready to buy), `deals` (price/promo-sensitive), `support` (needs help/service, post-sale). Infer it from the persona's `priorities`/`description` — give each persona a clearly dominant axis (≥0.7) and at least one clearly low axis (≤0.3) so personas render as visibly different shapes rather than a uniform hexagon.
+
+This isn't just cosmetic: it renders as the demo's Intent Map radar, but when a viewer clicks "Personalize" for that persona, this exact value is sent to the OF1 worker's personalize endpoint and directly drives real generation — which of the 25 templates gets selected, the RAG retrieval mode, and the intent context put in the LLM prompt (see `of1-demo/knowledge/worker-config-schemas.md` § `personas.json` for the full trace). Get it wrong and the persona won't just look wrong on the radar — it'll get shown content for the wrong intent.
 
 `keywords` (10–12 strings) are matched against the user's query. Without them, persona matching fails silently and defaults to the first persona.
 
