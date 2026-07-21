@@ -159,14 +159,18 @@ if [ -n "${OF1_DEMO_REPO:-}" ] && [ -d "${OF1_DEMO_REPO}/.git" ]; then
   # Use subshell + cd — SLICC's git shim doesn't support `-C` or `remote get-url`.
   REMOTE=$(cd "$OF1_DEMO_REPO" && git config remote.origin.url 2>/dev/null || true)
   case "$REMOTE" in
+    # Legacy fixed demo repo, and the of1-labs orchestrator's actual
+    # per-experiment repos (e.g. of1-labs/of1-<id>, of1-labs/stardust-<id>,
+    # of1-labs/l2a-<id> — see GITHUB_LABS_ORG/repoPrefix in of1-labs-service).
     *aem-growth-adoption/of1-demo*) OF1_REPO="$OF1_DEMO_REPO" ;;
+    *of1-labs/*) OF1_REPO="$OF1_DEMO_REPO" ;;
   esac
 fi
 
 if [ -n "$OF1_REPO" ]; then
   ok "of1-demo repo → $OF1_REPO"
 else
-  fail "of1-demo repo: OF1_DEMO_REPO env var not set or not a valid clone of aem-growth-adoption/of1-demo — the orchestrator will ask where to clone and set this env var"
+  fail "of1-demo repo: OF1_DEMO_REPO env var not set or not a valid clone of aem-growth-adoption/of1-demo or of1-labs/* — the orchestrator will ask where to clone and set this env var"
 fi
 
 # ---------- 5. Adobe IMS / DA token ----------
