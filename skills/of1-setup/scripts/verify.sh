@@ -49,7 +49,7 @@ fix_cmd() {
 
 REQUIRED_SKILLS=(
   of1-repo-setup of1-discovery of1-extraction of1-prototype
-  of1-snowflake of1-template-generation of1-generative-block-styler
+  of1-stardust-deploy of1-template-generation of1-generative-block-styler
   of1-brand-voice-extractor of1-content-metadata of1-quick-suggestions
   of1-cta-template-builder of1-config-review of1-deploy
 )
@@ -84,20 +84,18 @@ else
   fail "Missing OF1 step skills: ${MISSING[*]} — fix: $(fix_cmd '/plugin install of1-demo-skills@<marketplace>' 'upskill aem-growth-adoption/of1-demo-skills --all')"
 fi
 
-# ---------- 2. Adobe EDS skills: stardust + snowflake + impeccable ----------
+# ---------- 2. Adobe EDS skills: stardust + impeccable ----------
 # In SLICC, auto-install missing skills via `upskill`. In CC, report the fix command.
 # Also check stardust sub-skills (extract, prototype) needed by Steps 4 & 5.
 
-ADOBE_EDS_SKILLS=(stardust snowflake impeccable)
+ADOBE_EDS_SKILLS=(stardust impeccable)
 
 install_skill_slicc() {
   local name="$1"
   case "$name" in
     stardust)
-      # Install ALL stardust skills (extract, prototype, direct, etc.)
+      # Install ALL stardust skills (extract, prototype, direct, deploy, etc.)
       upskill adobe/skills --path plugins/stardust --all 2>&1 | tail -1 ;;
-    snowflake)
-      upskill adobe/skills --path plugins/aem/edge-delivery-services --all 2>&1 | tail -1 ;;
     impeccable)
       upskill pbakaus/impeccable --all 2>&1 | tail -1 ;;
   esac
@@ -119,8 +117,6 @@ for S in "${ADOBE_EDS_SKILLS[@]}"; do
       fi
     else
       case "$S" in
-        snowflake)
-          fail "Adobe EDS skill 'snowflake' not installed — fix: /plugin install aem-edge-delivery-services@adobe-skills" ;;
         stardust)
           fail "Adobe EDS skill 'stardust' not installed — fix: /plugin install stardust@adobe-skills" ;;
         impeccable)

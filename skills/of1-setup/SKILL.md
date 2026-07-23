@@ -25,8 +25,8 @@ Downstream steps (starting with step 2) **structurally depend on `$OF1_STATE_DIR
 
 ## What it checks
 
-1. The 13 OF1 step skills are installed (`of1-discovery`, `of1-snowflake`, …)
-2. The Adobe EDS skills `stardust`, `snowflake`, `impeccable` are installed
+1. The 13 OF1 step skills are installed (`of1-discovery`, `of1-stardust-deploy`, …)
+2. The Adobe EDS skills `stardust`, `impeccable` are installed
 3. Shell tools: `node`, `python3`, `jq`, `git`, `curl`
 4. `playwright-cli` (or the standard `playwright` binary with a shim warning)
 5. The `of1-demo` content repo is a valid clone at `$OF1_DEMO_REPO`
@@ -55,5 +55,5 @@ Token resolution order: `$ADOBE_IMS_TOKEN` → `$OF1_TOKEN_FILE` → `$PWD/.hlx/
 
 ## Install behavior
 
-- **SLICC:** the script auto-installs missing Adobe EDS skills (`stardust`, `snowflake`, `impeccable`) via `upskill` — SLICC can activate skills mid-session. If auto-install fails, it reports the error and exits.
+- **SLICC:** the script auto-installs missing Adobe EDS skills (`stardust`, `impeccable`) via `upskill` — SLICC can activate skills mid-session. If auto-install fails, it reports the error and exits.
 - **Claude Code:** cannot activate plugins installed mid-session (`/plugin install` only picks up disk changes between turns). Missing items are reported with the exact fix command for the user to run, then restart Claude Code.
