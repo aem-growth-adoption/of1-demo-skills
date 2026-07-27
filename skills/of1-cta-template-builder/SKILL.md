@@ -12,7 +12,7 @@ Analyze a website's visual design system (fonts, colors, button styles, spacing)
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-11-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-10-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 
 Read repo config:
@@ -24,7 +24,7 @@ cd "$OF1_DEMO_REPO"
 mkdir -p of1/config
 ```
 
-Read existing design tokens (from step 4 extraction) — use for colors, fonts, button styles, border-radius. Only WebFetch the site if you need CTA-specific details not in the tokens:
+Read existing design tokens (from step 3 extraction) — use for colors, fonts, button styles, border-radius. Only WebFetch the site if you need CTA-specific details not in the tokens:
 ```bash
 cat stardust/current/DESIGN.json 2>/dev/null
 ```
@@ -124,7 +124,7 @@ Ensure:
 ## Completion (pipeline mode)
 
 ```bash
-cat > "$OF1_STATE_DIR/step-11-status.json" <<EOF
-{"step":11,"status":"done","summary":"CTA template generated: [brief visual description]"}
+cat > "$OF1_STATE_DIR/step-10-status.json" <<EOF
+{"step":10,"status":"done","summary":"CTA template generated: [brief visual description]"}
 EOF
 ```

@@ -12,7 +12,7 @@ Generate the config-review.html deliverable for an OF1 demo using the proper tem
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-12-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-11-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 | `SKILL_DIR` | absolute path to this skill (used to find `assets/fill-config-review.*`) |
 
@@ -29,7 +29,7 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 ## When to use
 
 - After ANY change to `of1/config/*.json` files (products, suggestions, brand-voice, personas, use-cases, features, cta-template)
-- As step 12 in the pipeline (after steps 9–11 complete)
+- As step 11 in the pipeline (after steps 8–10 complete)
 - Whenever the user asks to regenerate or update the config review page
 
 ## Prerequisites
@@ -41,14 +41,14 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 
 ### 1. Verify all config files are present (hard gate)
 
-The fill script silently reads whatever is on disk — it won't fail if a file is stale or empty. Guard against running too early (before step 9 finishes):
+The fill script silently reads whatever is on disk — it won't fail if a file is stale or empty. Guard against running too early (before step 8 finishes):
 
 ```bash
 cd "$OF1_DEMO_REPO"
 for f in products brand-voice personas use-cases features faqs suggestions cta-template; do
   [ -s "of1/config/${f}.json" ] || {
     echo "FAIL: of1/config/${f}.json missing or empty." >&2
-    echo "Step 9 may not have finished. Wait for all parallel steps to complete before running step 12." >&2
+    echo "Step 8 may not have finished. Wait for all parallel steps to complete before running step 11." >&2
     exit 1
   }
 done
@@ -100,9 +100,9 @@ A self-contained dark-themed dashboard showing:
 
 ```bash
 REVIEW_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/config-review.html"
-cat > "$OF1_STATE_DIR/step-12-status.json" <<EOF
+cat > "$OF1_STATE_DIR/step-11-status.json" <<EOF
 {
-  "step": 12,
+  "step": 11,
   "status": "review",
   "deliverables": [
     { "url": "${REVIEW_URL}", "label": "Config review" }

@@ -12,7 +12,7 @@ Generate domain-specific quick suggestion chips, placeholder text, and search UI
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-10-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-9-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 
 Read repo config:
@@ -29,9 +29,9 @@ Schema reference: `of1-demo/knowledge/worker-config-schemas.md` § `suggestions.
 ## Inputs
 
 - `DOMAIN` (e.g. `frescopa.coffee`). In pipeline mode, read from repo-config. Only ask the user if not provided.
-- Discovery output at `$OF1_STATE_DIR/step-3-output.md` (for product/category knowledge)
+- Discovery output at `$OF1_STATE_DIR/step-2-output.md` (for product/category knowledge)
 
-**REQUIRED — read step 9 outputs before generating suggestions.** This step runs AFTER step 9 completes, so these files exist:
+**REQUIRED — read step 8 outputs before generating suggestions.** This step runs AFTER step 8 completes, so these files exist:
 
 ```bash
 # Product names — suggestions MUST reference only real products that exist
@@ -96,7 +96,7 @@ The OF1 block fetches this on page load to populate the search UI (randomly pick
 ## Completion (pipeline mode)
 
 ```bash
-cat > "$OF1_STATE_DIR/step-10-status.json" <<EOF
-{"step":10,"status":"done","summary":"Generated [N] suggestion chips covering [intents covered]."}
+cat > "$OF1_STATE_DIR/step-9-status.json" <<EOF
+{"step":9,"status":"done","summary":"Generated [N] suggestion chips covering [intents covered]."}
 EOF
 ```

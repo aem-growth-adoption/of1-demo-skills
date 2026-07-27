@@ -12,7 +12,7 @@ Commit config files, trigger sync to the OF1 worker, generate the demo hub, run 
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-13-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-12-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 | `SKILL_DIR` | absolute path to this skill (used to find `assets/fill-demo-hub.*`) |
 | `ADOBE_IMS_TOKEN` | raw DA token (preferred) |
@@ -63,7 +63,7 @@ for f in brand-voice products personas use-cases features faqs suggestions cta-t
 done
 ```
 
-`of1-endpoint.json` must exist (created by step 2). If missing, fail — don't recreate it here.
+`of1-endpoint.json` must exist (created by step 1). If missing, fail — don't recreate it here.
 
 ### 2. Generate demo hub page
 
@@ -215,7 +215,7 @@ from pathlib import Path
 
 p = Path('templates/templates-catalog.json')
 if not p.exists():
-    print("✗ templates-catalog.json missing — Step 7 did not run", file=sys.stderr)
+    print("✗ templates-catalog.json missing — Step 6 did not run", file=sys.stderr)
     sys.exit(1)
 
 catalog = json.loads(p.read_text())
@@ -283,7 +283,7 @@ fi
 
 ### Checklist summary
 
-Only mark Step 13 done if ALL 6 pass:
+Only mark Step 12 done if ALL 6 pass:
 
 | # | Check |
 |---|-------|
@@ -312,9 +312,9 @@ Pre-launch checklist: 5/5 passed ✓
 ```bash
 HUB_URL="${PREVIEW_BASE}/deliverables/index.html"
 OF1_URL="${PREVIEW_BASE}/of1"
-cat > "$OF1_STATE_DIR/step-13-status.json" <<EOF
+cat > "$OF1_STATE_DIR/step-12-status.json" <<EOF
 {
-  "step": 13,
+  "step": 12,
   "status": "done",
   "deliverables": [
     { "url": "${HUB_URL}", "label": "Demo hub" },
