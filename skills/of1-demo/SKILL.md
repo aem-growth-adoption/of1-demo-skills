@@ -10,15 +10,15 @@ Lightweight orchestrator that opens the demo pipeline sprinkle and dispatches st
 
 ## How It Works
 
-1. The sprinkle (`of1-demo`) shows 13 steps as a pipeline
+1. The sprinkle (`of1-demo`) shows 12 steps as a pipeline
 2. User enters a domain and clicks "Run" on each step
 3. Each click fires a lick to the cone with `{action: "run:<step>:<skill>:<domain>"}`
 4. The cone spawns a scoop to execute the step skill with appropriate context
 5. Steps with review gates pause for user approval (Approve/Revise buttons in sprinkle)
-6. After step 5 (Prototype), two tracks run in parallel:
-   - **Track A (EDS Site):** Step 6 (Snowflake) → Steps 7 (Templates) + 8 (OF1 styling) in parallel after S6
-   - **Track B (Config):** Steps 9–11 (Brand & content, Suggestions, CTA) in parallel → Step 12 (Config review)
-7. Step 13 (Deploy) requires Track A step 7 done AND Track B step 12 approved
+6. After step 4 (Prototype), two tracks run in parallel:
+   - **Track A (EDS Site):** Step 5 (Snowflake) → Steps 6 (Templates) + 7 (OF1 styling) in parallel after S5
+   - **Track B (Config):** Steps 8–10 (Brand & content, Suggestions, CTA) in parallel → Step 11 (Config review)
+7. Step 12 (Deploy) requires Track A step 6 done AND Track B step 11 approved
 
 ## Setup
 

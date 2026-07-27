@@ -144,6 +144,20 @@ In both `of1-demo` and `of1-demo-cc`:
   (`"repo-setup"` at old step 2) are removed since setup+repo-setup collapse
   into step 1's audit entry.
 
+### 10. SLICC sprinkle (`of1-demo/of1-demo.shtml`) must reflect the merge
+
+The sprinkle's `STEPS` array is the actual pipeline definition for SLICC (not
+just the doc tables in `SKILL.md`) — it drives which skill each step
+dispatches, the `requires` dependency indices, quick-link step numbers, and
+the two hardcoded track-B "Config review is separate" index checks. All of
+these must be updated in lockstep with the renumbering in section 9:
+
+- Merge the `Install dependencies` + `Repo setup` entries into a single
+  `Setup` entry (skill `of1-setup`, `requires: []`).
+- Shift every other step's `requires` indices down by one.
+- Update the two hardcoded Config-review index checks and the `QUICKLINKS`
+  step-number map to the new indices.
+
 ## Removed
 
 - `skills/of1-repo-setup/` (entire skill)
@@ -164,7 +178,8 @@ Skills requiring edits:
 - `of1-setup` — absorb the logic (sections 1–7 above).
 - `of1-repo-setup` — delete.
 - `of1-demo` — renumber steps, dependency graph, model table, state-file
-  table, per-step needs list.
+  table, per-step needs list, and the sprinkle UI (`of1-demo.shtml`,
+  section 10).
 - `of1-demo-cc` — same renumbering, plus its step-dispatch template and
   pipeline-audit shape.
 

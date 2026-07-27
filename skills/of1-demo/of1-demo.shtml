@@ -767,19 +767,18 @@
 <script>
 (function () {
   var STEPS = [
-    { name: 'Install dependencies', skill: 'of1-setup', review: false, desc: 'Verify skills, tools, and prerequisites are ready', track: null, requires: [] },
-    { name: 'Repo setup', skill: 'of1-repo-setup', review: false, desc: 'Set up EDS repo, create demo branch, clean slate, verify preview', track: null, requires: [0], openLabel: 'Repo' },
-    { name: 'Discovery', skill: 'of1-discovery', review: true, desc: 'Crawl site, identify products, propose demo focus', reviewNote: 'Demo focus and narrative', track: null, requires: [1], openLabel: 'Discovery' },
-    { name: 'Extraction', skill: 'of1-extraction', review: true, desc: 'Extract design tokens, fonts, colors, and page structure', reviewNote: 'Brand review page', track: null, requires: [2], openLabel: 'Brand Review' },
-    { name: 'Prototype', skill: 'of1-prototype', review: true, desc: 'Generate pixel-perfect HTML reproductions of key pages', reviewNote: 'HTML prototypes', track: null, requires: [3], openLabel: 'Prototypes' },
-    { name: 'Snowflake', skill: 'of1-snowflake', review: true, desc: 'Convert prototypes to EDS overlay pages, publish to DA.live', reviewNote: 'Preview URL', track: 'A', requires: [4], openLabel: 'Preview' },
-    { name: 'Templates', skill: 'of1-template-generation', review: true, desc: 'Generate 25 branded templates (5 intents × 5 variations)', reviewNote: 'Template gallery', track: 'A', requires: [5], openLabel: 'Gallery' },
-    { name: 'OF1 styling', skill: 'generative-block-styler', review: true, desc: 'Style the generative search UI to match the brand', reviewNote: 'OF1 page', track: 'A', requires: [5], openLabel: 'OF1 Page' },
-    { name: 'Brand & content', skill: 'brand-voice-extractor,content-metadata', review: false, desc: 'Extract brand voice, products, personas, and assets', track: 'B', requires: [4] },
-    { name: 'Suggestions', skill: 'quick-suggestions', review: false, desc: 'Generate search chips and UI copy for the demo', track: 'B', requires: [4] },
-    { name: 'CTA template', skill: 'cta-template-builder', review: false, desc: 'Extract design system, build branded CTA template', track: 'B', requires: [4] },
-    { name: 'Config review', skill: 'config-review', review: true, desc: 'Review all config before deploy', reviewNote: 'Config review page', track: 'B', requires: [8, 9, 10], openLabel: 'Config Review' },
-    { name: 'Deploy', skill: 'of1-deploy', review: true, desc: 'Deploy to worker, publish demo hub', reviewNote: 'Demo Hub', track: null, requires: [6, 7, 11], openLabel: 'Demo Hub' }
+    { name: 'Setup', skill: 'of1-setup', review: false, desc: 'Verify skills, tools, and prerequisites; verify EDS repo, clean slate, verify preview', track: null, requires: [], openLabel: 'Repo' },
+    { name: 'Discovery', skill: 'of1-discovery', review: true, desc: 'Crawl site, identify products, propose demo focus', reviewNote: 'Demo focus and narrative', track: null, requires: [0], openLabel: 'Discovery' },
+    { name: 'Extraction', skill: 'of1-extraction', review: true, desc: 'Extract design tokens, fonts, colors, and page structure', reviewNote: 'Brand review page', track: null, requires: [1], openLabel: 'Brand Review' },
+    { name: 'Prototype', skill: 'of1-prototype', review: true, desc: 'Generate pixel-perfect HTML reproductions of key pages', reviewNote: 'HTML prototypes', track: null, requires: [2], openLabel: 'Prototypes' },
+    { name: 'Snowflake', skill: 'of1-snowflake', review: true, desc: 'Convert prototypes to EDS overlay pages, publish to DA.live', reviewNote: 'Preview URL', track: 'A', requires: [3], openLabel: 'Preview' },
+    { name: 'Templates', skill: 'of1-template-generation', review: true, desc: 'Generate 25 branded templates (5 intents × 5 variations)', reviewNote: 'Template gallery', track: 'A', requires: [4], openLabel: 'Gallery' },
+    { name: 'OF1 styling', skill: 'generative-block-styler', review: true, desc: 'Style the generative search UI to match the brand', reviewNote: 'OF1 page', track: 'A', requires: [4], openLabel: 'OF1 Page' },
+    { name: 'Brand & content', skill: 'brand-voice-extractor,content-metadata', review: false, desc: 'Extract brand voice, products, personas, and assets', track: 'B', requires: [3] },
+    { name: 'Suggestions', skill: 'quick-suggestions', review: false, desc: 'Generate search chips and UI copy for the demo', track: 'B', requires: [3] },
+    { name: 'CTA template', skill: 'cta-template-builder', review: false, desc: 'Extract design system, build branded CTA template', track: 'B', requires: [3] },
+    { name: 'Config review', skill: 'config-review', review: true, desc: 'Review all config before deploy', reviewNote: 'Config review page', track: 'B', requires: [7, 8, 9], openLabel: 'Config Review' },
+    { name: 'Deploy', skill: 'of1-deploy', review: true, desc: 'Deploy to worker, publish demo hub', reviewNote: 'Demo Hub', track: null, requires: [5, 6, 10], openLabel: 'Demo Hub' }
   ];
 
   var OPEN_LINK_ICON = '<svg class="of1-card__open-icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -816,7 +815,7 @@
 
   function canRun(idx) {
     if (!state.domain && idx > 0) return false;
-    if (idx === 0 && !state.domain) return true; // Install deps can run without domain
+    if (idx === 0 && !state.domain) return true; // Setup can run without domain
     var st = state.steps[idx];
     if (st.status === 'active') return false;
 
@@ -951,14 +950,14 @@
       html += '<div class="of1-track"><div class="of1-track__label">Track B — Config</div>';
       html += '<div class="of1-parallel-group">';
       for (var b = i; b < STEPS.length; b++) {
-        if (STEPS[b].track === 'B' && b !== 12) { // Config review separate
+        if (STEPS[b].track === 'B' && b !== 10) { // Config review separate
           html += renderCard(b);
         }
       }
       html += '</div>';
       // Config review (needs the parallel ones above)
       for (var c = i; c < STEPS.length; c++) {
-        if (STEPS[c].track === 'B' && c === 12) {
+        if (STEPS[c].track === 'B' && c === 10) {
           html += renderCard(c);
         }
       }
@@ -986,15 +985,15 @@
 
     // Quick Links
     var QUICKLINKS = [
-      { label: 'Repo', step: 2 },
-      { label: 'Discovery', step: 3 },
-      { label: 'Extraction', step: 4 },
-      { label: 'Prototype', step: 5 },
-      { label: 'Preview', step: 6 },
-      { label: 'Gallery', step: 7 },
-      { label: 'OF1 Page', step: 8 },
-      { label: 'Config Review', step: 12 },
-      { label: 'Demo Hub', step: 13 }
+      { label: 'Repo', step: 1 },
+      { label: 'Discovery', step: 2 },
+      { label: 'Extraction', step: 3 },
+      { label: 'Prototype', step: 4 },
+      { label: 'Preview', step: 5 },
+      { label: 'Gallery', step: 6 },
+      { label: 'OF1 Page', step: 7 },
+      { label: 'Config Review', step: 11 },
+      { label: 'Demo Hub', step: 12 }
     ];
 
     var linkIcon = '<svg class="of1-quicklink__icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
