@@ -6,7 +6,7 @@ user-invocable: false
 
 # OF1 Demo — Claude Code Orchestrator
 
-Turns any website into a branded OF1 generative-search demo on Adobe Edge Delivery Services. 13 steps. Auto-approves by default; user can interrupt to revise any step.
+Turns any website into a branded OF1 generative-search demo on Adobe Edge Delivery Services. 12 steps. Auto-approves by default; user can interrupt to revise any step.
 
 **🚫 SLICC HARD GATE: This skill is ONLY for Claude Code. If you are running in SLICC, STOP IMMEDIATELY and use the `of1-demo` skill instead.** This skill uses Claude Code-specific primitives (Agent dispatch, TaskCreate) that do not exist in SLICC. Using it in SLICC will produce broken orchestration with no progress tracking and no scoop dispatch. There is zero reason to use this skill in SLICC.
 
@@ -19,31 +19,30 @@ The user invokes you with a target domain — e.g. "one-shot demo for frescopa.c
 
 If `DOMAIN` is missing, ask the user once using `AskUserQuestion`, then proceed.
 
-## Phase 0 — Verify dependencies (inline)
+## Phase 0 — Verify dependencies + repo state (inline)
 
-Invoke the `of1-setup` skill via the **Skill tool** (not Agent — this is light and must run in your context to read the verified state). If it fails, surface the exact error and stop.
+Invoke the `of1-setup` skill via the **Skill tool** (not Agent — this is light and must run in your context to read the verified state, and its "Repo state" section may need `AskUserQuestion` for continue/restart). If it fails, surface the exact error and stop.
 
-After it succeeds, read `<STATE_DIR>/setup.json` to get `stateDir` and `of1Repo` absolute paths. Use these for all subsequent steps.
+After it succeeds, read `<STATE_DIR>/setup.json` for `stateDir`/`of1Repo` and `<STATE_DIR>/repo-config.json` for `owner`/`repo`/`branch`/`domain`. Use these for all subsequent steps.
 
 ## Phase 1 — Initialize task list
 
 Use **TaskCreate** with one task per pipeline step:
 
 ```
-1.  Setup           (already done if you got here)
-2.  Repo setup      — set up EDS repo + create demo branch
-3.  Discovery       — crawl site, propose narrative
-4.  Extraction      — design tokens, logo, screenshots (parallel with 3)
-5.  Prototype       — pixel-perfect HTML (needs 3 + 4)
-6.  Snowflake       — convert prototypes to EDS pages
-7.  Templates       — 25 branded templates (base + fan-out: 5 intents + assemble)
-8.  OF1 styling     — generative-block CSS + /of1 page setup (needs 6)
-9a. Brand voice     — voice extraction (parallel)
-9b. Content meta    — products, personas, FAQs + image upload (parallel)
-10. Suggestions     — search chips + UI copy (parallel)
-11. CTA template    — branded CTA JSON (parallel)
-12. Config review   — generate review page (inline; needs 9a + 9b + 10 + 11)
-13. Deploy          — push, sync, pre-launch checklist
+1.  Setup           (already done if you got here — verifies deps + repo state, outputs repo-config.json)
+2.  Discovery       — crawl site, propose narrative
+3.  Extraction      — design tokens, logo, screenshots (parallel with 2)
+4.  Prototype       — pixel-perfect HTML (needs 2 + 3)
+5.  Snowflake       — convert prototypes to EDS pages
+6.  Templates       — 25 branded templates (base + fan-out: 5 intents + assemble)
+7.  OF1 styling     — generative-block CSS + /of1 page setup (needs 5)
+8a. Brand voice     — voice extraction (parallel)
+8b. Content meta    — products, personas, FAQs + image upload (parallel)
+9.  Suggestions     — search chips + UI copy (parallel)
+10. CTA template    — branded CTA JSON (parallel)
+11. Config review   — generate review page (inline; needs 8a + 8b + 9 + 10)
+12. Deploy          — push, sync, pre-launch checklist
 ```
 
 Mark task 1 completed immediately. Mark each task `in_progress` when its dispatch begins and `completed`/`failed` when the Agent returns.
@@ -55,9 +54,9 @@ Mark task 1 completed immediately. Mark each task `in_progress` when its dispatc
 The dependency graph and parallelism rules:
 
 ```
-2  →  3 ∥ 4  →  5  →  ┬─ 6  →  ┬─ 7-base → 7a ∥ 7b ∥ 7c ∥ 7d ∥ 7e  →  7-assemble  ─┐
-                      │        └─ 8                                                   │
-                      └─ 9a ∥ 9b ∥ 11  →  10  →  12  ───────────────────────────────┴─→  13
+1  →  2 ∥ 3  →  4  →  ┬─ 5  →  ┬─ 6-base → 6a ∥ 6b ∥ 6c ∥ 6d ∥ 6e  →  6-assemble  ─┐
+                      │        └─ 7                                                   │
+                      └─ 8a ∥ 8b ∥ 10  →  9  →  11  ───────────────────────────────┴─→  12
 ```
 
 **Parallelism is mandatory** — at each fan-out point, dispatch all eligible step Agents **in a single message with multiple Agent tool-use blocks**. Do NOT serialize what the graph says is parallel.
@@ -66,32 +65,32 @@ The dependency graph and parallelism rules:
 
 | Trigger (ALL must be done) | Dispatch in one message |
 |---------|-------------------------|
-| Step 2 done | Step 3 AND Step 4 |
-| Steps 3 + 4 done | Step 5 |
-| Step 5 done | Step 6 AND Steps 9a, 9b, 11 (4 agents in one message) |
-| Step 6 done | Step 7-base AND Step 8 (Step 7-base must finish before intent fan-out) |
-| Step 7-base done | Steps 7a–7e (5 intent agents in one message) |
-| Steps 9a + 9b done | Step 10 (needs products.json + brand-voice.json) |
-| Steps 7a–7e all done | Step 7-assemble (1 agent, sequential) |
-| Steps 9a + 9b + 10 + 11 ALL done | Step 12 (inline — do NOT run until all four are confirmed done) |
-| Steps 7-assemble + 8 + 12 ALL done | Step 13 |
+| Step 1 done | Step 2 AND Step 3 |
+| Steps 2 + 3 done | Step 4 |
+| Step 4 done | Step 5 AND Steps 8a, 8b, 10 (4 agents in one message) |
+| Step 5 done | Step 6-base AND Step 7 (Step 6-base must finish before intent fan-out) |
+| Step 6-base done | Steps 6a–6e (5 intent agents in one message) |
+| Steps 8a + 8b done | Step 9 (needs products.json + brand-voice.json) |
+| Steps 6a–6e all done | Step 6-assemble (1 agent, sequential) |
+| Steps 8a + 8b + 9 + 10 ALL done | Step 11 (inline — do NOT run until all four are confirmed done) |
+| Steps 6-assemble + 7 + 11 ALL done | Step 12 |
 
 **Common mistakes to avoid:**
-- Do NOT run Step 12 as soon as 9a finishes — it needs 9a + 9b + 10 + 11 ALL completed.
-- Do NOT run Step 7-base before Step 6 returns — 7 reads from 6's output files.
-- Do NOT run Step 10 before BOTH 9a and 9b return — it needs both brand-voice.json and products.json.
+- Do NOT run Step 11 as soon as 8a finishes — it needs 8a + 8b + 9 + 10 ALL completed.
+- Do NOT run Step 6-base before Step 5 returns — 6 reads from 5's output files.
+- Do NOT run Step 9 before BOTH 8a and 8b return — it needs both brand-voice.json and products.json.
 
-### Step 7 fan-out detail
+### Step 6 fan-out detail
 
-Step 7 (template generation) is split into 7 dispatches across 3 phases:
+Step 6 (template generation) is split into 7 dispatches across 3 phases:
 
-- **7-base (sequential, 1 agent):** runs `of1-template-generation` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all 25 per-template CSS files `@import`. Must finish before intent agents start so they can read the tokens.
-- **7a–7e (parallel, 5 agents):** each runs the same skill with `OF1_TG_MODE=intent` and `OF1_TG_INTENT` set to one of `comparison`, `recommendation`, `deep-dive`, `budget`, `discovery`. Each writes only its own `templates/of1-{intent}-*` + `styles/of1-{intent}-*` files. No git operations.
-- **7-assemble (sequential, 1 agent):** same skill with `OF1_TG_MODE=assemble`. Verifies base CSS exists, assembles the fully-inlined catalog, runs `fill-template.py`, installs the gallery, and commits everything in one push.
+- **6-base (sequential, 1 agent):** runs `of1-template-generation` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all 25 per-template CSS files `@import`. Must finish before intent agents start so they can read the tokens.
+- **6a–6e (parallel, 5 agents):** each runs the same skill with `OF1_TG_MODE=intent` and `OF1_TG_INTENT` set to one of `comparison`, `recommendation`, `deep-dive`, `budget`, `discovery`. Each writes only its own `templates/of1-{intent}-*` + `styles/of1-{intent}-*` files. No git operations.
+- **6-assemble (sequential, 1 agent):** same skill with `OF1_TG_MODE=assemble`. Verifies base CSS exists, assembles the fully-inlined catalog, runs `fill-template.py`, installs the gallery, and commits everything in one push.
 
 ### Pre-fan-out: capture EDS visual references (inline, orchestrator turn)
 
-After Step 6 returns `done` and before dispatching 7-base, screenshot every prototype page as rendered by EDS. The intent agents read these from disk to match their templates to the full rendered design system.
+After Step 5 returns `done` and before dispatching 6-base, screenshot every prototype page as rendered by EDS. The intent agents read these from disk to match their templates to the full rendered design system.
 
 ```bash
 PROTOTYPE_PAGES=$(ls "${OF1_REPO}/deliverables/"prototype-*.html 2>/dev/null \
@@ -117,11 +116,11 @@ done
 
 Do NOT commit these PNGs. They're local reference material. If screenshots fail, intent agents fall back to prototype HTML + CSS alone — degraded fidelity but functional.
 
-If any 7a–7e fails, retry just that one; don't re-run the others. If `7-assemble` fails, re-run it alone — intent outputs are intact.
+If any 6a–6e fails, retry just that one; don't re-run the others. If `6-assemble` fails, re-run it alone — intent outputs are intact.
 
-### Step 9 split
+### Step 8 split
 
-Steps 9a and 9b are independent — both consume Step 4's extraction output and produce different files. Dispatch both in the same message as Steps 10 + 11 (4 agents total after Step 5).
+Steps 8a and 8b are independent — both consume Step 3's extraction output and produce different files. Dispatch both in the same message as Steps 9 + 10 (4 agents total after Step 4).
 
 ## Model assignment per step
 
@@ -135,20 +134,19 @@ Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritan
 
 | Step | Model | Why |
 |------|-------|-----|
-| 2 — branch setup | `sonnet` | Mechanical: git ops + write config JSON. |
-| 3 — discovery | `opus` | Brand/narrative synthesis from crawled pages. Drives demo story. |
-| 4 — extraction | `opus` | Design-token extraction. Wrong tokens cascade everywhere. |
-| 5 — prototype | `opus` | Pixel-perfect HTML requiring visual judgment. |
-| 6 — snowflake | `opus` | Invokes the adobe snowflake skill. Complex multi-phase conversion requiring precise instruction-following. |
-| 7-base | `sonnet` | Reads prototype CSS → writes `:root` tokens. Structured extraction. |
-| 7a–7e — template intents | `sonnet` | Structured generation from a clear pattern. 5 parallel = biggest cost block. |
-| 7-assemble | `sonnet` | Runs scripts + one commit. Bump to `opus` if quality dips. |
-| 8 — OF1 styling | `opus` | CSS generation + /of1 page setup. Must follow multi-step instructions precisely (copy base CSS, patch scripts.js, copy fragments, upload DA content). Sonnet deviates from the procedure. |
-| 9a — brand voice | `sonnet` | Synthesis from existing extraction JSON. |
-| 9b — content metadata | `sonnet` | Scrape product pages + run download-images.py. Structured. |
-| 10 — quick suggestions | `sonnet` | Generate 12 chips from discovery narrative. |
-| 11 — CTA template | `sonnet` | Generate one JSON file from DESIGN.json tokens. |
-| 13 — deploy + verify | `sonnet` | Scripted sync + verification curls + screenshots. |
+| 2 — discovery | `opus` | Brand/narrative synthesis from crawled pages. Drives demo story. |
+| 3 — extraction | `opus` | Design-token extraction. Wrong tokens cascade everywhere. |
+| 4 — prototype | `opus` | Pixel-perfect HTML requiring visual judgment. |
+| 5 — snowflake | `opus` | Invokes the adobe snowflake skill. Complex multi-phase conversion requiring precise instruction-following. |
+| 6-base | `sonnet` | Reads prototype CSS → writes `:root` tokens. Structured extraction. |
+| 6a–6e — template intents | `sonnet` | Structured generation from a clear pattern. 5 parallel = biggest cost block. |
+| 6-assemble | `sonnet` | Runs scripts + one commit. Bump to `opus` if quality dips. |
+| 7 — OF1 styling | `opus` | CSS generation + /of1 page setup. Must follow multi-step instructions precisely (copy base CSS, patch scripts.js, copy fragments, upload DA content). Sonnet deviates from the procedure. |
+| 8a — brand voice | `sonnet` | Synthesis from existing extraction JSON. |
+| 8b — content metadata | `sonnet` | Scrape product pages + run download-images.py. Structured. |
+| 9 — quick suggestions | `sonnet` | Generate 12 chips from discovery narrative. |
+| 10 — CTA template | `sonnet` | Generate one JSON file from DESIGN.json tokens. |
+| 12 — deploy + verify | `sonnet` | Scripted sync + verification curls + screenshots. |
 
 **Rule of thumb:** Opus only for steps that author content the downstream pipeline depends on for quality (discovery narrative, extraction tokens, prototype HTML). Everything else should be Sonnet 4.6.
 
@@ -189,18 +187,18 @@ End your last message with EXACTLY this fenced block (the orchestrator parses it
 If status is `failed`, also write what specifically broke and what to retry.
 ```
 
-### Per-dispatch prompt additions for Step 7
+### Per-dispatch prompt additions for Step 6
 
 For the base agent:
 ```
-## Mode (Step 7)
+## Mode (Step 6)
 - `export OF1_TG_MODE=base`
 - Follow the skill's "Mode: base" section.
 ```
 
-For each intent agent (7a–7e):
+For each intent agent (6a–6e):
 ```
-## Mode (Step 7 fan-out)
+## Mode (Step 6 fan-out)
 - `export OF1_TG_MODE=intent`
 - `export OF1_TG_INTENT=<comparison|recommendation|deep-dive|budget|discovery>`
 - Follow the skill's "Mode: intent" section. Do NOT generate styles/of1-template-base.css, the catalog, the gallery, or commit anything.
@@ -208,7 +206,7 @@ For each intent agent (7a–7e):
 
 For the assemble agent:
 ```
-## Mode (Step 7 fan-out)
+## Mode (Step 6 fan-out)
 - `export OF1_TG_MODE=assemble`
 - Follow the skill's "Mode: assemble" section.
 - Precondition: all 25 templates/of1-*.html, .metadata.json, .sample.json + styles/of1-*.css exist. Fail fast if missing.
@@ -225,9 +223,9 @@ After each step's Agent returns:
 
 The user can interrupt at any time ("revise step N") — re-dispatch with their feedback.
 
-## Step 12 — Config review (inline, no Agent)
+## Step 11 — Config review (inline, no Agent)
 
-**PREREQUISITE GATE:** Do NOT execute this step until you have confirmed ALL FOUR of these steps returned `"status": "done"`: 9a (brand voice), 9b (content metadata), 10 (suggestions), 11 (CTA template). If ANY of these is still running or has not been dispatched yet, WAIT.
+**PREREQUISITE GATE:** Do NOT execute this step until you have confirmed ALL FOUR of these steps returned `"status": "done"`: 8a (brand voice), 8b (content metadata), 9 (suggestions), 10 (CTA template). If ANY of these is still running or has not been dispatched yet, WAIT.
 
 Once all four are confirmed done, run inline:
 
@@ -243,9 +241,9 @@ git push origin "$BRANCH"
 
 Deliverable: `https://<branch>--<repo>--<owner>.aem.page/deliverables/config-review.html`
 
-## Step 13 — Deploy (inline)
+## Step 12 — Deploy (inline)
 
-After step 12 approved AND steps 7-assemble + 8 done, run step 13 inline (read the `of1-deploy` skill and follow it). The pre-launch checklist has **5 checks** — all must pass:
+After step 11 approved AND steps 6-assemble + 7 done, run step 12 inline (read the `of1-deploy` skill and follow it). The pre-launch checklist has **5 checks** — all must pass:
 
 1. OF1 page loads with styled search UI
 2. OF1 nav/footer matches prototype-home
@@ -253,7 +251,7 @@ After step 12 approved AND steps 7-assemble + 8 done, run step 13 inline (read t
 4. Template catalog has 25 of1-* entries across all 5 intents
 5. All deliverable URLs return 200
 
-Mark task 13 `completed` only after all 5 pass.
+Mark task 12 `completed` only after all 5 pass.
 
 ## State files
 
@@ -261,8 +259,8 @@ The orchestrator writes/reads under `<stateDir>/`:
 
 | File | Owner | Purpose |
 |------|-------|---------|
-| `setup.json` | of1-setup | Verified paths + token source |
-| `repo-config.json` | Step 2 | owner, repo, branch, repoDir, domain |
+| `setup.json` | of1-setup | Verified paths + owner/repo/branch + token source |
+| `repo-config.json` | Step 1 (Setup) | owner, repo, branch, contentPrefix, repoDir, domain |
 | `step-<N>-summary.json` | Orchestrator (parsed from Agent return) | Step result, for resuming/debug |
 | `pipeline.log` | Orchestrator | Append-only dispatch/return log |
 
@@ -286,7 +284,7 @@ After every Agent dispatch returns, record the step's telemetry from the `<usage
 | Field | Source |
 |---|---|
 | `step` | Step number |
-| `name` | Step name (e.g. "repo-setup") |
+| `name` | Step name (e.g. "discovery") |
 | `model` | Model used for this dispatch |
 | `startedAt` | ISO timestamp when the Agent was dispatched |
 | `durationMs` | From the `<usage>` block: `duration_ms` |
@@ -300,7 +298,7 @@ After every Agent dispatch returns, record the step's telemetry from the `<usage
 ### When to write the audit file
 
 Write `$OF1_STATE_DIR/pipeline-audit.json` at **two points**:
-1. After step 13 completes (success path)
+1. After step 12 completes (success path)
 2. If the pipeline aborts (failure path — partial audit is still useful)
 
 ### Capture skill version at pipeline start
@@ -329,15 +327,15 @@ Include both in the audit file's top-level fields.
   "stepCount": <number of dispatches including retries>,
   "steps": [
     {
-      "step": 2,
-      "name": "repo-setup",
+      "step": 1,
+      "name": "setup",
       "model": "sonnet",
       "startedAt": "...",
       "durationMs": 12400,
       "totalTokens": 3200,
       "toolUses": 8,
       "status": "done",
-      "summary": "branch + repo-config ready",
+      "summary": "prerequisites verified, repo-config ready",
       "retries": 0,
       "error": null
     }
@@ -353,14 +351,14 @@ After writing the audit, analyze the run and append an `improvements` array to `
 {
   "improvements": [
     {
-      "step": 5,
+      "step": 4,
       "issue": "Prototype generation took 14 min (3× expected) — agent re-generated the full page 4 times instead of iterating on specific sections",
       "suggestion": "Add a 'targeted fix only — do not regenerate the full page' instruction to the stardust:prototype invocation"
     },
     {
-      "step": 9,
+      "step": 8,
       "issue": "Content-metadata retried 2× — download-images.py failed on first run because products.json had 3 products with only external CDN URLs (no source images found on detail pages)",
-      "suggestion": "Have the extraction step (4) capture more image URLs per product page upfront, or fall back to listing-page carousel images when detail pages have <2"
+      "suggestion": "Have the extraction step (3) capture more image URLs per product page upfront, or fall back to listing-page carousel images when detail pages have <2"
     }
   ]
 }
