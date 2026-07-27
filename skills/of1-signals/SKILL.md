@@ -143,10 +143,3 @@ after a domain was already visited will NOT retroactively apply. Before testing:
    `acquisition.injected_context`. (Using "Open OF1" instead of Personalize forwards it as a
    `injected_context` URL query param on the opened tab instead — visible directly in the address
    bar.)
-
-## Reference
-
-For the full priority/mechanism design rationale (why signals.json checks before built-in
-detection, why `llm_app_ctx` is native rather than config-driven), ask to see the OF1 preview
-extension's own design docs (`docs/superpowers/specs/2026-07-27-simulated-signals-design.md` and
-its follow-up commits) if deeper extension-internals context is needed.
