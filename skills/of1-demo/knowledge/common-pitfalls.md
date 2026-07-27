@@ -11,14 +11,14 @@ Tagging legend: `[SLICC]` = only applies in the SLICC runtime, `[CC]` = only app
 ### 1.1 DA strips `<img>`, `<picture>`, `<svg>`, `<video>` from uploaded content
 DA's HTML→Markdown→HTML round-trip removes them. Consequence: **never put images in DA content docs**. Keep all visual elements in the template HTML (served from the code bus, not DA). Only put text in DA slots. If an image must be authorable, store its URL as plain text in a DA slot and have the template read it via `data-slot` on the `<img>` element.
 
-**Canonical reference:** `of1-snowflake` § "Template Gets EVERYTHING Visual".
+**Canonical reference:** `stardust:deploy` § "The ENCODE contract" (images/editorial-content rules).
 
 ### 1.2 EDS reserves the `.header` and `.footer` class names
 EDS wraps the page header in `<div class="header-wrapper"><div class="header block">...</div></div>` and the footer the same way. Using `class="header"` on the prototype's `<header>` element causes CSS rules like `.header { display: flex }` to target both the EDS wrapper AND your element, breaking layout.
 
 **Rule:** Use `class="site-header"` and `class="site-footer"` in prototype/template HTML and the matching CSS selectors.
 
-**Canonical reference:** `of1-snowflake` § "EDS Class Name Collisions" and `of1-prototype` § post-gen fixes.
+**Canonical reference:** `of1-prototype` § post-gen fixes (5b — CSS class naming) and `stardust:deploy` § "Naming rules" (never name a block after a reserved EDS class).
 
 ### 1.3 Required EDS block-wrapper resets
 Every template CSS file MUST start with:
@@ -42,7 +42,7 @@ Missing `<p>` wrappers → EDS sees empty cells → page renders blank `<div></d
 
 The metadata block MUST be the LAST direct child of `<main>`. `<header></header>` and `<footer></footer>` tags MUST be present even when empty.
 
-**Canonical reference:** `of1-snowflake` § "DA Content Format".
+**Canonical reference:** `stardust:deploy` § "9. Content page scaffold".
 
 ### 1.6 Full-bleed sections need wrapper overrides
 EDS wraps each section in a `.<section-class>-wrapper` div with `max-width: 1440px` by default. Hero, banners, and any full-width section need explicit overrides in CSS:
