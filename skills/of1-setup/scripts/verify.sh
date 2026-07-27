@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
-# of1-setup verifier — checks all prerequisites for the OF1 demo pipeline.
-# Runtime-agnostic: works in both Claude Code and SLICC. The orchestrator
-# exports OF1_STATE_DIR / OF1_DEMO_REPO / token env vars before invoking.
-# Contract documented in ../SKILL.md.
+# of1-setup verifier — checks all prerequisites for the OF1 demo pipeline,
+# including that OF1_DEMO_REPO is a valid EDS repo (structural check, not
+# identity — any org/repo works). Runtime-agnostic: works in both Claude
+# Code and SLICC. The orchestrator exports OF1_STATE_DIR / OF1_DEMO_REPO /
+# token env vars before invoking. Contract documented in ../SKILL.md.
 #
 # Exit 0 = all good; exit 1 = something blocking is missing.
 # Side effect on success:
-#   <stateDir>/setup.json          — resolved paths + token source
+#   <stateDir>/setup.json          — resolved paths + owner/repo/branch + token source
 #   <stateDir>/step-1-status.json  — SLICC sprinkle IPC ack (harmless in CC)
+#
+# repo-config.json (owner/repo/branch/domain/repoDir) is NOT written by this
+# script — it's written interactively by of1-setup/SKILL.md's "Repo state"
+# section after this script exits 0, since detecting an in-progress demo and
+# asking continue/restart requires AskUserQuestion (not available in bash).
 #
 # Token resolution order:
 #   1. $ADOBE_IMS_TOKEN (env var with the raw value)
@@ -48,7 +54,7 @@ fix_cmd() {
 # ---------- 1. OF1 step skills (project- or user-scoped) ----------
 
 REQUIRED_SKILLS=(
-  of1-repo-setup of1-discovery of1-extraction of1-prototype
+  of1-discovery of1-extraction of1-prototype
   of1-stardust-deploy of1-template-generation of1-generative-block-styler
   of1-brand-voice-extractor of1-content-metadata of1-quick-suggestions
   of1-cta-template-builder of1-config-review of1-deploy
@@ -79,7 +85,7 @@ for S in "${REQUIRED_SKILLS[@]}"; do
   find_skill "$S" >/dev/null || MISSING+=("$S")
 done
 if [ ${#MISSING[@]} -eq 0 ]; then
-  ok "All 13 OF1 step skills present"
+  ok "All 12 OF1 step skills present"
 else
   fail "Missing OF1 step skills: ${MISSING[*]} — fix: $(fix_cmd '/plugin install of1-demo-skills@<marketplace>' 'upskill aem-growth-adoption/of1-demo-skills --all')"
 fi
@@ -147,22 +153,36 @@ else
   fail "Neither playwright-cli nor playwright installed — fix: npm i -g playwright; npx playwright install chromium"
 fi
 
-# ---------- 4. of1-demo repo (required via OF1_DEMO_REPO env) ----------
-# No auto-discovery — the orchestrator asks the user where to clone if not set.
+# ---------- 4. EDS repo verification (any org/repo — structural, not identity) ----------
+# No auto-discovery — the orchestrator sets OF1_DEMO_REPO to the repo cwd.
+# Verifies EDS structural files exist and resolves owner/repo/branch from git.
 
 OF1_REPO=""
+OWNER=""
+REPO=""
+BRANCH=""
+
 if [ -n "${OF1_DEMO_REPO:-}" ] && [ -d "${OF1_DEMO_REPO}/.git" ]; then
   # Use subshell + cd — SLICC's git shim doesn't support `-C` or `remote get-url`.
   REMOTE=$(cd "$OF1_DEMO_REPO" && git config remote.origin.url 2>/dev/null || true)
-  case "$REMOTE" in
-    *aem-growth-adoption/of1-demo*) OF1_REPO="$OF1_DEMO_REPO" ;;
-  esac
-fi
+  OWNER=$(echo "$REMOTE" | sed 's|.*github.com[:/]||' | cut -d/ -f1)
+  REPO=$(echo "$REMOTE" | sed 's|.*github.com[:/]||' | cut -d/ -f2 | sed 's/\.git$//')
+  BRANCH=$(cd "$OF1_DEMO_REPO" && git branch --show-current 2>/dev/null || true)
 
-if [ -n "$OF1_REPO" ]; then
-  ok "of1-demo repo → $OF1_REPO"
+  if { [ -f "${OF1_DEMO_REPO}/scripts/aem.js" ] || [ -f "${OF1_DEMO_REPO}/scripts/lib-franklin.js" ]; } \
+     && [ -f "${OF1_DEMO_REPO}/scripts/scripts.js" ] \
+     && [ -f "${OF1_DEMO_REPO}/styles/styles.css" ]; then
+    OF1_REPO="$OF1_DEMO_REPO"
+    ok "EDS repo → $OF1_REPO ($OWNER/$REPO, branch: ${BRANCH:-<detached>})"
+  else
+    fail "Not an EDS repo at $OF1_DEMO_REPO — missing scripts/aem.js (or lib-franklin.js), scripts/scripts.js, or styles/styles.css. cd into a valid EDS repo checkout (or set OF1_DEMO_REPO) and re-run."
+  fi
+
+  if [ -z "$BRANCH" ] || [ "$BRANCH" = "main" ]; then
+    warn "Currently on ${BRANCH:-a detached HEAD} — demo artifacts and DA content will be affected on this branch/state"
+  fi
 else
-  fail "of1-demo repo: OF1_DEMO_REPO env var not set or not a valid clone of aem-growth-adoption/of1-demo — the orchestrator will ask where to clone and set this env var"
+  fail "OF1_DEMO_REPO env var not set or not a git checkout — set it to the absolute path of a cloned EDS repo"
 fi
 
 # ---------- 5. Adobe IMS / DA token ----------
@@ -227,6 +247,9 @@ cat > "$STATE_DIR/setup.json" <<EOF
   "ok": true,
   "stateDir": "$STATE_DIR",
   "of1Repo": "$OF1_REPO",
+  "owner": "$OWNER",
+  "repo": "$REPO",
+  "branch": "$BRANCH",
   "tokenSource": "$TOKEN_SOURCE",
   "tokenFile": "$TOKEN_FILE",
   "tokenFromEnv": $TOKEN_HAS_ENV_VALUE,
