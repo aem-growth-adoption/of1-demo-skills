@@ -1,11 +1,13 @@
 ---
 name: of1-setup
-description: Verify all OF1 demo pipeline dependencies are installed. Read-only — reports what's missing, does not install.
+description: Verify all OF1 demo pipeline dependencies are installed, verify the local EDS repo, and prepare repo-config.json.
 ---
 
-# OF1 Setup — Verify Dependencies
+# OF1 Setup — Verify Dependencies & Repo
 
-**Run this exact command. Nothing else. Do NOT substitute with ad-hoc checks.**
+## Part 1 — scripted checks
+
+**Run this exact command. Do NOT substitute with ad-hoc checks.**
 
 ```bash
 OF1_DEMO_REPO="${OF1_DEMO_REPO:-/workspace/of1-demo}" \
@@ -14,35 +16,233 @@ ADOBE_IMS_TOKEN="${ADOBE_IMS_TOKEN:-$(oauth-token adobe 2>/dev/null || true)}" \
 bash "${SKILL_DIR:-/workspace/skills/of1-setup}/scripts/verify.sh"
 ```
 
-That's it. One command. The script checks everything and writes `setup.json` on success. Do NOT:
+Do NOT:
 - Run `command -v` checks yourself instead of the script
 - Skip the script because "it's simple" or "I can check faster"
-- Write setup.json by hand
+- Write `setup.json` or `repo-config.json` by hand
 
-If exit code is `0`: step 1 is done. If `1`: report the exact error lines and STOP.
+If exit code is `1`: report the exact error lines and STOP. This includes
+the case where `$OF1_DEMO_REPO` is not a valid EDS repo — there is no
+fallback to clone or create a repo. The user must `cd` into (or point
+`OF1_DEMO_REPO` at) a valid EDS repo checkout and re-run.
 
-Downstream steps (starting with step 2) **structurally depend on `$OF1_STATE_DIR/setup.json` existing** — they will fail immediately if it's missing. There is no workaround for skipping this script.
+If exit code is `0`: continue to **Part 2** below.
 
-## What it checks
+Downstream steps **structurally depend on `$OF1_STATE_DIR/repo-config.json`
+existing** — it is not written by `verify.sh`; Part 2 writes it.
 
-1. The 13 OF1 step skills are installed (`of1-discovery`, `of1-stardust-deploy`, …)
+### What verify.sh checks
+
+1. The 12 OF1 step skills are installed (`of1-discovery`, `of1-stardust-deploy`, …)
 2. The Adobe EDS skills `stardust`, `impeccable` are installed
 3. Shell tools: `node`, `python3`, `jq`, `git`, `curl`
 4. `playwright-cli` (or the standard `playwright` binary with a shim warning)
-5. The `of1-demo` content repo is a valid clone at `$OF1_DEMO_REPO`
+5. `$OF1_DEMO_REPO` is a git checkout with EDS structural files
+   (`scripts/aem.js` or `scripts/lib-franklin.js`, `scripts/scripts.js`,
+   `styles/styles.css`) — **fails hard** if not, no fallback
 6. An Adobe IMS / DA token is resolvable
 7. `$OF1_STATE_DIR` is writable
+
+It also resolves `owner`/`repo` (from `git config remote.origin.url`) and
+`branch` (from `git branch --show-current`) and writes them into
+`setup.json`. It **warns** (does not fail) if `branch` is empty (detached
+HEAD) or `main`.
+
+## Part 2 — repo state (interactive, after verify.sh succeeds)
+
+Read `setup.json` for `owner`, `repo`, `branch`, `of1Repo`, and resolve
+`DA_TOKEN` from whichever token source `verify.sh` already found (do not
+re-derive it — `verify.sh` already validated it exists):
+
+```bash
+SETUP=$(cat "$OF1_STATE_DIR/setup.json")
+OWNER=$(echo "$SETUP" | jq -r .owner)
+REPO=$(echo "$SETUP" | jq -r .repo)
+BRANCH=$(echo "$SETUP" | jq -r .branch)
+REPO_DIR=$(echo "$SETUP" | jq -r .of1Repo)
+
+if [ "$(echo "$SETUP" | jq -r .tokenFromEnv)" = "true" ]; then
+  DA_TOKEN="$ADOBE_IMS_TOKEN"
+else
+  DA_TOKEN=$(jq -r .access_token "$(echo "$SETUP" | jq -r .tokenFile)")
+fi
+```
+
+### 1. Detect an in-progress demo
+
+```bash
+if [ -f "$OF1_STATE_DIR/repo-config.json" ]; then
+  echo "=== Existing demo found ==="
+  cat "$OF1_STATE_DIR/repo-config.json"
+  echo ""
+  for f in "$OF1_STATE_DIR"/step-*-status.json; do
+    [ -f "$f" ] && { echo "--- $(basename "$f") ---"; cat "$f"; echo ""; }
+  done
+fi
+```
+
+- **If `repo-config.json` does NOT exist:** no demo in progress. Skip
+  straight to step 3 (Clean slate) below — treat as fresh, run cleanup
+  unconditionally (there is nothing to preserve), no prompt needed.
+- **If it DOES exist:** summarize the branch, domain, and last completed
+  step to the user from the printed JSON, then ask via `AskUserQuestion`:
+  - **Continue** this demo — skip cleanup entirely, keep all existing
+    artifacts and DA content, go straight to step 4 (Code Sync check).
+  - **Restart** this demo — run cleanup (step 3) against the *same*
+    branch, then continue to step 4.
+
+### 2. Warn if on `main` or detached HEAD
+
+If `setup.json`'s `branch` field is empty or `"main"`, tell the user:
+
+> ⚠️ Currently on `{branch or 'a detached HEAD'}` — demo artifacts and DA
+> content will be affected on this branch/state. Proceeding anyway per the
+> hands-off branch model; check out the intended branch yourself if this
+> isn't what you want.
+
+Then proceed regardless — never block on this.
+
+### 3. Clean slate (restart, or fresh setup with nothing to preserve)
+
+Remove previous demo artifacts but preserve EDS boilerplate
+(`styles/styles.css`, `scripts/`, `blocks/{header,footer,fragment}/`,
+`head.html`):
+
+```bash
+cd "$REPO_DIR"
+rm -rf stardust/ deliverables/ templates/ fragments/ .snowflake/ drafts/ \
+       gallery/ of1/config/ tools/ output/ screenshots/ tmp/ da/
+rm -rf styles/of1-*.css styles/prototype-*.css
+rm -f PRODUCT.md
+
+# Clean prior state
+rm -rf "$OF1_STATE_DIR"/step-*
+rm -f "$OF1_STATE_DIR/discovery.html"
+
+git add -A
+if ! git diff --cached --quiet; then
+  git commit -m "chore: clean slate for ${BRANCH}"
+  git push origin "$BRANCH"
+  echo "✓ Clean slate committed + pushed"
+else
+  echo "✓ Branch already clean"
+fi
+```
+
+Then clean DA content for the branch:
+
+```bash
+DA_LIST=$(curl -s -H "Authorization: Bearer $DA_TOKEN" \
+  "https://admin.da.live/list/${OWNER}/${REPO}" 2>/dev/null || echo "[]")
+
+echo "$DA_LIST" | jq -r '.[] | select(.ext == "html") | .name' 2>/dev/null | while read -r name; do
+  [ -n "$name" ] || continue
+  curl -s -X DELETE -H "Authorization: Bearer $DA_TOKEN" \
+    "https://admin.da.live/source/${OWNER}/${REPO}/${name}.html" >/dev/null
+done
+echo "✓ DA content cleaned"
+```
+
+### 4. Code Sync check
+
+```bash
+PREVIEW_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/"
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PREVIEW_URL")
+
+if [ "$STATUS" != "200" ]; then
+  echo "WARN: Preview URL returned $STATUS — waiting for Code Sync..."
+  for i in $(seq 1 30); do
+    sleep 5
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PREVIEW_URL")
+    [ "$STATUS" = "200" ] && break
+  done
+fi
+
+if [ "$STATUS" = "200" ]; then
+  echo "✓ Branch preview live: $PREVIEW_URL"
+else
+  echo "WARN: Branch preview returned $STATUS — may need a few more minutes for Code Sync"
+fi
+```
+
+### 5. Ensure `.hlxignore` does NOT block `of1/config/`
+
+The OF1 extension reads config files from the EDS CDN (`/of1/config/*.json`).
+The boilerplate `.hlxignore` must NOT include `of1/` or `of1/config/`:
+
+```bash
+if [ -f .hlxignore ] && grep -q '^of1' .hlxignore; then
+  sed -i '/^of1/d' .hlxignore
+  echo "✓ Removed of1 exclusion from .hlxignore"
+fi
+```
+
+**Do NOT add `of1/` to `.hlxignore`** — the config files must be served on
+the CDN.
+
+### 6. Write `of1-endpoint.json` + push (skip if continuing and file already committed)
+
+```bash
+mkdir -p of1/config
+cat > of1/config/of1-endpoint.json <<EOF
+{
+  "url": "https://${BRANCH}--${REPO}--${OWNER}.aem.page/of1"
+}
+EOF
+git add of1/config/of1-endpoint.json
+if ! git diff --cached --quiet; then
+  git commit -m "feat: of1-endpoint config for ${DOMAIN}"
+  git push origin "$BRANCH"
+  echo "✓ of1-endpoint.json committed + pushed"
+fi
+```
+
+### 7. Write `repo-config.json`
+
+```bash
+mkdir -p "$OF1_STATE_DIR"
+cat > "$OF1_STATE_DIR/repo-config.json" <<EOF
+{
+  "owner": "${OWNER}",
+  "repo": "${REPO}",
+  "branch": "${BRANCH}",
+  "contentPrefix": "${BRANCH}",
+  "repoDir": "${REPO_DIR}",
+  "domain": "${DOMAIN}",
+  "repoUrl": "https://github.com/${OWNER}/${REPO}",
+  "previewUrl": "https://${BRANCH}--${REPO}--${OWNER}.aem.page/",
+  "daSource": "da://${OWNER}/${REPO}"
+}
+EOF
+echo "✓ repo-config.json written"
+```
+
+## The downstream contract (`repo-config.json`)
+
+Every downstream step reads this file. Required fields:
+
+| Field | Type | Notes |
+|---|---|---|
+| `owner` | string | GitHub org or user |
+| `repo` | string | Repo name |
+| `branch` | string | Whatever branch was checked out when setup ran |
+| `contentPrefix` | string | Same as `branch` |
+| `repoDir` | string | Absolute path to the local clone |
+| `domain` | string | The customer domain |
+
+Optional (for humans): `repoUrl`, `previewUrl`, `daSource`.
 
 ## Env vars — the orchestrator sets these before invoking
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_DEMO_REPO` | **required** — absolute path to a local clone of the EDS demo repo (any org/repo — validated via git remote) |
+| `OF1_DEMO_REPO` | **required** — absolute path to a local clone of an EDS repo (any org/repo — validated structurally, not by identity) |
 | `OF1_STATE_DIR` | shared IPC + state dir. SLICC: `/shared/of1-demo`. CC: `$PWD/.of1/state` (default). |
+| `DOMAIN` | the target domain for this demo (e.g. `frescopa.coffee`) — recorded in `repo-config.json` |
 | `ADOBE_IMS_TOKEN` | raw token value (preferred — highest priority) |
 | `OF1_TOKEN_FILE` | path to a `{"access_token":"…"}` JSON (alternative to the env value) |
 | `STRICT` | `1` makes warnings fail. Default `0`. |
-| `OF1_RUNTIME` | `cc` or `slicc`. Optional — the verifier auto-detects from its install path (`/workspace/skills/*` → slicc, else cc). Orchestrators may set explicitly so fix messages cite only the relevant install command. |
+| `OF1_RUNTIME` | `cc` or `slicc`. Optional — the verifier auto-detects from its install path (`/workspace/skills/*` → slicc, else cc). |
 
 Token resolution order: `$ADOBE_IMS_TOKEN` → `$OF1_TOKEN_FILE` → `$PWD/.hlx/.da-token.json` → `$OF1_DEMO_REPO/.hlx/.da-token.json`.
 
@@ -50,7 +250,8 @@ Token resolution order: `$ADOBE_IMS_TOKEN` → `$OF1_TOKEN_FILE` → `$PWD/.hlx/
 
 | File | Purpose |
 |------|---------|
-| `$OF1_STATE_DIR/setup.json` | resolved paths + token source. Downstream steps MUST read this for `tokenFile`, `of1Repo`, `stateDir` — do not hard-code defaults. |
+| `$OF1_STATE_DIR/setup.json` | resolved paths + owner/repo/branch + token source (from `verify.sh`) |
+| `$OF1_STATE_DIR/repo-config.json` | owner/repo/branch/contentPrefix/repoDir/domain/repoUrl/previewUrl/daSource — written interactively in Part 2 |
 | `$OF1_STATE_DIR/step-1-status.json` | `{"step":1,"status":"done"\|"failed",…}`. SLICC's sprinkle polls it; CC ignores it. |
 
 ## Install behavior
