@@ -248,11 +248,16 @@ Target selectors for generated content use the `.generated-section` class added 
 
 **The OF1 page loads `styles/of1.css` via the overlay engine (template name = `of1`).** This provides page-level styling for the header, footer, body, and ALL elements that appear outside `<main>` — NOT the block. Without it, the nav bar, announcement bar, and footer render as unstyled links.
 
-**Start from a COPY of the entire `styles/prototype-home.css`, then strip only the `<main>`-content rules.** This inverted approach guarantees nothing is missed — announcement bars, nav actions, logo fills, footer columns, responsive overrides all come along for free.
+**Start from a COPY of the prototype's inline `<style>` block, then strip only the `<main>`-content rules.** stardust:deploy does not produce a per-slug `styles/prototype-home.css` file — the prototype's styling lives inline inside `deliverables/prototype-home.html` itself. Extract that `<style>` block's contents verbatim into `styles/of1.css` as the starting point. This inverted approach guarantees nothing is missed — announcement bars, nav actions, logo fills, footer columns, responsive overrides all come along for free.
 
 ```bash
 cd "$OF1_DEMO_REPO"
-cp styles/prototype-home.css styles/of1.css
+python3 -c "
+import re
+html = open('deliverables/prototype-home.html').read()
+css = '\n'.join(re.findall(r'<style[^>]*>(.*?)</style>', html, re.S))
+open('styles/of1.css', 'w').write(css)
+"
 ```
 
 Then edit `styles/of1.css` and **remove only** the rules that style elements INSIDE `<main>` (hero sections, card grids, product listings, feature blocks, etc. — anything with class names from the prototype's `<main>` content). Keep everything else:

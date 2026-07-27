@@ -179,7 +179,7 @@ playwright-cli eval "document.querySelector('.site-footer') ? 'footer OK' : 'FOO
 - Footer has styled content (not empty or a single dark bar)
 - If the site has an announcement bar: it has a background color (not raw unstyled text)
 
-**If fails:** `styles/of1.css` is missing chrome rules. Start from `cp styles/prototype-home.css styles/of1.css` and strip only `<main>`-content rules.
+**If fails:** `styles/of1.css` is missing chrome rules. Start from the prototype's inline `<style>` block — extract it from `deliverables/prototype-home.html` (stardust:deploy does not produce a per-slug `styles/prototype-home.css` file) into `styles/of1.css` and strip only `<main>`-content rules.
 
 ### Check 3: All products have ≥2 images
 
