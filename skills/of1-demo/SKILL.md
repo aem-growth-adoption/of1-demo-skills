@@ -16,7 +16,7 @@ Lightweight orchestrator that opens the demo pipeline sprinkle and dispatches st
 4. The cone spawns a scoop to execute the step skill with appropriate context
 5. Steps with review gates pause for user approval (Approve/Revise buttons in sprinkle)
 6. After step 4 (Prototype), two tracks run in parallel:
-   - **Track A (EDS Site):** Step 5 (Snowflake) → Steps 6 (Templates) + 7 (OF1 styling) in parallel after S5
+   - **Track A (EDS Site):** Step 5 (stardust:deploy) and Step 6-base (Templates) dispatch together; Steps 6a–6e finish once 6-base finishes; Step 7 (OF1 styling) dispatches once Step 5 alone finishes, independent of Step 6's progress
    - **Track B (Config):** Steps 8–10 (Brand & content, Suggestions, CTA) in parallel → Step 11 (Config review)
 7. Step 12 (Deploy) requires Track A step 6 done AND Track B step 11 approved
 
@@ -64,7 +64,7 @@ Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everyt
 | 2 — discovery | `claude-opus-4-6` | Brand/narrative synthesis from crawled pages. Drives the demo story. |
 | 3 — extraction | `claude-opus-4-6` | Design-token + visual-system extraction. Wrong tokens cascade. |
 | 4 — prototype | `claude-opus-4-6` | Pixel-perfect HTML generation requiring visual judgment. |
-| 5 — snowflake | `claude-sonnet-5` | Invokes the adobe `snowflake` skill once per prototype. Thin wrapper. |
+| 5 — stardust:deploy | `claude-sonnet-5` | Invokes the `stardust:deploy` skill once for the full prototype set (stardust:deploy fans out internally). Complex multi-phase conversion requiring precise instruction-following. |
 | 6a–6e — template intents | `claude-sonnet-5` | Structured generation following a clear pattern + EDS visual reference. 5 parallel scoops — biggest cost saving. |
 | 6-base | `claude-sonnet-5` | Reads prototype CSS → writes `styles/of1-template-base.css` (shared tokens). Sequential, before intent fan-out. |
 | 6-assemble | inline (no scoop) | Purely scripted: runs `assemble-catalog.jsh` + `fill-template.jsh`, installs gallery, single commit + push. Runs inline in the orchestrator — no LLM reasoning needed. |
@@ -79,7 +79,7 @@ Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everyt
 
 If a Sonnet step produces visibly degraded output in practice, bump *that step* to Opus — not the whole pipeline.
 
-**For step 5 (Snowflake), the scoop MUST additionally be created with write access to the project repo AND the DA mount:**
+**For step 5 (stardust:deploy), the scoop MUST additionally be created with write access to the project repo AND the DA mount:**
 ```
 scoop_scoop({
   name: "of1-s5",
@@ -112,7 +112,7 @@ Run these in the same orchestrator turn as scoops 9 + 10 (four scoops in one bat
 
 ⚠️ **NEVER use `OF1_TG_MODE=all` (single-scoop mode).** It runs all 25 templates serially in one scoop (~18+ min) and produces incomplete output. Always use the 3-phase fan-out below. The `all` mode exists in the skill only as a fallback for environments that cannot fan out — SLICC CAN fan out, so always do so.
 
-**Phase 1 — base (sequential, after Step 5):** spawn `of1-s6-base` alongside Step 7. It generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all 25 per-template CSS files `@import`. Must finish before intent agents start.
+**Phase 1 — base (parallel with Step 5):** spawn `of1-s6-base` in the same orchestrator turn as Step 5 (stardust:deploy) — it does NOT wait for Step 5. It generates `styles/of1-template-base.css` from the prototype's inline CSS — the shared design tokens all 25 per-template CSS files `@import`. Must finish before intent agents start. Step 7 is NOT spawned alongside it — Step 7 dispatches independently once Step 5 alone finishes.
 ```
 scoop_scoop({
   name: "of1-s6-base",
@@ -167,7 +167,7 @@ Then follow those instructions EXACTLY. Do NOT improvise your own implementation
 If you skip this step, your output WILL be rejected by the verification gates.
 
 The skill is the tested, validated procedure. It tells you what to do, what tools
-to invoke (including sub-skills like stardust:extract, stardust:prototype, snowflake),
+to invoke (including sub-skills like stardust:extract, stardust:prototype, stardust:deploy),
 and what artifacts to produce. Read it. Follow it. Do not deviate.
 
 ## Project context
@@ -248,9 +248,10 @@ The pipeline has TWO parallel tracks that MUST run concurrently. **Do NOT serial
 
 | Trigger | Spawn immediately |
 |---------|-------------------|
-| Step 4 (Prototype) approved | **Track A:** Step 5 (Snowflake) AND **Track B:** Steps 8a, 8b, 10 (three scoops at once) |
+| Step 4 (Prototype) approved | **Track A:** Step 5 (stardust:deploy) AND Step 6-base (Templates) AND **Track B:** Steps 8a, 8b, 10 (five scoops at once) |
+| Step 6-base done | Steps 6a–6e (5 intent scoops in parallel) |
 | Steps 8a + 8b done | Step 9 (Suggestions — needs products.json + brand-voice.json) |
-| Step 5 (Snowflake) done | Step 7 (OF1 styling) AND Steps 6a–6e (5 intent scoops in parallel) — 6 scoops at once |
+| Step 5 (stardust:deploy) done | Step 7 (OF1 styling) |
 | Steps 6a–6e ALL complete | Step 6-assemble — run INLINE in orchestrator (no scoop) |
 | Steps 8-10 ALL complete | Step 11 (Config review) — run inline by the cone |
 | Steps 6-assemble + 7 done AND Step 11 approved | Step 12 (Deploy) |
@@ -267,59 +268,59 @@ Step 1 (Setup)
          ↓
        Step 4             ← needs both S2 + S3
          ↓
-    ┌────┴────────────┐
-    ↓                 ↓
-  S5         Track B (S8+S9+S10)
-    ↓                 ↓
-  ┌─┴────────┐    Step 11
-  S7   S6a∥6b∥6c∥6d∥6e
-  ↓         ↓
-  ↓     S6-assemble       ← runs ONCE after S6a–6e all done
-  ↓         ↓             ↓
-  └─────────┴─────────────┘
-            ↓
-       Step 12 (Deploy)
+    ┌────┴──────────────────────┐
+    ↓                           ↓
+┌───┴────┐          Track B (S8+S9+S10)
+S5       S6-base               ↓
+↓        ↓                 Step 11
+S7   S6a∥6b∥6c∥6d∥6e
+↓        ↓
+↓    S6-assemble       ← runs ONCE after S6a–6e all done
+↓        ↓             ↓
+└────────┴─────────────┘
+         ↓
+    Step 12 (Deploy)
 ```
 
 ### Key rules:
 1. **Track B does NOT wait for Step 5** — it starts immediately after Step 4 is approved
-2. **Step 7 (OF1 styling) runs AFTER Step 5** — it must not overwrite of1.css that S5 creates. S7 commits last.
-3. **Step 6 (Templates) waits for Step 5** — it needs the template CSS structure from the snowflake conversion
+2. **Step 6 (Templates) no longer waits for Step 5** — it reads step 4's prototype HTML/CSS directly, so Step 5 (stardust:deploy) and Step 6-base dispatch together right after Step 4 is approved
+3. **Step 7 (OF1 styling) runs AFTER Step 5** — it needs stardust:deploy's shared nav/footer chrome fragments and must not overwrite of1.css that S5 creates. S7 commits last. Step 7 does NOT wait for Step 6.
 4. **Step 6 is FANNED OUT into 5 parallel intent scoops (6a–6e) + 1 assemble scoop** — see "Step 6 fan-out detail" below
-5. **Step 7 runs in parallel with Steps 6a–6e** — 6 scoops at once after Step 5
+5. **Steps 5, 6-base run in parallel; Step 7 dispatches once Step 5 alone finishes** (not gated on Step 6's progress)
 6. **Steps 8a, 8b, 10 run at once** — spawn all 3 scoops simultaneously. **Step 9 waits for step 8 to finish** (it needs products.json + brand-voice.json to ground suggestions in real content)
 7. **Push each status as it arrives** — don't wait for all parallel steps to finish before updating the sprinkle
 
 ### Step 6 fan-out detail
 
-Step 6 (template generation) is split into 7 scoops across 3 phases plus a small inline screenshot step:
+Step 6 (template generation) is split into 7 scoops across 3 phases plus a small inline screenshot step. Step 6 dispatches immediately alongside Step 5 — it no longer waits for stardust:deploy to finish:
 
-- **Pre-fan-out (inline, orchestrator):** capture EDS-rendered visual references of all prototypes so the intent scoops see the actual rendered design system (see "Pre-fan-out: capture EDS visual reference" below).
-- **6-base (sequential, 1 scoop):** named `of1-s6-base`. Runs `of1-template-generation` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all per-template CSS files `@import`. Writes `/shared/of1-demo/step-6-base-status.json`. Must finish before intent scoops start.
+- **Pre-fan-out (inline, orchestrator):** capture visual references of all prototypes directly from the static `deliverables/prototype-*.html` files so the intent scoops see the real design system, without needing an EDS render (see "Pre-fan-out: capture visual reference" below). Dispatch this immediately after Step 4 is approved, in parallel with Step 5.
+- **6-base (sequential, 1 scoop):** named `of1-s6-base`. Runs `of1-template-generation` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype's inline CSS — the shared design tokens all per-template CSS files `@import`. Writes `/shared/of1-demo/step-6-base-status.json`. Must finish before intent scoops start. Dispatches in parallel with Step 5 (stardust:deploy), not after it.
 - **6a–6e (parallel, 5 scoops):** named `of1-s6-comparison`, `of1-s6-recommendation`, `of1-s6-deep-dive`, `of1-s6-budget`, `of1-s6-discovery`. Each runs with `OF1_TG_MODE=intent` and `OF1_TG_INTENT=<intent>`. Each writes only its own `templates/of1-{intent}-*` + `styles/of1-{intent}-*` files. **No git operations.** Each writes `/shared/of1-demo/step-6-intent-<intent>-status.json` on completion.
 - **6-assemble (inline, after 6a–6e):** runs in the orchestrator (NOT a scoop). Purely scripted: runs `assemble-catalog.jsh`, `fill-template.jsh`, installs the gallery, single commit + push. Writes the canonical `/shared/of1-demo/step-6-status.json` that the sprinkle reads.
 
-### Pre-fan-out: capture EDS visual reference (inline)
+### Pre-fan-out: capture visual reference (inline)
 
-After step 5 returns `done` and before spawning 6a–6e, the orchestrator captures the EDS-rendered prototype-home and writes it to a known local path that all 5 intent scoops will read. This gives the agents the actual rendered styling stack (snowflake + OF1 + EDS base) instead of just the standalone prototype HTML.
+Right after step 4 is approved, and in parallel with dispatching step 5, the orchestrator screenshots the static prototype file directly (no EDS render needed — `deliverables/prototype-*.html` is served as-is from the code bus) and writes it to a known local path that 6-base and all 5 intent scoops will read.
 
 ```bash
-EDS_HOME_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/prototype-home"
+PROTO_URL="${PREVIEW_BASE}/deliverables/prototype-home.html"
 REF_PATH="/workspace/of1-demo/deliverables/eds-prototype-home.png"
 
-playwright-cli open "$EDS_HOME_URL"
-sleep 6
+playwright-cli open "$PROTO_URL"
+sleep 3
 playwright-cli screenshot --fullPage=true --filename "$REF_PATH"
 playwright-cli tab-close "$(playwright-cli tab-list | grep -oE '[0-9]+' | tail -1)"
 
 [ -s "$REF_PATH" ] && [ "$(stat -c%s "$REF_PATH" 2>/dev/null)" -gt 51200 ] \
-  && echo "EDS reference saved: $REF_PATH" \
-  || echo "WARN: EDS screenshot looks empty/missing — intent scoops will fall back to prototype-only reference"
+  && echo "Reference saved: $REF_PATH" \
+  || echo "WARN: screenshot looks empty/missing — 6-base and intent scoops will fall back to reading the prototype's inline <style> alone"
 ```
 
-Do NOT commit this PNG — it's local reference material for the intent scoops only. If the screenshot fails, intent scoops fall back to the prototype HTML + snowflake CSS files (degraded fidelity but still functional).
+Do NOT commit this PNG — it's local reference material for 6-base and the intent scoops only. If the screenshot fails, they fall back to the prototype HTML's inline CSS alone (degraded fidelity but still functional).
 
-Spawn 6a–6e and Step 7 in the **same orchestrator turn** (6 scoops total). After all 5 intent status files exist, run assemble **inline** (no scoop). The sprinkle UI shows a single "Step 6" row; the orchestrator only pushes the step-6 status after the inline assemble writes `step-6-status.json`.
+Dispatch this pre-fan-out screenshot step, Step 5 (stardust:deploy), and Steps 8a/8b/10 all in the **same orchestrator turn** right after Step 4 is approved. Once the screenshot is ready, dispatch 6-base. Once 6-base finishes, dispatch 6a–6e. Once Step 5 alone finishes (independent of Step 6's progress), dispatch Step 7. After all 5 intent status files exist, run assemble **inline** (no scoop). The sprinkle UI shows a single "Step 6" row; the orchestrator only pushes the step-6 status after the inline assemble writes `step-6-status.json`.
 
 **Writable paths for ALL 6 step-6 scoops** (intent and assemble): the project repo (`/workspace/of1-demo/`) and `/shared/`. Intent scoops do not need DA mount access (no uploads from this step).
 
@@ -428,7 +429,7 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 | 2 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/discovery.html` |
 | 3 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/brand-review.html` |
 | 4 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/prototype-home.html` |
-| 5 | `https://{branch}--{repo}--{owner}.aem.page/prototype-home` |
+| 5 | `https://{branch}--{repo}--{owner}.aem.page/home` |
 | 6 | `https://{branch}--{repo}--{owner}.aem.page/gallery/index.html` |
 | 7 | `https://{branch}--{repo}--{owner}.aem.page/of1` |
 | 11 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/config-review.html` |
@@ -442,8 +443,8 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 | 2 | Discovery | `of1-discovery` | Yes | — | step 1 |
 | 3 | Extraction | `of1-extraction` | Yes | — | step 1 (runs parallel with step 2) |
 | 4 | Prototype | `of1-prototype` | Yes | — | steps 2 + 3 (needs both) |
-| 5 | Snowflake | `of1-snowflake` | Yes | A | step 4 |
-| 6 | Templates (fan-out) | `of1-template-generation` (×5 intent scoops + 1 assemble scoop) | Yes | A | step 5 |
+| 5 | stardust:deploy | `of1-stardust-deploy` | Yes | A | step 4 |
+| 6 | Templates (fan-out) | `of1-template-generation` (×5 intent scoops + 1 assemble scoop) | Yes | A | step 4 |
 | 7 | OF1 styling | `of1-generative-block-styler` | Yes | A | step 5 (must run AFTER S5 to avoid overwriting of1.css) |
 | 8 | Brand & content (split) | `of1-brand-voice-extractor` (scoop `of1-s8-brand`) + `of1-content-metadata` (scoop `of1-s8-content`) — 2 parallel scoops | No | B | step 4 |
 | 9 | Suggestions | `of1-quick-suggestions` | No | B | step 4 |
@@ -453,11 +454,11 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 
 ### Track Summary
 
-**Track A (EDS Site):** Step 5 starts after Step 4 → Step 7 AND Steps 6a–6e (5 parallel intent scoops) start in parallel after Step 5 → Step 6-assemble runs once 6a–6e all complete
+**Track A (EDS Site):** Step 5 (stardust:deploy) AND Step 6-base (Templates) dispatch together after Step 4 is approved → Steps 6a–6e (5 parallel intent scoops) start once 6-base finishes → Step 6-assemble runs once 6a–6e all complete. Step 7 (OF1 styling) dispatches once Step 5 alone finishes — independent of Step 6's progress.
 
 **Track B (Config):** Steps 8a + 8b + 10 (parallel, start after step 4) → Step 9 (after 8 done) → Step 11 (Config review)
 
-**Both tracks start after Step 4 is approved.** Track B does NOT wait for Step 5. Step 7 DOES wait for Step 5 — it must commit AFTER S5 so it doesn't get overwritten.
+**Both tracks start after Step 4 is approved.** Track B does NOT wait for Step 5. Step 6 no longer waits for Step 5 either — it dispatches in parallel. Step 7 DOES wait for Step 5 alone — it must commit AFTER S5 so it doesn't get overwritten, but it does not wait on Step 6.
 
 **Step 12 (Deploy)** requires Track A (step 6-assemble done AND step 7 done) AND Track B (step 11 approved).
 
@@ -493,7 +494,7 @@ The step outputs `/shared/of1-demo/repo-config.json` which all subsequent steps 
 
 ## Screenshot Diff Loop (Steps 4 & 5)
 
-Both the Prototype step (4) and the Snowflake step (5) MUST run a screenshot-based comparison loop before marking the step as review. This ensures visual fidelity.
+Both the Prototype step (4) and the stardust:deploy step (5) MUST run a screenshot-based comparison loop before marking the step as review. This ensures visual fidelity.
 
 ### How it works
 
@@ -587,13 +588,13 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 2 (Discovery)** needs: domain — runs in PARALLEL with step 3
 - **Step 3 (Extraction)** needs: domain only (does NOT need discovery output). Extracts design tokens, colors, typography, logo, and screenshots from the live site. Produces PRODUCT.md, DESIGN.json, screenshots, logo, and brand-review.html under `stardust/current/`. Runs in PARALLEL with step 2.
 - **Step 4 (Prototype)** needs: domain + extraction outputs from step 3 (`stardust/current/`) + discovery output from step 2 (key pages and narrative). Waits for BOTH S2 and S3 to complete. When composing the step-4 prompt, list ALL key pages from discovery and require prototypes for each. Never say "focus on homepage" or "if time permits" — all pages are equally mandatory. The scoop must produce one prototype per key page.
-- **Step 5 (Snowflake)** needs: domain, prototypes from step 4, repo-config.json
+- **Step 5 (stardust:deploy)** needs: domain, prototypes from step 4, repo-config.json
 - **Step 6 (Templates)** is fanned out into 1 `base` + 5 parallel `intent` + 1 `assemble` scoop (see "Step 6 fan-out detail"):
-  - The base scoop needs: prototype CSS files from step 5, `DESIGN.json` from step 3. It generates `styles/of1-template-base.css`.
-  - Each intent scoop needs: domain, `styles/of1-template-base.css` (from base), demo narrative from step 2, prototype CSS + slot-marked templates from step 5, plus its assigned `OF1_TG_INTENT`
+  - The base scoop needs: domain, `DESIGN.json` from step 3, the prototype's inline CSS directly from step 4's output (`deliverables/prototype-*.html`). No dependency on step 5 — it generates `styles/of1-template-base.css`.
+  - Each intent scoop needs: domain, `styles/of1-template-base.css` (from base), demo narrative from step 2, the prototype's inline CSS directly from step 4's output (`deliverables/prototype-*.html`), plus its assigned `OF1_TG_INTENT`. No dependency on step 5 — each intent scoop authors its own `data-slot` markers when generating its 5 templates.
   - The assemble scoop needs: all 25 per-intent template + CSS files (from the 5 intent scoops), repo-config.json. It owns the single commit + push.
 - **Step 7 (OF1 styling)** needs: domain, block names from step 5, `stardust/` data
-- **Steps 8–11 (Track B)** need: domain, `stardust/` data from step 3. They do NOT depend on the snowflake — they can start immediately after step 4.
+- **Steps 8–11 (Track B)** need: domain, `stardust/` data from step 3. They do NOT depend on stardust:deploy — they can start immediately after step 4.
 - **Step 11 (Config review)** needs: all `of1/config/` files from steps 8-10 — orchestrator generates review page inline
 - **Step 12 (Deploy)** needs: step 6-assemble done AND step 7 done (Track A) AND step 11 approved (Track B), plus domain, all config files, repo-config.json
 
@@ -678,14 +679,14 @@ open --view /tmp/check-of1.png
 ```
 Pass: branded header, search input, suggestion chips visible, no raw unstyled content.
 
-### Check 2: OF1 nav/footer matches prototype-home
+### Check 2: OF1 nav/footer matches /home
 ```bash
-playwright-cli open "${PREVIEW_BASE}/prototype-home"
+playwright-cli open "${PREVIEW_BASE}/home"
 sleep 8
 playwright-cli screenshot --tab <tab_id> --output /tmp/check-home.png
 open --view /tmp/check-home.png
 ```
-Pass: nav bar and footer are visually identical between OF1 page and prototype-home.
+Pass: nav bar and footer are visually identical between OF1 page and /home.
 
 ### Check 3: All products have ≥2 images
 ```bash
@@ -731,7 +732,7 @@ Pass: 25+ of1-* templates across all 5 intents.
 for URL in discovery.html brand-review.html config-review.html index.html; do
   curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/deliverables/${URL}"
 done
-curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/prototype-home"
+curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/home"
 curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/of1"
 curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/gallery/index.html"
 ```
@@ -867,7 +868,7 @@ These issues cost time in previous runs. Avoid them:
 
 11. **Brand logo in prototypes** — Prototypes MUST use the real brand SVG logo (extracted in Step 4 and saved to `stardust/current/assets/logo.svg` or inline in `_brand-extraction.json`). Never substitute with text or a placeholder. The logo SVG should be inlined directly in the nav HTML of every prototype page.
 
-12. **DA strips images from programmatic content** — DA's HTML→MD→HTML pipeline removes ALL `<img>`, `<picture>`, and `<svg>` elements from content uploaded via PUT. The solution: store image URLs as plain text in block cells, and have block JS create `<img>` elements at runtime. Every block that handles images needs a `convertTextToImages(block)` helper. See `of1-snowflake` skill § "EDS Content Authoring Constraints" for the full pattern.
+12. **DA strips images from programmatic content** — DA's HTML→MD→HTML pipeline removes ALL `<img>`, `<picture>`, and `<svg>` elements from content uploaded via PUT. The solution: store image URLs as plain text in block cells, and have block JS create `<img>` elements at runtime. Every block that handles images needs a `convertTextToImages(block)` helper. See `of1-stardust-deploy` skill § "EDS Content Authoring Constraints" for the full pattern.
 
 13. **Full-bleed blocks need wrapper override** — EDS wraps sections in `.{block}-wrapper` with `max-width: 1440px`. Hero, banners, and other full-width blocks MUST have `.{block}-wrapper { max-width: 100% !important; padding: 0 !important; }` in `styles/styles.css`.
 
@@ -887,7 +888,7 @@ These issues cost time in previous runs. Avoid them:
       playwright-cli tab-close "$TAB" 2>/dev/null
     done
     ```
-    This applies to ALL steps that use playwright-cli (discovery, extraction, prototype, snowflake, styling, deploy). Never leave tabs open after completing your work.
+    This applies to ALL steps that use playwright-cli (discovery, extraction, prototype, stardust:deploy, styling, deploy). Never leave tabs open after completing your work.
 
 ## DA Authentication & Content Upload (SLICC-specific)
 
@@ -953,7 +954,7 @@ The EDS demo repo uses branches to isolate demos. Content URLs use the branch in
 https://{branch}--{repo}--{owner}.aem.page/{page}
 ```
 
-Example: `https://frescopa--labs-abc123--of1-labs.aem.page/prototype-home`
+Example: `https://frescopa--labs-abc123--of1-labs.aem.page/home`
 
 ### Summary of allowed domains for curl with oauth.adobe.token
 
