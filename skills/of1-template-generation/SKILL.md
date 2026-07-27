@@ -44,10 +44,10 @@ Selected by `OF1_TG_MODE`. The orchestrator runs the three phases in order: `bas
 
 Available before invocation, in addition to the env above:
 
-- Design tokens → `$OF1_DEMO_REPO/stardust/current/DESIGN.json` (from step 4)
-- Demo narrative → `$OF1_STATE_DIR/step-3-output.md` (from step 3)
-- Slot-marked overlay templates → `$OF1_DEMO_REPO/templates/prototype-*.html` (from step 6 / snowflake) — real examples of the `<section>` + `data-slot` pattern your 15 templates will follow
-- Prototype CSS → `$OF1_DEMO_REPO/styles/prototype-*.css` (from step 6 / snowflake) — extracted styling rules (padding, radius, hover states, exact values)
+- Design tokens → `$OF1_DEMO_REPO/stardust/current/DESIGN.json` (from step 3)
+- Demo narrative → `$OF1_STATE_DIR/step-2-output.md` (from step 2)
+- Slot-marked overlay templates → `$OF1_DEMO_REPO/templates/prototype-*.html` (from step 5 / snowflake) — real examples of the `<section>` + `data-slot` pattern your 15 templates will follow
+- Prototype CSS → `$OF1_DEMO_REPO/styles/prototype-*.css` (from step 5 / snowflake) — extracted styling rules (padding, radius, hover states, exact values)
 - EDS-rendered screenshots → `$OF1_DEMO_REPO/deliverables/eds-prototype-*.png` (captured by orchestrator before fan-out)
 
 Worker-side schemas: `of1-demo/knowledge/worker-config-schemas.md` § `templates.json`, § `products.json`.
@@ -227,8 +227,8 @@ grep -A1 ":root" styles/prototype-*.css       | grep -i accent | head -3
 Status file (SLICC sprinkle IPC; CC ignores):
 
 ```bash
-echo "{\"step\":7,\"substep\":\"base\",\"status\":\"done\",\"summary\":\"Generated styles/of1-template-base.css with brand tokens.\"}" \
-  > "$OF1_STATE_DIR/step-7-base-status.json"
+echo "{\"step\":6,\"substep\":\"base\",\"status\":\"done\",\"summary\":\"Generated styles/of1-template-base.css with brand tokens.\"}" \
+  > "$OF1_STATE_DIR/step-6-base-status.json"
 ```
 
 ## Process — Mode: `intent`
@@ -348,8 +348,8 @@ done
 End with a one-line summary listing the 3 file basenames. Status file (SLICC sprinkle IPC; CC ignores):
 
 ```bash
-echo "{\"step\":7,\"substep\":\"intent-${INTENT}\",\"status\":\"done\",\"summary\":\"Generated 3 ${INTENT} variations.\"}" \
-  > "$OF1_STATE_DIR/step-7-intent-${INTENT}-status.json"
+echo "{\"step\":6,\"substep\":\"intent-${INTENT}\",\"status\":\"done\",\"summary\":\"Generated 3 ${INTENT} variations.\"}" \
+  > "$OF1_STATE_DIR/step-6-intent-${INTENT}-status.json"
 ```
 
 ## Process — Mode: `assemble`
@@ -452,9 +452,9 @@ COUNT=$(ls templates/of1-*.html 2>/dev/null | wc -l | tr -d ' ')
 [ "$COUNT" -ge 15 ] || { echo "ABORT: only ${COUNT} templates exist" >&2; exit 1; }
 
 GALLERY_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/gallery/index.html"
-cat > "$OF1_STATE_DIR/step-7-status.json" <<EOF
+cat > "$OF1_STATE_DIR/step-6-status.json" <<EOF
 {
-  "step": 7,
+  "step": 6,
   "status": "review",
   "deliverables": [
     { "url": "${GALLERY_URL}", "label": "Template gallery" }

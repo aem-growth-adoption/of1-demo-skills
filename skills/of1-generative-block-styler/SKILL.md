@@ -12,7 +12,7 @@ Own the `/of1` page top to bottom: install the block, generate brand-aligned CSS
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-8-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-7-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 | `SKILL_DIR` | absolute path to this skill's directory (used to find the canonical `assets/of1.js` and `assets/of1.css` that get installed in `blocks/of1/`) |
 | `ADOBE_IMS_TOKEN` | raw DA token (preferred) |
@@ -64,7 +64,7 @@ cp "$SKILL_DIR/assets/of1.css" blocks/of1/of1.css
 
 `of1.js` is deployed as-is. `of1.css` is the unbranded template — Step 3 customizes it in place with the site's brand tokens.
 
-**Then patch `scripts/scripts.js` to add passthrough support to the overlay engine.** Snowflake (step 6) installs a stock overlay engine whose `applyTemplateOverlay()` always replaces `<main>.innerHTML` with the template's content. That's wrong for the `/of1` page — its `<main>` contains the OF1 search block (an active component with running JS that would be destroyed by an innerHTML swap). The passthrough mode lets the engine load the branded chrome + the page CSS while leaving the existing `<main>` content intact.
+**Then patch `scripts/scripts.js` to add passthrough support to the overlay engine.** Snowflake (step 5) installs a stock overlay engine whose `applyTemplateOverlay()` always replaces `<main>.innerHTML` with the template's content. That's wrong for the `/of1` page — its `<main>` contains the OF1 search block (an active component with running JS that would be destroyed by an innerHTML swap). The passthrough mode lets the engine load the branded chrome + the page CSS while leaving the existing `<main>` content intact.
 
 Open `scripts/scripts.js`, find the `applyTemplateOverlay()` function, and add this check **before** the "Replace main content" line:
 
@@ -286,11 +286,11 @@ cat > templates/of1.html <<'TMPL'
 TMPL
 
 # OF1 page uses the same header/footer chrome as the prototype-home page.
-# These files MUST exist — step 6 (snowflake) commits them to git.
-# If they're missing, step 6 did not run correctly.
+# These files MUST exist — step 5 (snowflake) commits them to git.
+# If they're missing, step 5 did not run correctly.
 [ -f fragments/prototype-home/header.html ] || {
   echo "FAIL: fragments/prototype-home/header.html not found in git." >&2
-  echo "Step 6 (snowflake) did not commit fragments. Re-run step 6." >&2
+  echo "Step 5 (snowflake) did not commit fragments. Re-run step 5." >&2
   exit 1
 }
 cp fragments/prototype-home/header.html fragments/of1/header.html
@@ -490,13 +490,13 @@ Fix any failures and re-push before Completion.
 
 After pushing, mark the step as `review` and **STOP**. Do not proceed. The user must open the OF1 page, test the search UI, click suggestion chips, and visually approve the styling before the pipeline continues.
 
-This is a gate — step 13 (Deploy) cannot start until both step 7 (Templates) and step 8 (this step) are approved.
+This is a gate — step 12 (Deploy) cannot start until both step 6 (Templates) and step 7 (this step) are approved.
 
 ```bash
 OF1_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/of1"
-cat > "$OF1_STATE_DIR/step-8-status.json" <<EOF
+cat > "$OF1_STATE_DIR/step-7-status.json" <<EOF
 {
-  "step": 8,
+  "step": 7,
   "status": "review",
   "deliverables": [
     { "url": "${OF1_URL}", "label": "OF1 page" }
