@@ -1,20 +1,20 @@
 ---
 name: of1-stardust-deploy
-description: Convert the step-5 prototypes into EDS blocks + content pages by invoking the adobe `stardust:deploy` skill. Thin wrapper — stardust:deploy owns the conversion methodology (naming, block extraction, foundation CSS, fonts, buttons, DA upload, verification); this skill supplies OF1-specific inputs and overrides stardust's branch handling so artifacts land on the demo branch.
+description: Convert the step-4 prototypes into EDS blocks + content pages by invoking the adobe `stardust:deploy` skill. Thin wrapper — stardust:deploy owns the conversion methodology (naming, block extraction, foundation CSS, fonts, buttons, DA upload, verification); this skill supplies OF1-specific inputs and overrides stardust's branch handling so artifacts land on the demo branch.
 user-invocable: false
 ---
 
 # OF1 Stardust Deploy
 
-Pure delegation to the `stardust:deploy` skill (`stardust` plugin). Convert every prototype committed by step 5 into real EDS blocks + content pages — one block per distinct prototype `<section>` (deduped via stardust's variant-class rule where sections repeat with the same treatment), one EDS content page per prototype page, shared `content/fragments/{nav,footer}.html` chrome, and a `styles/styles.css` foundation (tokens, reset, button system, self-hosted fonts) — then push to the demo branch.
+Pure delegation to the `stardust:deploy` skill (`stardust` plugin). Convert every prototype committed by step 4 into real EDS blocks + content pages — one block per distinct prototype `<section>` (deduped via stardust's variant-class rule where sections repeat with the same treatment), one EDS content page per prototype page, shared `content/fragments/{nav,footer}.html` chrome, and a `styles/styles.css` foundation (tokens, reset, button system, self-hosted fonts) — then push to the demo branch.
 
-The `/of1` personalization page is NOT converted here — its DOM-preserving passthrough overlay is owned entirely by step 8 (`of1-generative-block-styler`), since the OF1 search block must stay live-DOM and can never be authored as a static EDS block.
+The `/of1` personalization page is NOT converted here — its DOM-preserving passthrough overlay is owned entirely by step 7 (`of1-generative-block-styler`), since the OF1 search block must stay live-DOM and can never be authored as a static EDS block.
 
 ## Env — orchestrator exports these (see `of1-setup`)
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-6-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-5-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 | `ADOBE_IMS_TOKEN` | raw DA token (preferred — stardust:deploy reads this from env automatically) |
 | `OF1_TOKEN_FILE` | path to a `{"access_token":"…"}` JSON (fallback) |
@@ -79,7 +79,7 @@ Supply these values upfront (do NOT let it prompt):
 
 ### ⚠️ Critical override of stardust:deploy's branch handling
 
-stardust:deploy's deploy stage (§ "Deploy (DA Source API, from a local agent)") pushes to whatever branch is currently checked out and does not itself create a feature branch — confirm this by checking `git branch --show-current` before invoking. If any phase of stardust:deploy prompts to create or push to a new branch, override it: substitute `${BRANCH}` (already checked out by `of1-repo-setup`) wherever it would create a new one, and push there:
+stardust:deploy's deploy stage (§ "Deploy (DA Source API, from a local agent)") pushes to whatever branch is currently checked out and does not itself create a feature branch — confirm this by checking `git branch --show-current` before invoking. If any phase of stardust:deploy prompts to create or push to a new branch, override it: substitute `${BRANCH}` (already checked out by `of1-setup`) wherever it would create a new one, and push there:
 
 ```bash
 git checkout "${BRANCH}"   # should already be current — verify, don't assume
@@ -90,7 +90,7 @@ Preview/content URLs must resolve at `https://${BRANCH}--${REPO}--${OWNER}.aem.p
 
 ### 3. Verify critical artifacts exist (hard gate)
 
-**Step 7 (template generation) and step 8 (OF1 styling) both depend on this step's output** — step 8 specifically needs `content/fragments/nav.html` and `content/fragments/footer.html` (or the path confirmed by `of1-generative-block-styler`'s own runtime-discovery step — see that skill for the exact path, since stardust:deploy's own docs are inconsistent about whether shared fragments live under `content/fragments/` or repo-root `fragments/`).
+**Step 6 (template generation) and step 7 (OF1 styling) both depend on this step's output** — step 7 specifically needs `content/fragments/nav.html` and `content/fragments/footer.html` (or the path confirmed by `of1-generative-block-styler`'s own runtime-discovery step — see that skill for the exact path, since stardust:deploy's own docs are inconsistent about whether shared fragments live under `content/fragments/` or repo-root `fragments/`).
 
 ```bash
 cd "$OF1_DEMO_REPO"
@@ -107,7 +107,7 @@ done
 
 [ -f styles/styles.css ] || { echo "✗ MISSING: styles/styles.css" >&2; FAIL=true; }
 
-# Shared chrome fragments — REQUIRED by step 8. Check both candidate locations
+# Shared chrome fragments — REQUIRED by step 7. Check both candidate locations
 # since stardust:deploy's own docs disagree on the path.
 if [ -f content/fragments/nav.html ] || [ -f fragments/header.html ]; then
   echo "✓ nav/header fragment found"
@@ -169,9 +169,9 @@ PYEOF
 
 COUNT=$(echo "$PROTOTYPES" | wc -w | tr -d ' ')
 
-cat > "$OF1_STATE_DIR/step-6-status.json" <<EOF
+cat > "$OF1_STATE_DIR/step-5-status.json" <<EOF
 {
-  "step": 6,
+  "step": 5,
   "status": "review",
   "deliverables": ${DELIVERABLES},
   "summary": "stardust:deploy conversion complete: ${COUNT} EDS page(s) on demo branch, block-authored with branded chrome."
