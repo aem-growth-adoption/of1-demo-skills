@@ -110,7 +110,7 @@ Remove previous demo artifacts but preserve EDS boilerplate
 
 ```bash
 cd "$REPO_DIR"
-rm -rf stardust/ deliverables/ templates/ fragments/ .snowflake/ drafts/ \
+rm -rf stardust/ deliverables/ templates/ fragments/ content/ drafts/ \
        gallery/ of1/config/ tools/ output/ screenshots/ tmp/ da/
 rm -rf styles/of1-*.css styles/prototype-*.css
 rm -f PRODUCT.md
