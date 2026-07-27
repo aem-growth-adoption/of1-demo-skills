@@ -12,7 +12,7 @@ Crawl a website to extract product data, user personas, use cases, features, and
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-9-content-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-8-content-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 | `SKILL_DIR` | absolute path to this skill (used to find `assets/download-images.*`) |
 | `ADOBE_IMS_TOKEN` | raw DA token (preferred) |
@@ -36,7 +36,7 @@ mkdir -p of1/config
 
 If discovery output exists, read it to focus on the right product category:
 ```bash
-cat "$OF1_STATE_DIR/step-3-output.md" 2>/dev/null
+cat "$OF1_STATE_DIR/step-2-output.md" 2>/dev/null
 ```
 
 Schema reference: `of1-demo/knowledge/worker-config-schemas.md` — § `products.json`, § `personas.json`, § `use-cases.json`, § `features.json`, § `faqs.json`.
@@ -353,12 +353,12 @@ EOF
 
 If ANY of these are false, GO BACK and complete Step 9. Do not proceed.
 
-This skill runs alongside `brand-voice-extractor` (step 9a). Both must complete before step 9 is marked done.
+This skill runs alongside `brand-voice-extractor` (step 8a). Both must complete before step 8 is marked done.
 
 ```bash
-cat > "$OF1_STATE_DIR/step-9-content-status.json" <<EOF
-{"step":9,"substep":"content","status":"done","summary":"Content metadata: [N] products, [M] personas, [P] use cases, [Q] features, [R] FAQs. All images on DA."}
+cat > "$OF1_STATE_DIR/step-8-content-status.json" <<EOF
+{"step":8,"substep":"content","status":"done","summary":"Content metadata: [N] products, [M] personas, [P] use cases, [Q] features, [R] FAQs. All images on DA."}
 EOF
 ```
 
-The orchestrator waits for both `step-9-content-status.json` and `step-9-brand-status.json` before marking step 9 complete.
+The orchestrator waits for both `step-8-content-status.json` and `step-8-brand-status.json` before marking step 8 complete.

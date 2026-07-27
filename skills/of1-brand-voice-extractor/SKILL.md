@@ -12,7 +12,7 @@ Analyze a website to extract its brand voice, tone, and personality, then genera
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-9-brand-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-8-brand-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 
 Read repo config:
@@ -29,7 +29,7 @@ Schema reference: `of1-demo/knowledge/worker-config-schemas.md` § `brand-voice.
 ## Inputs
 
 - `DOMAIN` (e.g. `frescopa.coffee`). In pipeline mode, read from repo-config. Only ask the user if not provided.
-- Discovery output at `$OF1_STATE_DIR/step-3-output.md` (if available — use for page URLs instead of re-discovering)
+- Discovery output at `$OF1_STATE_DIR/step-2-output.md` (if available — use for page URLs instead of re-discovering)
 
 ## Process
 
@@ -109,12 +109,12 @@ The worker injects these fields into the LLM system prompt to shape how generate
 
 ## Completion (pipeline mode)
 
-This skill runs alongside `content-metadata` (step 9b). Both must complete before step 9 is marked done.
+This skill runs alongside `content-metadata` (step 8b). Both must complete before step 8 is marked done.
 
 ```bash
-cat > "$OF1_STATE_DIR/step-9-brand-status.json" <<EOF
-{"step":9,"substep":"brand","status":"done","summary":"Brand voice extracted: [personality adjectives]. [N] vocabulary terms, [M] avoid words."}
+cat > "$OF1_STATE_DIR/step-8-brand-status.json" <<EOF
+{"step":8,"substep":"brand","status":"done","summary":"Brand voice extracted: [personality adjectives]. [N] vocabulary terms, [M] avoid words."}
 EOF
 ```
 
-The orchestrator waits for both `step-9-brand-status.json` and `step-9-content-status.json` before marking step 9 complete.
+The orchestrator waits for both `step-8-brand-status.json` and `step-8-content-status.json` before marking step 8 complete.
