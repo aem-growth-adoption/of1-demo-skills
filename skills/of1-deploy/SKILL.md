@@ -161,7 +161,7 @@ playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/check-of1.p
 
 **If fails:** check `scripts.js` passthrough branch has `decorateMain(main)`, or `styles/of1.css` is missing header/footer chrome.
 
-### Check 2: OF1 nav/footer matches prototype-home
+### Check 2: OF1 nav/footer matches /home
 
 ```bash
 playwright-cli open "${PREVIEW_BASE}/of1"
