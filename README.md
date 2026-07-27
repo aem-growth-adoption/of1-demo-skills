@@ -56,6 +56,7 @@ Steps 1→2→3→4 (sequential)
 | `of1-cta-template-builder` | Extract site design system and generate a branded CTA template |
 | `of1-config-review` | Generate the config-review.html deliverable from tenant config |
 | `of1-deploy` | Commit config, sync to OF1 worker, generate demo hub, and verify |
+| `of1-signals` | Standalone (not a pipeline step) — author `signals.json`, the OF1 **preview extension's** own config for simulating how a demo visitor arrived (fake email/ads/LLM referrals) |
 
 ## Usage
 
