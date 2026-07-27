@@ -64,7 +64,7 @@ cp "$SKILL_DIR/assets/of1.css" blocks/of1/of1.css
 
 `of1.js` is deployed as-is. `of1.css` is the unbranded template — Step 3 customizes it in place with the site's brand tokens.
 
-**Then patch `scripts/scripts.js` to add passthrough support to the overlay engine.** Snowflake (step 5) installs a stock overlay engine whose `applyTemplateOverlay()` always replaces `<main>.innerHTML` with the template's content. That's wrong for the `/of1` page — its `<main>` contains the OF1 search block (an active component with running JS that would be destroyed by an innerHTML swap). The passthrough mode lets the engine load the branded chrome + the page CSS while leaving the existing `<main>` content intact.
+**Then patch `scripts/scripts.js` to add passthrough support to the overlay engine.** stardust:deploy (step 5) installs the AuthorKit runtime's overlay engine whose `applyTemplateOverlay()` always replaces `<main>.innerHTML` with the template's content. That's wrong for the `/of1` page — its `<main>` contains the OF1 search block (an active component with running JS that would be destroyed by an innerHTML swap). The passthrough mode lets the engine load the branded chrome + the page CSS while leaving the existing `<main>` content intact.
 
 Open `scripts/scripts.js`, find the `applyTemplateOverlay()` function, and add this check **before** the "Replace main content" line:
 
@@ -285,16 +285,32 @@ cat > templates/of1.html <<'TMPL'
 </main>
 TMPL
 
-# OF1 page uses the same header/footer chrome as the prototype-home page.
-# These files MUST exist — step 5 (snowflake) commits them to git.
-# If they're missing, step 5 did not run correctly.
-[ -f fragments/prototype-home/header.html ] || {
-  echo "FAIL: fragments/prototype-home/header.html not found in git." >&2
-  echo "Step 5 (snowflake) did not commit fragments. Re-run step 5." >&2
+# OF1 page uses the same nav/footer chrome as the rest of the site.
+# stardust:deploy (step 5) commits shared chrome fragments — but its own
+# docs are inconsistent about the exact path (content/fragments/{nav,footer}.html
+# vs repo-root fragments/{header,footer}.html). Discover the real path instead
+# of assuming one.
+NAV_SRC=""
+FOOTER_SRC=""
+for CANDIDATE in "content/fragments/nav.html:content/fragments/footer.html" "fragments/header.html:fragments/footer.html" "content/fragments/header.html:content/fragments/footer.html"; do
+  NAV_CANDIDATE="${CANDIDATE%%:*}"
+  FOOTER_CANDIDATE="${CANDIDATE##*:}"
+  if [ -f "$NAV_CANDIDATE" ] && [ -f "$FOOTER_CANDIDATE" ]; then
+    NAV_SRC="$NAV_CANDIDATE"
+    FOOTER_SRC="$FOOTER_CANDIDATE"
+    break
+  fi
+done
+
+if [ -z "$NAV_SRC" ]; then
+  echo "FAIL: could not find stardust:deploy's shared nav/footer fragments." >&2
+  echo "Checked: content/fragments/{nav,footer}.html, fragments/{header,footer}.html, content/fragments/{header,footer}.html" >&2
+  echo "Step 5 (of1-stardust-deploy) did not commit chrome fragments as expected. Re-run step 5 or inspect its actual output paths with: find . -iname '*nav*' -o -iname '*footer*' -path '*fragments*'" >&2
   exit 1
-}
-cp fragments/prototype-home/header.html fragments/of1/header.html
-cp fragments/prototype-home/footer.html fragments/of1/footer.html
+fi
+echo "Using chrome fragments: $NAV_SRC / $FOOTER_SRC"
+cp "$NAV_SRC" fragments/of1/header.html
+cp "$FOOTER_SRC" fragments/of1/footer.html
 ```
 
 The passthrough behavior for the `<main data-overlay="of1">` + `[data-slot-passthrough]` template above is implemented by the `scripts/scripts.js` patch installed in Step 0 — verify that patch is in place before pushing.
@@ -470,7 +486,7 @@ Common failures:
 
 | Symptom | Likely cause |
 |---|---|
-| `HEADER MISSING` / `FOOTER MISSING` | `fragments/of1/{header,footer}.html` didn't get pushed, or `scripts/scripts.js` is missing passthrough support (Step 6 of the snowflake skill) |
+| `HEADER MISSING` / `FOOTER MISSING` | `fragments/of1/{header,footer}.html` didn't get pushed, or `scripts/scripts.js` is missing passthrough support (Step 5, `of1-stardust-deploy`, installs the AuthorKit runtime this patch sits on top of) |
 | `OF1 BLOCK MISSING` | `blocks/of1/of1.js` wasn't pushed, OR the DA content document at `/of1.html` is missing the `template=of1` metadata, OR the `of1` block class isn't on the right element |
 | Screenshot shows unstyled links / system font | `styles/of1.css` didn't get pushed, or the overlay engine didn't pick it up (check `<meta name="template">` in the rendered HTML) |
 
