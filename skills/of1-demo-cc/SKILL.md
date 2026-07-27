@@ -34,8 +34,8 @@ Use **TaskCreate** with one task per pipeline step:
 2.  Discovery       — crawl site, propose narrative
 3.  Extraction      — design tokens, logo, screenshots (parallel with 2)
 4.  Prototype       — pixel-perfect HTML (needs 2 + 3)
-5.  Snowflake       — convert prototypes to EDS pages
-6.  Templates       — 25 branded templates (base + fan-out: 5 intents + assemble)
+5.  Stardust deploy — convert prototypes to EDS blocks + pages
+6.  Templates       — 25 branded templates (base + fan-out: 5 intents + assemble; needs 4, NOT 5)
 7.  OF1 styling     — generative-block CSS + /of1 page setup (needs 5)
 8a. Brand voice     — voice extraction (parallel)
 8b. Content meta    — products, personas, FAQs + image upload (parallel)
@@ -54,8 +54,8 @@ Mark task 1 completed immediately. Mark each task `in_progress` when its dispatc
 The dependency graph and parallelism rules:
 
 ```
-1  →  2 ∥ 3  →  4  →  ┬─ 5  →  ┬─ 6-base → 6a ∥ 6b ∥ 6c ∥ 6d ∥ 6e  →  6-assemble  ─┐
-                      │        └─ 7                                                   │
+1  →  2 ∥ 3  →  4  →  ┬─ 5  →  7  ──────────────────────────────────────────────────┐
+                      ├─ 6-base → 6a ∥ 6b ∥ 6c ∥ 6d ∥ 6e  →  6-assemble  ────────────┤
                       └─ 8a ∥ 8b ∥ 10  →  9  →  11  ───────────────────────────────┴─→  12
 ```
 
@@ -67,8 +67,8 @@ The dependency graph and parallelism rules:
 |---------|-------------------------|
 | Step 1 done | Step 2 AND Step 3 |
 | Steps 2 + 3 done | Step 4 |
-| Step 4 done | Step 5 AND Steps 8a, 8b, 10 (4 agents in one message) |
-| Step 5 done | Step 6-base AND Step 7 (Step 6-base must finish before intent fan-out) |
+| Step 4 done | Step 5 AND Step 6-base AND Steps 8a, 8b, 10 (5 agents in one message) |
+| Step 5 done | Step 7 (independent of Step 6's progress) |
 | Step 6-base done | Steps 6a–6e (5 intent agents in one message) |
 | Steps 8a + 8b done | Step 9 (needs products.json + brand-voice.json) |
 | Steps 6a–6e all done | Step 6-assemble (1 agent, sequential) |
@@ -77,7 +77,8 @@ The dependency graph and parallelism rules:
 
 **Common mistakes to avoid:**
 - Do NOT run Step 11 as soon as 8a finishes — it needs 8a + 8b + 9 + 10 ALL completed.
-- Do NOT run Step 6-base before Step 5 returns — 6 reads from 5's output files.
+- Do NOT wait for Step 5 before dispatching Step 6-base — Step 6 now reads step 4's prototype output directly and is fully independent of Step 5. Dispatch both together right after Step 4.
+- Do NOT dispatch Step 7 before Step 5 returns — Step 7 needs stardust:deploy's shared nav/footer chrome fragments. Step 7 does NOT need to wait for Step 6.
 - Do NOT run Step 9 before BOTH 8a and 8b return — it needs both brand-voice.json and products.json.
 
 ### Step 6 fan-out detail
@@ -88,9 +89,9 @@ Step 6 (template generation) is split into 7 dispatches across 3 phases:
 - **6a–6e (parallel, 5 agents):** each runs the same skill with `OF1_TG_MODE=intent` and `OF1_TG_INTENT` set to one of `comparison`, `recommendation`, `deep-dive`, `budget`, `discovery`. Each writes only its own `templates/of1-{intent}-*` + `styles/of1-{intent}-*` files. No git operations.
 - **6-assemble (sequential, 1 agent):** same skill with `OF1_TG_MODE=assemble`. Verifies base CSS exists, assembles the fully-inlined catalog, runs `fill-template.py`, installs the gallery, and commits everything in one push.
 
-### Pre-fan-out: capture EDS visual references (inline, orchestrator turn)
+### Pre-fan-out: capture visual references (inline, orchestrator turn)
 
-After Step 5 returns `done` and before dispatching 6-base, screenshot every prototype page as rendered by EDS. The intent agents read these from disk to match their templates to the full rendered design system.
+Right after Step 4 returns `done` — in parallel with dispatching Step 5 — screenshot every static prototype page directly (no EDS render needed; `deliverables/prototype-*.html` is served as-is from the code bus). The intent agents read these from disk to match their templates to the design system.
 
 ```bash
 PROTOTYPE_PAGES=$(ls "${OF1_REPO}/deliverables/"prototype-*.html 2>/dev/null \
@@ -100,27 +101,27 @@ OWNER=$(jq -r .owner "$OF1_STATE_DIR/repo-config.json")
 REPO=$(jq -r .repo "$OF1_STATE_DIR/repo-config.json")
 
 for PAGE in $PROTOTYPE_PAGES; do
-  URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${PAGE}"
+  URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/${PAGE}.html"
   REF="${OF1_REPO}/deliverables/eds-${PAGE}.png"
   playwright-cli open "$URL"
-  sleep 6
+  sleep 3
   playwright-cli screenshot --fullPage=true --filename "$REF"
 
   if [ -s "$REF" ] && [ "$(stat -f%z "$REF" 2>/dev/null || stat -c%s "$REF")" -gt 51200 ]; then
-    echo "EDS reference saved: $REF"
+    echo "Reference saved: $REF"
   else
-    echo "WARN: EDS screenshot for ${PAGE} empty/missing — intent agents fall back to HTML/CSS alone"
+    echo "WARN: screenshot for ${PAGE} empty/missing — intent agents fall back to the prototype's inline <style> alone"
   fi
 done
 ```
 
-Do NOT commit these PNGs. They're local reference material. If screenshots fail, intent agents fall back to prototype HTML + CSS alone — degraded fidelity but functional.
+Do NOT commit these PNGs. They're local reference material. If screenshots fail, intent agents fall back to the prototype's inline CSS alone — degraded fidelity but functional. This step no longer depends on Step 5 — dispatch it immediately after Step 4, alongside Step 5 and Steps 8a/8b/10.
 
 If any 6a–6e fails, retry just that one; don't re-run the others. If `6-assemble` fails, re-run it alone — intent outputs are intact.
 
 ### Step 8 split
 
-Steps 8a and 8b are independent — both consume Step 3's extraction output and produce different files. Dispatch both in the same message as Steps 9 + 10 (4 agents total after Step 4).
+Steps 8a and 8b are independent — both consume Step 3's extraction output and produce different files. Dispatch both in the same message as Step 10 (5 agents total after Step 4: Step 5, Step 6-base, 8a, 8b, 10).
 
 ## Model assignment per step
 
@@ -137,7 +138,7 @@ Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritan
 | 2 — discovery | `opus` | Brand/narrative synthesis from crawled pages. Drives demo story. |
 | 3 — extraction | `opus` | Design-token extraction. Wrong tokens cascade everywhere. |
 | 4 — prototype | `opus` | Pixel-perfect HTML requiring visual judgment. |
-| 5 — snowflake | `opus` | Invokes the adobe snowflake skill. Complex multi-phase conversion requiring precise instruction-following. |
+| 5 — stardust deploy | `opus` | Invokes the adobe stardust:deploy skill. Complex multi-phase conversion (naming lock, block extraction, fonts, DA upload, verification gates) requiring precise instruction-following. |
 | 6-base | `sonnet` | Reads prototype CSS → writes `:root` tokens. Structured extraction. |
 | 6a–6e — template intents | `sonnet` | Structured generation from a clear pattern. 5 parallel = biggest cost block. |
 | 6-assemble | `sonnet` | Runs scripts + one commit. Bump to `opus` if quality dips. |
@@ -246,7 +247,7 @@ Deliverable: `https://<branch>--<repo>--<owner>.aem.page/deliverables/config-rev
 After step 11 approved AND steps 6-assemble + 7 done, run step 12 inline (read the `of1-deploy` skill and follow it). The pre-launch checklist has **5 checks** — all must pass:
 
 1. OF1 page loads with styled search UI
-2. OF1 nav/footer matches prototype-home
+2. OF1 nav/footer matches /home
 3. All products have ≥2 images
 4. Template catalog has 25 of1-* entries across all 5 intents
 5. All deliverable URLs return 200
