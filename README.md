@@ -5,46 +5,44 @@ Claude Code skills for preparing OF1 generative web search demos. These skills a
 ## Pipeline Flow
 
 ```
-Steps 1→2→3→4→5 (sequential)
+Steps 1→2→3→4 (sequential)
                  ↓
          ┌───────┴───────┐
          ↓               ↓
     Track A          Track B
          ↓               ↓
-    Step 6          Steps 9,10,11
+    Step 5          Steps 8,9,10
     (Snowflake)     (all parallel)
          ↓               ↓
-    Steps 7+8       Step 12
+    Steps 6+7       Step 11
     (parallel)      (Config review)
          ↓               ↓
          └───────┬───────┘
                  ↓
-            Step 13 (Deploy)
+            Step 12 (Deploy)
 ```
 
 | Step | Name | Skill | Depends on |
 |------|------|-------|------------|
-| 1 | Install dependencies | `of1-setup` | — |
-| 2 | Repo setup | `of1-repo-setup` | Step 1 |
-| 3 | Discovery | `of1-discovery` | Step 2 |
-| 4 | Extraction | `of1-extraction` | Step 3 |
-| 5 | Prototype | `of1-prototype` | Step 4 |
-| 6 | Snowflake | `of1-snowflake` | Step 5 |
-| 7 | Templates | `of1-template-generation` | Step 6 |
-| 8 | OF1 styling | `of1-generative-block-styler` | Step 6 |
-| 9 | Brand & content | `of1-brand-voice-extractor` + `of1-content-metadata` | Step 5 |
-| 10 | Suggestions | `of1-quick-suggestions` | Step 5 |
-| 11 | CTA template | `of1-cta-template-builder` | Step 5 |
-| 12 | Config review | `of1-config-review` | Steps 9+10+11 |
-| 13 | Deploy | `of1-deploy` | Steps 7+8+12 |
+| 1 | Setup | `of1-setup` | — |
+| 2 | Discovery | `of1-discovery` | Step 1 |
+| 3 | Extraction | `of1-extraction` | Step 2 |
+| 4 | Prototype | `of1-prototype` | Step 3 |
+| 5 | Snowflake | `of1-snowflake` | Step 4 |
+| 6 | Templates | `of1-template-generation` | Step 5 |
+| 7 | OF1 styling | `of1-generative-block-styler` | Step 5 |
+| 8 | Brand & content | `of1-brand-voice-extractor` + `of1-content-metadata` | Step 4 |
+| 9 | Suggestions | `of1-quick-suggestions` | Step 4 |
+| 10 | CTA template | `of1-cta-template-builder` | Step 4 |
+| 11 | Config review | `of1-config-review` | Steps 8+9+10 |
+| 12 | Deploy | `of1-deploy` | Steps 6+7+11 |
 
 ## Skills
 
 | Skill | Description |
 |-------|-------------|
 | `of1-demo` | Orchestrate full demo preparation — user-driven step pipeline via sprinkle UI |
-| `of1-setup` | Verify prerequisites — skills, tools, and repo state |
-| `of1-repo-setup` | Set up EDS repo (existing or new from boilerplate) + create demo branch |
+| `of1-setup` | Verify prerequisites — skills, tools, and repo state; verify EDS repo + prepare repo-config.json |
 | `of1-discovery` | Crawl a target website and propose a demo focus/narrative |
 | `of1-extraction` | Extract design tokens, brand identity, and page structure from a live site |
 | `of1-prototype` | Generate pixel-perfect HTML prototypes of key pages |
@@ -80,7 +78,7 @@ The setup step (`of1-setup`) verifies all of the following:
 - **Playwright** — `playwright-cli` available on PATH
 - **Node.js** — `node` available on PATH
 - **Git credentials** — `~/.git-credentials` present for push access
-- **of1-demo repo** — cloned at `/workspace/of1-demo` (the shared AEM EDS repository where demo sites are built)
+- **EDS repo** — a valid Edge Delivery Services checkout at `OF1_DEMO_REPO` (any org/repo; verified structurally, not by identity)
 
 The following plugins are also required by the pipeline:
 
