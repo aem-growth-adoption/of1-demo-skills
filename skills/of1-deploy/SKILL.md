@@ -241,7 +241,7 @@ EOF
 LINKS=(
   "${PREVIEW_BASE}/deliverables/discovery.html"
   "${PREVIEW_BASE}/deliverables/brand-review.html"
-  "${PREVIEW_BASE}/prototype-home"
+  "${PREVIEW_BASE}/home"
   "${PREVIEW_BASE}/gallery/index.html"
   "${PREVIEW_BASE}/of1"
   "${PREVIEW_BASE}/deliverables/config-review.html"

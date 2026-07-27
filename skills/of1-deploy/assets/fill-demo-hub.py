@@ -154,7 +154,8 @@ def find_eds_pages(repo_dir, branch, owner, repo):
     Reads from /tmp/da-pages.txt which the calling shell script must create:
         ls /mnt/da/{branch}/*.html > /tmp/da-pages.txt 2>/dev/null
     
-    Falls back to scanning the .snowflake directory for project names.
+    Falls back to scanning the flat content/ directory (stardust:deploy's
+    output shape) for page files.
     """
     preview_base = f'https://{branch}--{repo}--{owner}.aem.page'
     pages = []
@@ -173,15 +174,14 @@ def find_eds_pages(repo_dir, branch, owner, repo):
     
     # Fallback: check DA content files committed to the repo
     if not pages:
-        snowflake_dir = Path(repo_dir) / '.snowflake' / 'projects'
-        if snowflake_dir.exists():
-            for project in sorted(snowflake_dir.iterdir()):
-                da_dir = project / 'da'
-                if da_dir.exists():
-                    for f in da_dir.glob('*.html'):
-                        slug = f.stem
-                        label = slug.replace('-', ' ').replace('prototype ', '').title()
-                        pages.append({'url': f'{preview_base}/{slug}', 'label': label})
+        content_dir = Path(repo_dir) / 'content'
+        if content_dir.exists():
+            for page_file in sorted(content_dir.glob('*.html')):
+                slug = page_file.stem
+                if slug in ('nav', 'footer'):
+                    continue
+                label = slug.replace('-', ' ').replace('prototype ', '').title()
+                pages.append({'url': f'{preview_base}/{slug}', 'label': label})
     
     return pages
 

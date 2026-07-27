@@ -145,12 +145,13 @@ async function findEdsPages(repoDir, branch, owner, repo) {
     }
   }
 
-  // Fallback: check snowflake projects
+  // Fallback: check stardust:deploy's flat content/ directory
   if (pages.length === 0) {
     try {
-      const { stdout: result } = await exec(`find ${repoDir}/.snowflake/projects -name '*.html' -path '*/da/*' 2>/dev/null || true`);
+      const { stdout: result } = await exec(`find ${repoDir}/content -maxdepth 1 -name '*.html' 2>/dev/null || true`);
       for (const line of result.trim().split('\n').filter(Boolean).sort()) {
         const slug = line.split('/').pop().replace('.html', '');
+        if (slug === 'nav' || slug === 'footer') continue;
         const label = slug.replace(/-/g, ' ').replace(/prototype /g, '').replace(/\b\w/g, c => c.toUpperCase());
         pages.push({ url: `${previewBase}/${slug}`, label });
       }
