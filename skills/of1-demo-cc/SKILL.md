@@ -138,7 +138,7 @@ Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritan
 | 2 — discovery | `opus` | Brand/narrative synthesis from crawled pages. Drives demo story. |
 | 3 — extraction | `opus` | Design-token extraction. Wrong tokens cascade everywhere. |
 | 4 — prototype | `opus` | Pixel-perfect HTML requiring visual judgment. |
-| 5 — stardust deploy | `opus` | Invokes the adobe stardust:deploy skill. Complex multi-phase conversion (naming lock, block extraction, fonts, DA upload, verification gates) requiring precise instruction-following. |
+| 5 — stardust deploy | `opus` | Runs `of1-stardust-deploy`, a thin wrapper that invokes the adobe stardust:deploy skill. Complex multi-phase conversion (naming lock, block extraction, fonts, DA upload, verification gates) requiring precise instruction-following. |
 | 6-base | `sonnet` | Reads prototype CSS → writes `:root` tokens. Structured extraction. |
 | 6a–6e — template intents | `sonnet` | Structured generation from a clear pattern. 5 parallel = biggest cost block. |
 | 6-assemble | `sonnet` | Runs scripts + one commit. Bump to `opus` if quality dips. |

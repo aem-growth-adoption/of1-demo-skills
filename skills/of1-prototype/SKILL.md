@@ -6,7 +6,7 @@ user-invocable: false
 
 # OF1 Prototype
 
-Generate pixel-perfect, self-contained HTML reproductions of key pages from the target website by invoking the `stardust:prototype` skill. These prototypes are the source-of-truth for the snowflake overlay conversion in step 5.
+Generate pixel-perfect, self-contained HTML reproductions of key pages from the target website by invoking the `stardust:prototype` skill. These prototypes are the source-of-truth for the stardust:deploy EDS conversion in step 5.
 
 ## Env — orchestrator exports these (see `of1-setup`)
 
@@ -179,7 +179,7 @@ done
 
 #### 5b. CSS class naming — avoid EDS collisions
 
-EDS wraps content in `<div class="header-wrapper"><div class="header block">…</div></div>`. If a prototype uses `<header class="header">`, snowflake (step 5) inherits the collision and the nav renders wrong. Rename:
+EDS wraps content in `<div class="header-wrapper"><div class="header block">…</div></div>`. If a prototype uses `<header class="header">`, stardust:deploy (step 5) inherits the collision and the nav renders wrong. Rename:
 
 | If prototype uses | Rename to |
 |---|---|
@@ -214,7 +214,7 @@ If the site has a promo/announcement bar above the nav, keep it as a **separate 
   <nav>…</nav>
 </header>
 
-<!-- ❌ WRONG — breaks in EDS snowflake -->
+<!-- ❌ WRONG — breaks in EDS stardust:deploy conversion -->
 <header class="header">
   <div class="announcement">…</div>
   <nav>…</nav>
@@ -268,7 +268,7 @@ $OF1_DEMO_REPO/
 
 Build a `deliverables` array — one entry per prototype, so the orchestrator can render one Open button per page (e.g. Open Home, Open Adventures, Open Magazine). The static HTML files committed in step 4 are served directly from the code bus at `/deliverables/*` — no EDS preview trigger needed.
 
-URLs MUST point at `/deliverables/prototype-*.html` (standalone HTML committed above), NOT `/${BRANCH}/prototype-*` (the EDS overlay URL produced later by step 5 — snowflake).
+URLs MUST point at `/deliverables/prototype-*.html` (standalone HTML committed above), NOT `/${BRANCH}/prototype-*` (the EDS page URL produced later by step 5 — stardust:deploy).
 
 ```bash
 DELIVERABLES=$(python3 - <<PYEOF

@@ -182,6 +182,6 @@ cat > "$OF1_STATE_DIR/step-2-status.json" <<EOF
 EOF
 ```
 
-The `deliverables` field is an array of `{url, label?}` objects so steps that produce multiple artifacts (prototypes, snowflake pages) can list them all. `label` is optional but recommended.
+The `deliverables` field is an array of `{url, label?}` objects so steps that produce multiple artifacts (prototypes, EDS pages) can list them all. `label` is optional but recommended.
 
 The orchestrator (CC: agent-return parsing; SLICC: sprinkle polling) handles the approve/revise flow and the eventual `done` transition.
