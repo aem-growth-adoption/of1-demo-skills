@@ -46,9 +46,8 @@ Available before invocation, in addition to the env above:
 
 - Design tokens → `$OF1_DEMO_REPO/stardust/current/DESIGN.json` (from step 3)
 - Demo narrative → `$OF1_STATE_DIR/step-2-output.md` (from step 2)
-- Slot-marked overlay templates → `$OF1_DEMO_REPO/templates/prototype-*.html` (from step 5 / snowflake) — real examples of the `<section>` + `data-slot` pattern your 15 templates will follow
-- Prototype CSS → `$OF1_DEMO_REPO/styles/prototype-*.css` (from step 5 / snowflake) — extracted styling rules (padding, radius, hover states, exact values)
-- EDS-rendered screenshots → `$OF1_DEMO_REPO/deliverables/eds-prototype-*.png` (captured by orchestrator before fan-out)
+- Pixel-perfect prototypes → `$OF1_DEMO_REPO/deliverables/prototype-*.html` (from step 4) — self-contained HTML with inline `<style>`; this is the sole visual/structural reference, read directly (no step 5 dependency)
+- Prototype screenshots → captured by the orchestrator directly from the static `deliverables/prototype-*.html` files (see "Pre-fan-out" in the orchestrator skill) — no EDS render or step 5 output required
 
 Worker-side schemas: `of1-demo/knowledge/worker-config-schemas.md` § `templates.json`, § `products.json`.
 
@@ -139,9 +138,9 @@ The OF1 worker materializes templates from EDS into R2 after `POST /api/tenants/
 
 ## Reference — Component palette (extract from prototypes)
 
-Templates render INSIDE the EDS preview — they live within the full stylesheet stack (snowflake substrate + OF1 chrome + EDS base). Inferring style only from one prototype produces templates that look subtly wrong when EDS renders them.
+Templates render INSIDE the EDS preview — they live within the full stylesheet stack (OF1 chrome + EDS base). Inferring style only from one prototype produces templates that look subtly wrong when EDS renders them.
 
-**Read every prototype, not just home.** Each contributes different patterns; combine the slot-marked overlay templates (`templates/prototype-*.html`), the extracted CSS (`styles/prototype-*.css`), and the EDS-rendered screenshots (`deliverables/eds-prototype-*.png`):
+**Read every prototype, not just home.** Each contributes different patterns; read the prototype HTML's inline `<style>` block directly (each `deliverables/prototype-*.html` is self-contained) and the prototype screenshots (`deliverables/eds-prototype-*.png` — captured by the orchestrator from the static prototype file, see Pre-fan-out):
 
 - `prototype-home` — hero treatment, section rhythm, full-bleed banners
 - Listing pages (e.g. `prototype-adventures`, `prototype-products`) — card grids, filter chips, multi-column hover states
@@ -170,7 +169,7 @@ Write the file directly; **don't run a script**.
 
 **Sources of truth, priority order:**
 
-1. Prototype CSS — `$OF1_DEMO_REPO/styles/prototype-*.css` (search `:root { … }` + custom-property declarations). Snowflake extracted these from the prototype HTML, so they're the canonical token source.
+1. Prototype inline CSS — the `<style>` block inside `$OF1_DEMO_REPO/deliverables/prototype-*.html` (search `:root { … }` + custom-property declarations). This is the canonical token source — extract it directly, no intermediate conversion step produces it.
 2. `DESIGN.json` — `$OF1_DEMO_REPO/stardust/current/DESIGN.json`. Tiebreaker / fill-in for tokens not in the prototypes. Schema drifts between extraction runs; tolerate variation.
 
 Don't trust `DESIGN.json` as the sole source — the prototypes are the visually-validated ground truth.
@@ -220,7 +219,7 @@ done
 
 # Accent must match prototype — spot check
 grep -A1 ":root" styles/of1-template-base.css | grep accent
-grep -A1 ":root" styles/prototype-*.css       | grep -i accent | head -3
+grep -A1 ":root" deliverables/prototype-*.html | grep -i accent | head -3
 # If these disagree, fix of1-template-base.css before continuing.
 ```
 
