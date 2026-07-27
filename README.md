@@ -10,14 +10,15 @@ Steps 1→2→3→4 (sequential)
          ┌───────┴───────┐
          ↓               ↓
     Track A          Track B
-         ↓               ↓
-    Step 5          Steps 8,9,10
-    (Snowflake)     (all parallel)
-         ↓               ↓
-    Steps 6+7       Step 11
-    (parallel)      (Config review)
-         ↓               ↓
-         └───────┬───────┘
+    ┌────┴────┐          ↓
+    ↓         ↓     Steps 8,9,10
+  Step 5   Step 6   (all parallel)
+(Stardust  (Templates)   ↓
+ Deploy)       ↓     Step 11
+    ↓      (independent   (Config review)
+  Step 7    of Step 5)    ↓
+    └────┬────┘           ↓
+         └───────┬────────┘
                  ↓
             Step 12 (Deploy)
 ```
@@ -28,8 +29,8 @@ Steps 1→2→3→4 (sequential)
 | 2 | Discovery | `of1-discovery` | Step 1 |
 | 3 | Extraction | `of1-extraction` | Step 2 |
 | 4 | Prototype | `of1-prototype` | Step 3 |
-| 5 | Snowflake | `of1-snowflake` | Step 4 |
-| 6 | Templates | `of1-template-generation` | Step 5 |
+| 5 | Stardust Deploy | `of1-stardust-deploy` | Step 4 |
+| 6 | Templates | `of1-template-generation` | Step 4 |
 | 7 | OF1 styling | `of1-generative-block-styler` | Step 5 |
 | 8 | Brand & content | `of1-brand-voice-extractor` + `of1-content-metadata` | Step 4 |
 | 9 | Suggestions | `of1-quick-suggestions` | Step 4 |
@@ -46,7 +47,7 @@ Steps 1→2→3→4 (sequential)
 | `of1-discovery` | Crawl a target website and propose a demo focus/narrative |
 | `of1-extraction` | Extract design tokens, brand identity, and page structure from a live site |
 | `of1-prototype` | Generate pixel-perfect HTML prototypes of key pages |
-| `of1-snowflake` | Convert stardust prototypes to EDS pages and install the OF1 block |
+| `of1-stardust-deploy` | Convert stardust prototypes to EDS blocks + content pages via `stardust:deploy` |
 | `of1-template-generation` | Generate 25 branded templates (5 intents × 5 variations) |
 | `of1-generative-block-styler` | Generate CSS for dynamically-rendered generative sections |
 | `of1-brand-voice-extractor` | Extract brand voice from a website and generate `brand-voice.json` |
@@ -74,7 +75,7 @@ Then run the orchestrator:
 
 The setup step (`of1-setup`) verifies all of the following:
 
-- **Skills installed** — OF1 demo skills + Adobe EDS/snowflake skills (`adobe/skills`) + stardust (`adobe/skills`) + impeccable (`pbakaus/impeccable`)
+- **Skills installed** — OF1 demo skills + Adobe stardust skills (`adobe/skills`, includes `deploy`) + impeccable (`pbakaus/impeccable`)
 - **Playwright** — `playwright-cli` available on PATH
 - **Node.js** — `node` available on PATH
 - **Git credentials** — `~/.git-credentials` present for push access
@@ -84,7 +85,6 @@ The following plugins are also required by the pipeline:
 
 ```bash
 upskill aem-growth-adoption/of1-demo-skills --all --branch skills-v3 --force
-upskill adobe/skills --path plugins/aem/edge-delivery-services --all
 upskill adobe/skills --path plugins/stardust --all
 upskill pbakaus/impeccable --all
 ```
