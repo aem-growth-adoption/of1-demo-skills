@@ -12,7 +12,7 @@ Crawl the target site to understand what it offers, then propose a demo focus an
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-3-output.md`, screenshots, and `step-3-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-2-output.md`, screenshots, and `step-2-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 
 Read `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` from the contract `of1-setup` wrote:
@@ -75,7 +75,7 @@ For each page, note:
 
 ### 4. Structured output for downstream steps
 
-Write `$OF1_STATE_DIR/step-3-output.md` — consumed by steps 4, 5, and 7:
+Write `$OF1_STATE_DIR/step-2-output.md` — consumed by steps 3, 4, and 6:
 
 ```markdown
 # Discovery: {DOMAIN}
@@ -170,9 +170,9 @@ Then ask the user:
 
 ```bash
 REPORT_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/discovery.html"
-cat > "$OF1_STATE_DIR/step-3-status.json" <<EOF
+cat > "$OF1_STATE_DIR/step-2-status.json" <<EOF
 {
-  "step": 3,
+  "step": 2,
   "status": "review",
   "deliverables": [
     { "url": "${REPORT_URL}", "label": "Discovery report" }

@@ -12,7 +12,7 @@ Delegate site-extraction to the `stardust:extract` skill, then publish the resul
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-4-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `step-3-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 | `SKILL_DIR`     | absolute path to this skill's directory (used to find `assets/fill-brand-review.*`) |
 
@@ -29,8 +29,8 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 ## Inputs
 
 - `DOMAIN` (e.g. `frescopa.coffee`)
-- Discovery output from step 3 (`$OF1_STATE_DIR/step-3-output.md`) — demo focus, persona, key pages
-- `repo-config.json` (from step 2)
+- Discovery output from step 2 (`$OF1_STATE_DIR/step-2-output.md`) — demo focus, persona, key pages
+- `repo-config.json` (from step 1)
 
 ## Process
 
@@ -65,7 +65,7 @@ Wait for the extraction to finish. On success it writes all of the following und
 - `stardust/current/DESIGN.md` — design direction
 - `stardust/current/DESIGN.json` — design tokens (colors, typography, spacing, shapes)
 - `stardust/current/brand-review.html` — visual reference page
-- `stardust/current/pages/*.json` — one JSON per crawled page with exact image URLs from the live DOM (step 5 reads these to get real image URLs instead of constructing them)
+- `stardust/current/pages/*.json` — one JSON per crawled page with exact image URLs from the live DOM (step 4 reads these to get real image URLs instead of constructing them)
 - `stardust/current/assets/logo.svg` — brand logo
 - `stardust/current/assets/screenshots/*.png` — full-page screenshots per key page
 
@@ -149,9 +149,9 @@ $OF1_DEMO_REPO/
 
 ```bash
 REPORT_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/brand-review.html"
-cat > "$OF1_STATE_DIR/step-4-status.json" <<EOF
+cat > "$OF1_STATE_DIR/step-3-status.json" <<EOF
 {
-  "step": 4,
+  "step": 3,
   "status": "review",
   "deliverables": [
     { "url": "${REPORT_URL}", "label": "Brand review" }
