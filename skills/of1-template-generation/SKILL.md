@@ -159,7 +159,7 @@ Extract and reuse VERBATIM:
 | Fact lists / spec rows | Detail | deep-dive, comparison |
 | Tabs / accordions (with inline JS) | Detail | deep-dive |
 
-The EDS-rendered screenshots at `deliverables/eds-prototype-*.png` are the **visual ground truth** — inspect them; the prototype CSS explains *why* the rendered versions look the way they do, and the slot-marked templates show how that visual structure maps to `data-slot` markers.
+The EDS-rendered screenshots at `deliverables/eds-prototype-*.png` are the **visual ground truth** — inspect them; the prototype's inline CSS explains *why* the rendered versions look the way they do. Mapping that visual structure to `data-slot` markers in the 15 templates you generate is this skill's own job — there is no external slot-marked reference file to read.
 
 ## Process — Mode: `base`
 
