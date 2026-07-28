@@ -1,12 +1,12 @@
 ---
 name: of1-generative-block-styler
-description: Generate polished CSS for the OF1 generative block AND set up the /of1 page end-to-end (template, fragments, page-chrome CSS, branded block CSS, DA content).
+description: Generate polished CSS for the OF1 generative block AND set up the /of1 page end-to-end (block install, branded block CSS, DA content) as an ordinary EDS content page.
 user-invocable: true
 ---
 
 # Generative Block Styler
 
-Own the `/of1` page top to bottom: install the block, generate brand-aligned CSS for both the block and the page chrome, create the passthrough template + fragments, and upload the DA content documents that make the page renderable.
+Own the `/of1` page top to bottom: install the block, generate brand-aligned CSS for it, and upload the DA content document that makes the page renderable. `/of1` is authored exactly like any other EDS content page — the site's existing header/footer blocks and `styles/styles.css` apply automatically; there is no page-template or overlay mechanism to work around.
 
 ## Env — orchestrator exports these (see `of1-setup`)
 
@@ -40,7 +40,7 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 
 ## Why this skill exists
 
-EDS block CSS is designed for statically-authored pages. When the LLM generates sections dynamically, the raw block CSS often looks too plain — no visual hierarchy between sections, cards render as flat lists, heroes lack full-bleed treatment, tables are unstyled, no transitions, no cohesive container. This skill bridges that gap by writing `blocks/of1/of1.css` (block-level styles for generated content) and `styles/of1.css` (page chrome for the `/of1` page itself).
+EDS block CSS is designed for statically-authored pages. When the LLM generates sections dynamically, the raw block CSS often looks too plain — no visual hierarchy between sections, cards render as flat lists, heroes lack full-bleed treatment, tables are unstyled, no transitions, no cohesive container. This skill bridges that gap by writing `blocks/of1/of1.css` (block-level styles for generated content). Page chrome (header/footer/site styles) is not this skill's concern — `/of1` is an ordinary content page and inherits `styles/styles.css` and the site's real header/footer blocks automatically.
 
 ## Always start from the canonical base files
 
@@ -53,7 +53,7 @@ Always start from these. Do NOT use whatever `of1.css` or `of1.js` happens to be
 
 ## Process
 
-### Step 0 — Install block files + patch the overlay engine for passthrough
+### Step 0 — Install block files
 
 ```bash
 cd "$OF1_DEMO_REPO"
@@ -64,25 +64,7 @@ cp "$SKILL_DIR/assets/of1.css" blocks/of1/of1.css
 
 `of1.js` is deployed as-is. `of1.css` is the unbranded template — Step 3 customizes it in place with the site's brand tokens.
 
-**Then patch `scripts/scripts.js` to add passthrough support to the overlay engine.** stardust:deploy (step 5) installs the AuthorKit runtime's overlay engine whose `applyTemplateOverlay()` always replaces `<main>.innerHTML` with the template's content. That's wrong for the `/of1` page — its `<main>` contains the OF1 search block (an active component with running JS that would be destroyed by an innerHTML swap). The passthrough mode lets the engine load the branded chrome + the page CSS while leaving the existing `<main>` content intact.
-
-Open `scripts/scripts.js`, find the `applyTemplateOverlay()` function, and add this check **before** the "Replace main content" line:
-
-```javascript
-// Check for passthrough mode — if the template body has [data-slot-passthrough],
-// only load header/footer + page CSS but keep the original <main> content intact.
-// Used by the /of1 page so the OF1 block's running JS isn't destroyed.
-if (templateMain.querySelector('[data-slot-passthrough]')) {
-  main.dataset.overlay = templateName;
-  // Passthrough still needs standard block decoration so blocks in <main>
-  // (like the OF1 block) have their decorate() function called.
-  decorateMain(main);
-  await loadSection(main.querySelector('.section'), waitForFirstImage);
-  return true;
-}
-```
-
-**Critical:** the passthrough MUST call `decorateMain(main)` and `loadSection()` before returning `true`. Without those, blocks in `<main>` never decorate and the page renders as raw unstyled DA content. "Passthrough" means "skip DOM replacement" — NOT "skip block decoration."
+No runtime patching is needed. `/of1` is authored as an ordinary content page (Step 6): the site's `blocks/header`/`blocks/footer` load `/nav`/`/footer` automatically like on every other page, and the `of1` block decorates normally like any other block in `<main>`. There is no page-template/overlay engine in vanilla `aem-boilerplate` that would otherwise replace `<main>`'s content.
 
 ### Step 1 — Read design context
 
@@ -112,7 +94,7 @@ Adapt these patterns to the current brand: use the site's actual CSS custom prop
 
 **This is what EDS auto-loads for the OF1 block.** All block-level styling (search UI, generated sections, cards, hero, suggestions, skeleton, debug) goes here.
 
-⚠️ **DO NOT put block styling in `styles/of1.css`** — that file is only for page chrome (Step 5b).
+⚠️ **DO NOT put block styling in `styles/styles.css`** — that's the site's own foundation stylesheet, shared across every page. Block-level styling belongs only in `blocks/of1/of1.css`.
 
 Step 0 already copied the unbranded template to `blocks/of1/of1.css`. Now edit it in place:
 1. Replace ALL generic token values (e.g. `#000000`, `system-ui`) with brand values from `DESIGN.json`
@@ -244,89 +226,20 @@ Target selectors for generated content use the `.generated-section` class added 
 .generated-section .table                  /* generated table */
 ```
 
-### Step 5 — Write `styles/of1.css` (page chrome)
+### Step 5 — (Removed) Page chrome is automatic
 
-**The OF1 page loads `styles/of1.css` via the overlay engine (template name = `of1`).** This provides page-level styling for the header, footer, body, and ALL elements that appear outside `<main>` — NOT the block. Without it, the nav bar, announcement bar, and footer render as unstyled links.
+There is no separate page-chrome CSS step. `/of1` loads the site's own `styles/styles.css` exactly like every other page — the header/footer blocks render the branded nav/footer using the site's real `content/nav.html`/`content/footer.html`. Nothing needs to be duplicated or re-derived here.
 
-**Start from a COPY of the prototype's inline `<style>` block, then strip only the `<main>`-content rules.** stardust:deploy does not produce a per-slug `styles/prototype-home.css` file — the prototype's styling lives inline inside `deliverables/prototype-home.html` itself. Extract that `<style>` block's contents verbatim into `styles/of1.css` as the starting point. This inverted approach guarantees nothing is missed — announcement bars, nav actions, logo fills, footer columns, responsive overrides all come along for free.
+### Step 6 — (Folded into Step 7) No template or fragment copying needed
 
-```bash
-cd "$OF1_DEMO_REPO"
-python3 -c "
-import re
-html = open('deliverables/prototype-home.html').read()
-css = '\n'.join(re.findall(r'<style[^>]*>(.*?)</style>', html, re.S))
-open('styles/of1.css', 'w').write(css)
-"
-```
+`/of1` needs no `templates/`, `fragments/`, or `data-overlay`/`data-slot-passthrough` machinery. It is authored directly as a DA content document in Step 7 below, using the site's real `/nav` and `/footer` — the same paths every other page on the site already uses.
 
-Then edit `styles/of1.css` and **remove only** the rules that style elements INSIDE `<main>` (hero sections, card grids, product listings, feature blocks, etc. — anything with class names from the prototype's `<main>` content). Keep everything else:
+### Step 7 — Upload OF1 DA content
 
-- `:root` tokens
-- `*` / body resets
-- `.announcement-bar` (or any promo bar above the nav)
-- `.site-header` and all descendants (nav, logo, links, actions)
-- `.site-footer` and all descendants
-- Typography (h1–h6, p)
-- All responsive `@media` rules for the above
-- Any utility classes used by header/footer fragments
-
-⚠️ **Do NOT cherry-pick rules to include.** Start from the full file and remove what you know is `<main>`-only. If in doubt, keep it — extra rules for elements not in the DOM are harmless; missing rules produce visible regressions (raw unstyled announcement bar, unstyled nav icons, etc.).
-
-### Step 6 — Create the `/of1` page template + fragments
-
-The `/of1` page uses a **passthrough** template: the overlay engine loads the branded header/footer + the page-chrome CSS, but does NOT replace `<main>` content (the OF1 block stays untouched).
+The `/of1` page is an ordinary EDS content page: a `metadata` block (Title/Description) plus a section containing the `of1` block table. The site's existing `blocks/header`/`blocks/footer` pick up its real `/nav` and `/footer` documents automatically — no placeholder nav/footer pages need to be created here, since the site already has real ones from step 5 (`of1-stardust-deploy`).
 
 ```bash
-cd "$OF1_DEMO_REPO"
-
-mkdir -p templates fragments/of1
-
-# Passthrough template — keeps the OF1 block, only swaps in header/footer + page chrome
-cat > templates/of1.html <<'TMPL'
-<main data-overlay="of1">
-  <div class="of1-container" data-slot-passthrough="true">
-  </div>
-</main>
-TMPL
-
-# OF1 page uses the same nav/footer chrome as the rest of the site.
-# stardust:deploy (step 5) commits shared chrome fragments — but its own
-# docs are inconsistent about the exact path (content/fragments/{nav,footer}.html
-# vs repo-root fragments/{header,footer}.html). Discover the real path instead
-# of assuming one.
-NAV_SRC=""
-FOOTER_SRC=""
-for CANDIDATE in "content/fragments/nav.html:content/fragments/footer.html" "fragments/header.html:fragments/footer.html" "content/fragments/header.html:content/fragments/footer.html"; do
-  NAV_CANDIDATE="${CANDIDATE%%:*}"
-  FOOTER_CANDIDATE="${CANDIDATE##*:}"
-  if [ -f "$NAV_CANDIDATE" ] && [ -f "$FOOTER_CANDIDATE" ]; then
-    NAV_SRC="$NAV_CANDIDATE"
-    FOOTER_SRC="$FOOTER_CANDIDATE"
-    break
-  fi
-done
-
-if [ -z "$NAV_SRC" ]; then
-  echo "FAIL: could not find stardust:deploy's shared nav/footer fragments." >&2
-  echo "Checked: content/fragments/{nav,footer}.html, fragments/{header,footer}.html, content/fragments/{header,footer}.html" >&2
-  echo "Step 5 (of1-stardust-deploy) did not commit chrome fragments as expected. Re-run step 5 or inspect its actual output paths with: find . -iname '*nav*' -o -iname '*footer*' -path '*fragments*'" >&2
-  exit 1
-fi
-echo "Using chrome fragments: $NAV_SRC / $FOOTER_SRC"
-cp "$NAV_SRC" fragments/of1/header.html
-cp "$FOOTER_SRC" fragments/of1/footer.html
-```
-
-The passthrough behavior for the `<main data-overlay="of1">` + `[data-slot-passthrough]` template above is implemented by the `scripts/scripts.js` patch installed in Step 0 — verify that patch is in place before pushing.
-
-### Step 7 — Upload OF1 DA content (and nav/footer placeholders)
-
-The `/of1` page itself is a DA document that points the overlay engine at the `of1` template. The default EDS header/footer blocks also expect `/nav` and `/footer` content to exist — without them, those blocks 404 even though our overlay-aware fragments are the ones actually used. Create all three.
-
-```bash
-# /of1 — content page that triggers template=of1
-OF1_HTML='<html><body><header></header><main><div><table><tr><th colspan="2">of1</th></tr><tr><td><p>api-endpoint</p></td><td><p>https://of1-gen-web-service.franklin-prod.workers.dev</p></td></tr><tr><td><p>domain</p></td><td><p>'${BRANCH}'--'${REPO}'--'${OWNER}'</p></td></tr></table></div><div><table><tr><th colspan="2">Metadata</th></tr><tr><td><p>template</p></td><td><p>of1</p></td></tr><tr><td><p>nav</p></td><td><p>/nav</p></td></tr><tr><td><p>footer</p></td><td><p>/footer</p></td></tr></table></div></main><footer></footer></body></html>'
+OF1_HTML='<body><header></header><main><div><div class="metadata"><div><div>Title</div><div>'${DOMAIN}' — Ask Anything</div></div><div><div>Description</div><div>Search and get personalized results.</div></div></div></div><div><div class="of1"><table><tr><th colspan="2">of1</th></tr><tr><td><p>api-endpoint</p></td><td><p>https://of1-gen-web-service.franklin-prod.workers.dev</p></td></tr><tr><td><p>domain</p></td><td><p>'${BRANCH}'--'${REPO}'--'${OWNER}'</p></td></tr></table></div></div></main><footer></footer></body>'
 
 curl -s -X PUT \
   -H "Authorization: Bearer ${DA_TOKEN}" \
@@ -334,91 +247,36 @@ curl -s -X PUT \
   -d "$OF1_HTML" \
   "https://admin.da.live/source/${OWNER}/${REPO}/of1.html"
 
-# /nav and /footer placeholders so the default EDS blocks don't 404
-NAV_HTML='<html><body><header></header><main><div><p><a href="/">Brand</a></p></div><div><ul><li><a href="#">Link 1</a></li></ul></div></main><footer></footer></body></html>'
-
-curl -s -X PUT \
+# Trigger preview so the URL is live
+PREVIEW_RESP=$(curl -s -w "\n%{http_code}" -X POST \
   -H "Authorization: Bearer ${DA_TOKEN}" \
-  -H "Content-Type: text/html" \
-  -d "$NAV_HTML" \
-  "https://admin.da.live/source/${OWNER}/${REPO}/nav.html"
-
-FOOTER_HTML='<html><body><header></header><main><div><p>Footer content</p></div></main><footer></footer></body></html>'
-
-curl -s -X PUT \
-  -H "Authorization: Bearer ${DA_TOKEN}" \
-  -H "Content-Type: text/html" \
-  -d "$FOOTER_HTML" \
-  "https://admin.da.live/source/${OWNER}/${REPO}/footer.html"
-
-# Trigger preview so the URLs are live
-for SLUG in of1 nav footer; do
-  PREVIEW_RESP=$(curl -s -w "\n%{http_code}" -X POST \
-    -H "Authorization: Bearer ${DA_TOKEN}" \
-    -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
-    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${SLUG}")
-  PREVIEW_STATUS=$(echo "$PREVIEW_RESP" | tail -1)
-  if [ "$PREVIEW_STATUS" -lt 200 ] || [ "$PREVIEW_STATUS" -ge 300 ]; then
-    echo "FAIL: preview trigger for /${SLUG} returned HTTP ${PREVIEW_STATUS}" >&2
-    echo "Response: $(echo "$PREVIEW_RESP" | sed '$d')" >&2
-    exit 1
-  fi
-done
+  -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
+  "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/of1")
+PREVIEW_STATUS=$(echo "$PREVIEW_RESP" | tail -1)
+if [ "$PREVIEW_STATUS" -lt 200 ] || [ "$PREVIEW_STATUS" -ge 300 ]; then
+  echo "FAIL: preview trigger for /of1 returned HTTP ${PREVIEW_STATUS}" >&2
+  echo "Response: $(echo "$PREVIEW_RESP" | sed '$d')" >&2
+  exit 1
+fi
 ```
 
 **Do NOT include a `<title>` tag in the DA HTML** — EDS will render it as visible content.
 
 ### Step 7b — Gate: verify DA content is live and renders correctly
 
-**Do NOT proceed to Step 8 until this gate passes.** The preview triggers above can silently fail (401, stale cache, missing auth headers). Verify the pages actually exist and return valid HTML.
+**Do NOT proceed to Step 8 until this gate passes.** The preview trigger above can silently fail (401, stale cache, missing auth headers). Verify the page actually exists and returns valid HTML.
 
 ```bash
-# Verify each page returns 200 and contains expected content
 OF1_PREVIEW="https://${BRANCH}--${REPO}--${OWNER}.aem.page/of1"
-NAV_PREVIEW="https://${BRANCH}--${REPO}--${OWNER}.aem.page/nav"
-FOOTER_PREVIEW="https://${BRANCH}--${REPO}--${OWNER}.aem.page/footer"
 
-echo "Verifying DA content is live..."
-
-# Check /of1 page exists and has the template metadata
-OF1_BODY=$(curl -s -w "\n%{http_code}" "$OF1_PREVIEW")
-OF1_STATUS=$(echo "$OF1_BODY" | tail -1)
-OF1_HTML=$(echo "$OF1_BODY" | sed '$d')
-
+OF1_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$OF1_PREVIEW")
 if [ "$OF1_STATUS" != "200" ]; then
   echo "FAIL: /of1 page returned HTTP ${OF1_STATUS} — preview trigger likely failed (auth issue?)" >&2
   echo "Re-run the preview trigger with both Authorization and x-content-source-authorization headers." >&2
   exit 1
 fi
 
-# Verify the template meta is present (proves DA content was processed correctly)
-if ! echo "$OF1_HTML" | grep -q 'template.*of1\|meta.*template'; then
-  echo "WARN: /of1 page returned 200 but template metadata not found in HTML." >&2
-  echo "The DA content may be stale. Re-triggering preview..." >&2
-  curl -s -X POST \
-    -H "Authorization: Bearer ${DA_TOKEN}" \
-    -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
-    "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/of1"
-  sleep 3
-  # Re-check
-  OF1_RECHECK=$(curl -s "$OF1_PREVIEW")
-  if ! echo "$OF1_RECHECK" | grep -q 'template.*of1\|meta.*template'; then
-    echo "FAIL: /of1 page still missing template metadata after re-trigger." >&2
-    exit 1
-  fi
-fi
-
-# Check nav and footer exist
-for SLUG in nav footer; do
-  URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/${SLUG}"
-  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
-  if [ "$STATUS" != "200" ]; then
-    echo "FAIL: /${SLUG} returned HTTP ${STATUS} — content not live" >&2
-    exit 1
-  fi
-done
-
-echo "✓ All DA content verified live: /of1 (with template=of1), /nav, /footer"
+echo "✓ /of1 content is live"
 ```
 
 Common failures at this gate:
@@ -426,15 +284,13 @@ Common failures at this gate:
 | Symptom | Cause | Fix |
 |---|---|---|
 | 401 on preview trigger | Missing `x-content-source-authorization` header or expired token | Re-authenticate DA token and re-run |
-| 200 but no template metadata | DA content uploaded but preview not triggered (stale cache) | Re-trigger preview with both auth headers |
 | 404 on /of1 | PUT to DA source failed silently | Check the PUT response; verify `admin.da.live/source/...` path matches repo config |
-| 404 on /nav or /footer | Preview trigger ran before PUT completed | Re-run PUTs then re-trigger |
 
 ### Step 8 — Commit and push
 
 ```bash
 cd "$OF1_DEMO_REPO"
-git add blocks/of1/ styles/of1.css templates/of1.html fragments/of1/
+git add blocks/of1/
 git commit -m "feat: OF1 page + brand-aligned block styling for ${DOMAIN}"
 git push origin "$BRANCH"
 ```
@@ -446,16 +302,18 @@ After the push, EDS picks up the code change automatically. Open the live OF1 pa
 ```bash
 OF1_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/of1"
 playwright-cli open "$OF1_URL"
-sleep 4  # EDS pulls fragments + lazy CSS
+sleep 4  # EDS loads header/footer blocks + lazy CSS
 
 # Confirm the branded chrome and the block are all in the DOM
-playwright-cli eval "document.querySelector('header.site-header') ? 'header OK' : 'HEADER MISSING'"
-playwright-cli eval "document.querySelector('footer.site-footer') ? 'footer OK' : 'FOOTER MISSING'"
-playwright-cli eval "document.querySelector('.of1')             ? 'of1 block OK' : 'OF1 BLOCK MISSING'"
+playwright-cli eval "document.querySelector('header .header') ? 'header OK' : 'HEADER MISSING'"
+playwright-cli eval "document.querySelector('footer .footer') ? 'footer OK' : 'FOOTER MISSING'"
+playwright-cli eval "document.querySelector('.of1')            ? 'of1 block OK' : 'OF1 BLOCK MISSING'"
 
 # Capture a screenshot for visual review
 playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/of1-render-check.png"
 ```
+
+(`header .header` / `footer .footer` match vanilla `aem-boilerplate`'s `decorateBlock` convention — confirm against the target's own `runtime-contract.json` `blockWrapperClass` field if it drifts.)
 
 Open the screenshot — the branded nav should be at the top, the branded footer at the bottom, and the OF1 search UI (title, input, suggestion chips) in the middle.
 
@@ -491,9 +349,9 @@ Common failures:
 
 | Symptom | Likely cause |
 |---|---|
-| `HEADER MISSING` / `FOOTER MISSING` | `fragments/of1/{header,footer}.html` didn't get pushed, or `scripts/scripts.js` is missing passthrough support (Step 5, `of1-stardust-deploy`, installs the AuthorKit runtime this patch sits on top of) |
-| `OF1 BLOCK MISSING` | `blocks/of1/of1.js` wasn't pushed, OR the DA content document at `/of1.html` is missing the `template=of1` metadata, OR the `of1` block class isn't on the right element |
-| Screenshot shows unstyled links / system font | `styles/of1.css` didn't get pushed, or the overlay engine didn't pick it up (check `<meta name="template">` in the rendered HTML) |
+| `HEADER MISSING` / `FOOTER MISSING` | `content/nav.html`/`content/footer.html` weren't pushed by step 5 (`of1-stardust-deploy`) — re-run step 5's artifact-verification gate |
+| `OF1 BLOCK MISSING` | `blocks/of1/of1.js` wasn't pushed, or the `of1` block table's `th` cell doesn't read exactly `of1` |
+| Screenshot shows unstyled links / system font | `styles/styles.css` (the site's own foundation CSS) didn't get pushed by step 5, or the preview hasn't picked up the latest push yet |
 
 Fix any failures and re-push before Completion.
 
@@ -522,7 +380,7 @@ cat > "$OF1_STATE_DIR/step-7-status.json" <<EOF
   "deliverables": [
     { "url": "${OF1_URL}", "label": "OF1 page" }
   ],
-  "summary": "OF1 page is live with brand-aligned block + page-chrome styling. Open it, try the search chips, and review the design."
+  "summary": "OF1 page is live with brand-aligned block styling. Open it, try the search chips, and review the design."
 }
 EOF
 ```
@@ -540,7 +398,7 @@ Cross-cutting rules (SLICC Node.js shim, EDS class collisions) live in `of1-demo
 |---|---|---|
 | Writing branded CSS to `styles/of1-template-base.css` or any other file | 10+ min (block appears completely unstyled) | Output MUST go to `blocks/of1/of1.css` — the ONLY file EDS auto-loads for the block |
 | Leaving generic tokens (`#000000`, `system-ui`) in `of1.css` | 5+ min (block looks unbranded) | Replace ALL placeholder token values with brand values from `DESIGN.json` |
-| **Forgetting `styles/of1.css` page chrome** | **OF1 nav/footer renders as raw unstyled links** | **MUST write `styles/of1.css` with header/footer CSS copied from prototype styles** |
+| Assuming `/of1` needs its own page-chrome CSS file | Wasted effort — `styles/of1.css` doesn't exist anymore | `/of1` inherits `styles/styles.css` automatically like any other page; nothing to write here |
 | Using whatever `of1.js` is in the demo repo | 10+ min debugging | Always copy fresh from `$SKILL_DIR/assets/of1.js` |
 | Using whatever `of1.css` is in the demo repo as base | 5+ min stale/wrong | Always copy fresh from `$SKILL_DIR/assets/of1.css` and customize in place |
 | Modifying `of1.js` to add brand logic | Breaks block | JS is shared infrastructure — NEVER touch it, only customize CSS |
