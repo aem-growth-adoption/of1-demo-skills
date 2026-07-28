@@ -32,46 +32,46 @@ If `HAS_DESIGN_JSON=false`, Step 3 (extraction) runs in own-site mode (`OF1_EXTR
 ## Step graph
 
 ```
-1 (setup) → 2 (artifact detection, inline)
+1 (setup) → artifact detection (inline)
               │
        [DESIGN.json exists?]
          no → 3 (extraction, own-site mode)
-         yes → skip to 4/6 (of1-extraction itself no-ops and reports done)
+         yes → skip to 6/8 (of1-extraction itself no-ops and reports done)
               │
       ┌───────┴────────┐
       ↓                ↓
   Track A          Track B
-  4 (templates:    6a (brand-voice) ∥ 6b (content-metadata) ∥ 7 (CTA template)
-  base→5×intent→          ↓
-  assemble)        8 (suggestions — needs 6a + 6b)
+  6 (templates:    8a (brand-voice) ∥ 8b (content-metadata) ∥ 10 (CTA template)
+  base→intent×5→          ↓
+  assemble)        9 (suggestions — needs 8a + 8b)
       ↓                ↓
-  5 (OF1 styling)      │
+  7 (OF1 styling)      │
       └───────┬────────┘
                ↓
-      9 (config review, inline — needs 6a + 6b + 7 + 8)
+      11 (config review, inline — needs 8a + 8b + 9 + 10)
                ↓
-      10 (deploy — needs 4 + 5 + 9)
+      12 (deploy — needs 6-assemble + 7 + 11)
 ```
 
-Track A (4→5) and Track B (6a ∥ 6b ∥ 7 → 8) both dispatch as soon as step 3 returns `done` (whether it ran or was skipped) — they run concurrently, same rule `of1-demo-cc` already uses between its Track A/Track B steps.
+Track A (6→7) and Track B (8a ∥ 8b ∥ 10 → 9) both dispatch as soon as step 3 returns `done` (whether it ran or was skipped) — they run concurrently, same rule `of1-demo-cc` already uses between its Track A/Track B steps.
 
 | Trigger (ALL must be done) | Dispatch in one message |
 |---|---|
-| Step 1 done | Step 2 (inline, immediate) |
-| Step 2 done | Step 3 |
-| Step 3 done (ran or skipped) | Step 4-base AND Steps 6a, 6b, 7 (4 dispatches in one message) |
-| Step 4-base done | Steps 4a–4e (5 intent dispatches in one message) |
-| Steps 4a–4e all done | Step 4-assemble (1 dispatch, sequential) |
-| Steps 6a + 6b done | Step 8 (needs products.json + brand-voice.json) |
-| Steps 6a + 6b + 7 + 8 ALL done | Step 9 (inline — do NOT run until all four are confirmed done) |
-| Steps 4-assemble + 5 + 9 ALL done | Step 10 |
+| Step 1 done | Artifact detection (inline, immediate) |
+| Artifact detection done | Step 3 |
+| Step 3 done (ran or skipped) | Step 6-base AND Step 7 AND Steps 8a, 8b, 10 (5 dispatches in one message) |
+| Step 6-base done | Steps 6a–6e (5 intent dispatches in one message) |
+| Steps 6a–6e all done | Step 6-assemble (1 dispatch, sequential) |
+| Steps 8a + 8b done | Step 9 (needs products.json + brand-voice.json) |
+| Steps 8a + 8b + 9 + 10 ALL done | Step 11 (inline — do NOT run until all four are confirmed done) |
+| Steps 6-assemble + 7 + 11 ALL done | Step 12 |
 
-**Step 5 (OF1 styling) does NOT wait for step 4** — per `of1-generative-block-styler`'s own dependency table (fixed in Task 2), it only needs step 1's block install context and the repo's existing chrome (`content/nav.html`/`content/footer.html`, already present since this is an existing EDS site) — dispatch it alongside step 4-base.
+**Step 7 (OF1 styling) does NOT wait for step 6** — per `of1-generative-block-styler`'s own dependency table (fixed in Task 2), it only needs step 1's block install context and the repo's existing chrome (`content/nav.html`/`content/footer.html`, already present since this is an existing EDS site) — dispatch it alongside step 6-base.
 
 **Common mistakes to avoid** (same class of mistake `of1-demo-cc` already warns about):
-- Do NOT run Step 9 before ALL of 6a, 6b, 7, 8 return `done`.
-- Do NOT run Step 8 before BOTH 6a and 6b return — it needs products.json + brand-voice.json.
-- Do NOT dispatch step 4-intent agents before step 4-base returns — they read its output.
+- Do NOT run Step 11 before ALL of 8a, 8b, 9, 10 return `done`.
+- Do NOT run Step 9 before BOTH 8a and 8b return — it needs products.json + brand-voice.json.
+- Do NOT dispatch step 6-intent agents before step 6-base returns — they read its output.
 
 ## Dispatch
 
@@ -79,10 +79,10 @@ Same step-graph, same dependency rules on both runtimes. Only the invocation mec
 
 ### Claude Code
 
-- Use **TaskCreate** with one task per step (1, 3, 4-base, 4a–4e, 4-assemble, 5, 6a, 6b, 7, 8, 9, 10). Mark task 1 completed immediately; mark each task `in_progress`/`completed`/`failed` around its dispatch.
+- Use **TaskCreate** with one task per step (1, 3, 6-base, 6a–6e, 6-assemble, 7, 8a, 8b, 9, 10, 11, 12). Mark task 1 completed immediately; mark each task `in_progress`/`completed`/`failed` around its dispatch.
 - Each step (except 2 and 9, which are inline) is a single `Agent` dispatch. Sub-agents see none of this conversation — the prompt must be self-contained: read the target step skill's `SKILL.md`, export the same env vars `of1-demo-cc` exports (`OF1_STATE_DIR`, `OF1_DEMO_REPO`, `ADOBE_IMS_TOKEN`/`OF1_TOKEN_FILE`, `SKILL_DIR`), state the branch/owner/repo, list which prior-step output files it needs, and require the same JSON status block: `{"step":N,"status":"done"|"review"|"failed","summary":"...","deliverables":[...]}`.
 - **Parallelism is mandatory** at each fan-out point — dispatch all eligible Agents in a single message with multiple Agent tool-use blocks.
-- Model assignment: same rule of thumb as `of1-demo-cc` — Opus only where output quality cascades downstream. Since this pipeline skips discovery/prototype entirely, the only Opus-worthy step is 5 (OF1 styling — multi-step DA authoring) and 3 when it actually runs (extraction — design-token quality cascades). Everything else (`sonnet`): 4-base, 4a–4e, 4-assemble, 6a, 6b, 7, 8, 10.
+- Model assignment: same rule of thumb as `of1-demo-cc` — Opus only where output quality cascades downstream. Since this pipeline skips discovery/prototype entirely, the only Opus-worthy step is 7 (OF1 styling — multi-step DA authoring) and 3 when it actually runs (extraction — design-token quality cascades). Everything else (`sonnet`): 6-base, 6a–6e, 6-assemble, 8a, 8b, 9, 10.
 - Auto-approve by default (mirrors `of1-demo-cc`'s one-shot mode) — mark each `review`-status task completed and continue immediately, unless the user explicitly asked to pause between steps.
 
 ### SLICC
@@ -92,7 +92,7 @@ Same step-graph, same dependency rules on both runtimes. Only the invocation mec
 - Handle completions event-driven, not via polling: end your turn after dispatching, and react when a scoop-completion notification arrives — read its status file, check if it unblocks the next dispatch per the table above, and dispatch the next batch.
 - Model assignment: same as the Claude Code column above, using `claude-opus-4-6`/`claude-sonnet-5` model strings per `of1-demo`'s own convention.
 
-## Step 9 — Config review (inline, no dispatch on either runtime)
+## Step 11 — Config review (inline, no dispatch on either runtime)
 
 Identical to `of1-demo-cc`'s Step 11 / `of1-demo`'s Step 11 — run the `of1-config-review` skill's fill script directly:
 
@@ -106,6 +106,6 @@ git push origin "$BRANCH"
 
 (`$SKILL_DIR_CONFIG_REVIEW` = absolute path to the `of1-config-review` skill directory.)
 
-## Step 10 — Deploy (inline)
+## Step 12 — Deploy (inline)
 
-After step 9 is approved AND steps 4-assemble + 5 are both done, run the `of1-deploy` skill inline (read it and follow it directly — same as `of1-demo-cc`'s Step 12). Its pre-launch checklist (6 checks) must all pass before marking done.
+After step 11 is approved AND steps 6-assemble + 7 are both done, run the `of1-deploy` skill inline (read it and follow it directly — same as `of1-demo-cc`'s Step 12). Its pre-launch checklist (6 checks) must all pass before marking done.
