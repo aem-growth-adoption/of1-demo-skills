@@ -34,6 +34,40 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 
 ## Process
 
+### 0. Detect existing extraction — skip if already present
+
+If `stardust/current/DESIGN.json` already exists in the repo, there is nothing to extract — reuse it and skip straight to Completion:
+
+```bash
+cd "$OF1_DEMO_REPO"
+if [ -f stardust/current/DESIGN.json ]; then
+  echo "✓ stardust/current/DESIGN.json already exists — skipping extraction"
+  cat > "$OF1_STATE_DIR/step-3-status.json" <<EOF
+{
+  "step": 3,
+  "status": "done",
+  "summary": "Skipped — stardust/current/DESIGN.json already present in the repo."
+}
+EOF
+  exit 0
+fi
+```
+
+If it does NOT exist, continue to Step 1 below. Two sub-cases:
+
+- **`$DOMAIN` is a real external domain** (the site being cloned is different from the current EDS repo) — proceed exactly as documented (crawl `https://${DOMAIN}`).
+- **The current EDS repo IS the target** (no external domain to crawl — the goal is introducing OF1 onto an existing EDS/Stardust site with no prior stardust extraction) — crawl the repo's own live preview URL instead:
+
+```bash
+EXTRACT_TARGET="https://${DOMAIN}"
+if [ "${OF1_EXTRACT_OWN_SITE:-0}" = "1" ]; then
+  EXTRACT_TARGET="https://${BRANCH}--${REPO}--${OWNER}.aem.page"
+  echo "Own-site mode: extracting from ${EXTRACT_TARGET} instead of an external domain"
+fi
+```
+
+`OF1_EXTRACT_OWN_SITE=1` is set by the `of1-adopt` orchestrator (never by `of1-demo`/`of1-demo-cc`, which always crawl an external domain).
+
 ### 1. Invoke `stardust:extract` (DO NOT crawl by hand)
 
 This step's whole job is to delegate to `stardust:extract`. **Do NOT use `playwright-cli`, `curl`, `wget`, or any other scraping mechanism here** — the stardust skill owns crawling, token extraction, screenshot capture, and brand-review authoring. Reimplementing it in this skill is the most common failure mode.
@@ -45,7 +79,7 @@ Invoke the `stardust:extract` skill. The argument is the homepage URL plus a pag
 - **Claude Code:** use the `Skill` tool:
   ```
   Skill: stardust:extract
-  Args:  https://${DOMAIN} --cap 3
+  Args:  ${EXTRACT_TARGET} --cap 3
   ```
 
 - **SLICC:** read the skill and execute it inline:
