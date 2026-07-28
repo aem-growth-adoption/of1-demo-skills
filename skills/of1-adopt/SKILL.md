@@ -112,9 +112,8 @@ git push origin "$BRANCH"
 
 After step 11 is approved AND steps 6-assemble + 7 are both done, run the `of1-deploy` skill inline (read it and follow it directly — same as `of1-demo-cc`'s Step 12).
 
-**Two of its 6 pre-launch checks do not apply to the adopt flow — adapt them instead of treating a failure as blocking:**
+**One of its 6 pre-launch checks needs a small adaptation for the adopt flow:**
 
-- **Check 4 (template catalog count)** — `of1-template-generation` currently produces 15 templates, not the 25 the check asserts; this is a pre-existing mismatch in the shared pipeline, not specific to adopt. Treat "15 of1-* templates across all 5 intents" as the actual pass bar until that mismatch is fixed upstream.
 - **Check 5 (deliverable URLs return 200)** — drop `${PREVIEW_BASE}/deliverables/discovery.html` and `${PREVIEW_BASE}/deliverables/brand-review.html` from the URL list. Neither is produced by this flow: discovery never runs, and extraction (step 3) is skipped entirely when `DESIGN.json` already existed on entry.
 
-Checks 1, 2, 3, and 6 apply unchanged.
+Checks 1, 2, 3, 4, and 6 apply unchanged.

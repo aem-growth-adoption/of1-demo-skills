@@ -48,7 +48,7 @@ Steps 1→2→3→4 (sequential)
 | `of1-extraction` | Extract design tokens, brand identity, and page structure from a live site |
 | `of1-prototype` | Generate pixel-perfect HTML prototypes of key pages |
 | `of1-stardust-deploy` | Convert stardust prototypes to EDS blocks + content pages via `stardust:deploy` |
-| `of1-template-generation` | Generate 25 branded templates (5 intents × 5 variations) |
+| `of1-template-generation` | Generate 15 branded templates (5 intents × 3 variations) |
 | `of1-generative-block-styler` | Generate CSS for dynamically-rendered generative sections |
 | `of1-brand-voice-extractor` | Extract brand voice from a website and generate `brand-voice.json` |
 | `of1-content-metadata` | Scrape product data, personas, use cases, features, and FAQs |

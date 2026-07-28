@@ -204,7 +204,7 @@ EOF
 
 All image URLs must be from the site's own domain (`https://${BRANCH}--${REPO}--${OWNER}.aem.page/media/...`) — never `content.da.live` (access-restricted, not public) and never external CDN URLs.
 
-### Check 4: Template catalog has 25 entries
+### Check 4: Template catalog has 15 entries
 
 ```bash
 python3 << 'EOF'
@@ -219,8 +219,8 @@ if not p.exists():
 catalog = json.loads(p.read_text())
 of1_entries = [t for t in catalog.get('templates', []) if t.get('name', '').startswith('of1-')]
 
-if len(of1_entries) < 25:
-    print(f"✗ Only {len(of1_entries)} of1-* templates (need 25)", file=sys.stderr)
+if len(of1_entries) < 15:
+    print(f"✗ Only {len(of1_entries)} of1-* templates (need 15)", file=sys.stderr)
     sys.exit(1)
 
 intents = {t.get('intent') for t in of1_entries}
@@ -286,9 +286,9 @@ Only mark Step 12 done if ALL 6 pass:
 | # | Check |
 |---|-------|
 | 1 | OF1 page loads with styled search UI |
-| 2 | OF1 nav/footer has logo SVG + nav links + styled footer (concrete element checks) |
+| 2 | OF1 nav/footer renders via the standard header/footer blocks (concrete element checks) |
 | 3 | All products have ≥2 images |
-| 4 | Template catalog has 25 of1-* entries across all 5 intents |
+| 4 | Template catalog has 15 of1-* entries across all 5 intents |
 | 5 | All deliverable URLs return 200 |
 | 6 | `/api/generate` returns ≥2 sections (end-to-end worker test) |
 
