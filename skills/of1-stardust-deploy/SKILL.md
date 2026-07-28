@@ -6,9 +6,9 @@ user-invocable: false
 
 # OF1 Stardust Deploy
 
-Pure delegation to the `stardust:deploy` skill (`stardust` plugin). Convert every prototype committed by step 4 into real EDS blocks + content pages — one block per distinct prototype `<section>` (deduped via stardust's variant-class rule where sections repeat with the same treatment), one EDS content page per prototype page, shared `content/fragments/{nav,footer}.html` chrome, and a `styles/styles.css` foundation (tokens, reset, button system, self-hosted fonts) — then push to the demo branch.
+Pure delegation to the `stardust:deploy` skill (`stardust` plugin). Convert every prototype committed by step 4 into real EDS blocks + content pages — one block per distinct prototype `<section>` (deduped via stardust's variant-class rule where sections repeat with the same treatment), one EDS content page per prototype page, authored `content/nav.html` + `content/footer.html` documents rendered by the standard `blocks/header` + `blocks/footer` blocks, and a `styles/styles.css` foundation (tokens, reset, button system, self-hosted fonts) — then push to the demo branch.
 
-The `/of1` personalization page is NOT converted here — its DOM-preserving passthrough overlay is owned entirely by step 7 (`of1-generative-block-styler`), since the OF1 search block must stay live-DOM and can never be authored as a static EDS block.
+The `/of1` personalization page is NOT converted here — it's authored as an ordinary EDS content page by step 7 (`of1-generative-block-styler`), since the OF1 search block must stay live-DOM and can never be authored as a static block itself.
 
 ## Env — orchestrator exports these (see `of1-setup`)
 
@@ -73,7 +73,7 @@ Supply these values upfront (do NOT let it prompt):
 | Prototypes | `$OF1_DEMO_REPO/deliverables/prototype-*.html` (self-contained, inline `<style>`) |
 | Target EDS repo | `${OWNER}/${REPO}` (local clone at `$OF1_DEMO_REPO`) |
 | DA token | stardust:deploy reads `$DA_TOKEN` from env automatically |
-| Runtime | run the Runtime-detection probe (stardust:deploy § "Runtime-detection probe") — if the repo is vanilla `aem-boilerplate` rather than AuthorKit, run the Runtime bootstrap first (`bootstrap-authorkit.mjs`) |
+| Runtime | run the Runtime-detection probe (stardust:deploy § "Runtime-detection probe") — writes `stardust/runtime-contract.json` with `"runtime": "vanilla-eds"`. `stardust:deploy` targets vanilla `aem-boilerplate` only; there is no bootstrap step. |
 
 **DA auth note:** All calls to `admin.da.live` or `admin.hlx.page` MUST include BOTH `Authorization: Bearer $DA_TOKEN` AND `x-content-source-authorization: Bearer $DA_TOKEN` headers.
 
@@ -90,14 +90,14 @@ Preview/content URLs must resolve at `https://${BRANCH}--${REPO}--${OWNER}.aem.p
 
 ### 3. Verify critical artifacts exist (hard gate)
 
-**Step 6 (template generation) and step 7 (OF1 styling) both depend on this step's output** — step 7 specifically needs `content/fragments/nav.html` and `content/fragments/footer.html` (or the path confirmed by `of1-generative-block-styler`'s own runtime-discovery step — see that skill for the exact path, since stardust:deploy's own docs are inconsistent about whether shared fragments live under `content/fragments/` or repo-root `fragments/`).
+**Step 6 (template generation) and step 7 (OF1 styling) both depend on this step's output** — step 7 specifically needs `content/nav.html` and `content/footer.html` (the authored chrome documents `blocks/header`/`blocks/footer` render).
 
 ```bash
 cd "$OF1_DEMO_REPO"
 FAIL=false
 
 # At least one block + one content page must exist
-BLOCK_COUNT=$(find blocks -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -v '^blocks/of1$' | grep -v '^blocks/fragment$' | grep -v '^blocks/section-metadata$' | wc -l | tr -d ' ')
+BLOCK_COUNT=$(find blocks -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -v '^blocks/of1$' | grep -v '^blocks/fragment$' | grep -v '^blocks/section-metadata$' | grep -v '^blocks/header$' | grep -v '^blocks/footer$' | wc -l | tr -d ' ')
 [ "$BLOCK_COUNT" -ge 1 ] || { echo "✗ MISSING: no blocks/ directories were created" >&2; FAIL=true; }
 
 for SLUG in $PROTOTYPES; do
@@ -107,20 +107,11 @@ done
 
 [ -f styles/styles.css ] || { echo "✗ MISSING: styles/styles.css" >&2; FAIL=true; }
 
-# Shared chrome fragments — REQUIRED by step 7. Check both candidate locations
-# since stardust:deploy's own docs disagree on the path.
-if [ -f content/fragments/nav.html ] || [ -f fragments/header.html ]; then
-  echo "✓ nav/header fragment found"
-else
-  echo "✗ MISSING: neither content/fragments/nav.html nor fragments/header.html exists" >&2
-  FAIL=true
-fi
-if [ -f content/fragments/footer.html ] || [ -f fragments/footer.html ]; then
-  echo "✓ footer fragment found"
-else
-  echo "✗ MISSING: neither content/fragments/footer.html nor fragments/footer.html exists" >&2
-  FAIL=true
-fi
+# Chrome — authored nav/footer documents + the blocks that render them
+[ -f content/nav.html ] || { echo "✗ MISSING: content/nav.html" >&2; FAIL=true; }
+[ -f content/footer.html ] || { echo "✗ MISSING: content/footer.html" >&2; FAIL=true; }
+[ -d blocks/header ] || { echo "✗ MISSING: blocks/header" >&2; FAIL=true; }
+[ -d blocks/footer ] || { echo "✗ MISSING: blocks/footer" >&2; FAIL=true; }
 
 if [ "$FAIL" = true ]; then
   echo "" >&2
@@ -129,7 +120,7 @@ if [ "$FAIL" = true ]; then
   echo "and re-invoke. Do not hand-author blocks/content pages to work around this." >&2
   exit 1
 fi
-echo "✓ Blocks, content pages, foundation CSS, and chrome fragments present"
+echo "✓ Blocks, content pages, foundation CSS, and nav/footer chrome present"
 ```
 
 ### 4. Verify all pages render on EDS preview
