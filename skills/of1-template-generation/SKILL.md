@@ -46,8 +46,9 @@ Available before invocation, in addition to the env above:
 
 - Design tokens → `$OF1_DEMO_REPO/stardust/current/DESIGN.json` (from step 3)
 - Demo narrative → `$OF1_STATE_DIR/step-2-output.md` (from step 2)
-- Pixel-perfect prototypes → `$OF1_DEMO_REPO/deliverables/prototype-*.html` (from step 4) — self-contained HTML with inline `<style>`; this is the sole visual/structural reference, read directly (no step 5 dependency)
-- Prototype screenshots → captured by the orchestrator directly from the static `deliverables/prototype-*.html` files (see "Pre-fan-out" in the orchestrator skill) — no EDS render or step 5 output required
+- Pixel-perfect prototypes → `$OF1_DEMO_REPO/deliverables/prototype-*.html` (from step 4), when they exist — self-contained HTML with inline `<style>`; the primary visual/structural reference, read directly (no step 5 dependency)
+- Prototype screenshots → captured by the orchestrator directly from the static `deliverables/prototype-*.html` files (see "Pre-fan-out" in the orchestrator skill), when prototypes exist
+- **Fallback (no prototypes — e.g. `of1-adopt` running against an existing EDS site):** `$OF1_DEMO_REPO/stardust/current/DESIGN.json` + live screenshots of the site's own rendered EDS pages (captured by the `of1-adopt` orchestrator the same way Track A captures EDS reference screenshots) + the repo's real `styles/styles.css` tokens
 
 Worker-side schemas: `of1-demo/knowledge/worker-config-schemas.md` § `templates.json`, § `products.json`.
 
@@ -169,10 +170,22 @@ Write the file directly; **don't run a script**.
 
 **Sources of truth, priority order:**
 
-1. Prototype inline CSS — the `<style>` block inside `$OF1_DEMO_REPO/deliverables/prototype-*.html` (search `:root { … }` + custom-property declarations). This is the canonical token source — extract it directly, no intermediate conversion step produces it.
-2. `DESIGN.json` — `$OF1_DEMO_REPO/stardust/current/DESIGN.json`. Tiebreaker / fill-in for tokens not in the prototypes. Schema drifts between extraction runs; tolerate variation.
+```bash
+cd "$OF1_DEMO_REPO"
+HAS_PROTOTYPES=false
+ls deliverables/prototype-*.html >/dev/null 2>&1 && HAS_PROTOTYPES=true
+```
 
-Don't trust `DESIGN.json` as the sole source — the prototypes are the visually-validated ground truth.
+- **If prototypes exist (`$HAS_PROTOTYPES = true`, the normal Track A case):**
+  1. Prototype inline CSS — the `<style>` block inside `deliverables/prototype-*.html` (search `:root { … }` + custom-property declarations). This is the canonical token source — extract it directly, no intermediate conversion step produces it.
+  2. `DESIGN.json` — `stardust/current/DESIGN.json`. Tiebreaker / fill-in for tokens not in the prototypes. Schema drifts between extraction runs; tolerate variation.
+
+  Don't trust `DESIGN.json` as the sole source — the prototypes are the visually-validated ground truth.
+
+- **If no prototypes exist** (running against an existing EDS site — e.g. via `of1-adopt`):
+  1. `styles/styles.css` — the repo's real, deployed `:root` tokens. This is the canonical source in this case; the site is already live, so its own stylesheet IS the ground truth.
+  2. `stardust/current/DESIGN.json` — tiebreaker / fill-in for tokens not in `styles.css`.
+  3. Live screenshots of the site's own rendered pages (captured by the orchestrator) — visual reference for section rhythm, card grids, and typography scale that a token file alone doesn't capture.
 
 **Required tokens** — define at minimum these custom properties on `:root`, using prototype values verbatim:
 
@@ -217,9 +230,13 @@ for var in --color-bg --color-fg --color-accent --font-display --font-body --siz
   grep -q "${var}:" styles/of1-template-base.css || { echo "FAIL: missing $var" >&2; exit 1; }
 done
 
-# Accent must match prototype — spot check
+# Accent must match the source of truth — spot check
 grep -A1 ":root" styles/of1-template-base.css | grep accent
-grep -A1 ":root" deliverables/prototype-*.html | grep -i accent | head -3
+if [ "$HAS_PROTOTYPES" = "true" ]; then
+  grep -A1 ":root" deliverables/prototype-*.html | grep -i accent | head -3
+else
+  grep -A1 ":root" styles/styles.css | grep -i accent | head -3
+fi
 # If these disagree, fix of1-template-base.css before continuing.
 ```
 
