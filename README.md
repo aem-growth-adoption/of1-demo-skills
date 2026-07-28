@@ -57,6 +57,7 @@ Steps 1→2→3→4 (sequential)
 | `of1-config-review` | Generate the config-review.html deliverable from tenant config |
 | `of1-deploy` | Commit config, sync to OF1 worker, generate demo hub, and verify |
 | `of1-signals` | Standalone (not a pipeline step) — author `signals.json`, the OF1 **preview extension's** own config for simulating how a demo visitor arrived (fake email/ads/LLM referrals) |
+| `of1-adopt` | Standalone orchestrator (not part of the `of1-demo` pipeline) — introduce OF1 onto an existing EDS/Stardust site, reusing whatever design tokens/blocks/pages already exist instead of crawling an external domain. Works on both Claude Code and SLICC with no sprinkle/scoop UI. |
 
 ## Usage
 
