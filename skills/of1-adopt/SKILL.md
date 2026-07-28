@@ -82,13 +82,14 @@ Same step-graph, same dependency rules on both runtimes. Only the invocation mec
 
 - Use **TaskCreate** with one task per step (1, 3, 6-base, 6a–6e, 6-assemble, 7, 8a, 8b, 9, 10, 11, 12). Mark task 1 completed immediately; mark each task `in_progress`/`completed`/`failed` around its dispatch.
 - Each step (except artifact detection and 11, which are inline) is a single `Agent` dispatch. Sub-agents see none of this conversation — the prompt must be self-contained: read the target step skill's `SKILL.md`, export the same env vars `of1-demo-cc` exports (`OF1_STATE_DIR`, `OF1_DEMO_REPO`, `ADOBE_IMS_TOKEN`/`OF1_TOKEN_FILE`, `SKILL_DIR`), state the branch/owner/repo, list which prior-step output files it needs, and require the same JSON status block: `{"step":N,"status":"done"|"review"|"failed","summary":"...","deliverables":[...]}`.
+- **Step 3's dispatch additionally exports `OF1_EXTRACT_OWN_SITE=1`.** This is the ONLY step-specific env var in this pipeline — do not forget it, or extraction silently crawls the wrong target (an external domain instead of the site's own preview URL).
 - **Parallelism is mandatory** at each fan-out point — dispatch all eligible Agents in a single message with multiple Agent tool-use blocks.
 - Model assignment: same rule of thumb as `of1-demo-cc` — Opus only where output quality cascades downstream. Since this pipeline skips discovery/prototype entirely, the only Opus-worthy step is 7 (OF1 styling — multi-step DA authoring) and 3 when it actually runs (extraction — design-token quality cascades). Everything else (`sonnet`): 6-base, 6a–6e, 6-assemble, 8a, 8b, 9, 10.
 - Auto-approve by default (mirrors `of1-demo-cc`'s one-shot mode) — mark each `review`-status task completed and continue immediately, unless the user explicitly asked to pause between steps.
 
 ### SLICC
 
-- Dispatch each step as a `scoop_scoop()` call with `writablePaths` covering `/scoops/<name>/`, `/shared/`, and the project repo path — same pattern `of1-demo` already uses per step.
+- Dispatch each step as a `scoop_scoop()` call with `writablePaths` covering `/scoops/<name>/`, `/shared/`, and the project repo path — same pattern `of1-demo` already uses per step. **Step 3's scoop additionally needs `env: { OF1_EXTRACT_OWN_SITE: "1" }`** — same reason as the Claude Code column: without it, extraction crawls the wrong target.
 - Each scoop writes its own `/shared/of1-demo/step-N-status.json` on completion, exactly like every step skill already documents in its own "Completion" section — **do not** additionally push to a sprinkle. There is nothing listening for `sprinkle_send` on this skill.
 - Handle completions event-driven, not via polling: end your turn after dispatching, and react when a scoop-completion notification arrives — read its status file, check if it unblocks the next dispatch per the table above, and dispatch the next batch.
 - Model assignment: same as the Claude Code column above, using `claude-opus-4-6`/`claude-sonnet-5` model strings per `of1-demo`'s own convention.
@@ -109,4 +110,11 @@ git push origin "$BRANCH"
 
 ## Step 12 — Deploy (inline)
 
-After step 11 is approved AND steps 6-assemble + 7 are both done, run the `of1-deploy` skill inline (read it and follow it directly — same as `of1-demo-cc`'s Step 12). Its pre-launch checklist (6 checks) must all pass before marking done.
+After step 11 is approved AND steps 6-assemble + 7 are both done, run the `of1-deploy` skill inline (read it and follow it directly — same as `of1-demo-cc`'s Step 12).
+
+**Two of its 6 pre-launch checks do not apply to the adopt flow — adapt them instead of treating a failure as blocking:**
+
+- **Check 4 (template catalog count)** — `of1-template-generation` currently produces 15 templates, not the 25 the check asserts; this is a pre-existing mismatch in the shared pipeline, not specific to adopt. Treat "15 of1-* templates across all 5 intents" as the actual pass bar until that mismatch is fixed upstream.
+- **Check 5 (deliverable URLs return 200)** — drop `${PREVIEW_BASE}/deliverables/discovery.html` and `${PREVIEW_BASE}/deliverables/brand-review.html` from the URL list. Neither is produced by this flow: discovery never runs, and extraction (step 3) is skipped entirely when `DESIGN.json` already existed on entry.
+
+Checks 1, 2, 3, and 6 apply unchanged.

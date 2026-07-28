@@ -159,27 +159,25 @@ playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/check-of1.p
 
 **Pass:** branded search UI visible (title, subtitle, input, chips), styled header nav (dark translucent bar, white links), styled footer. No raw unstyled content.
 
-**If fails:** check `scripts.js` passthrough branch has `decorateMain(main)`, or `styles/of1.css` is missing header/footer chrome.
+**If fails:** check `blocks/of1/of1.js`/`blocks/of1/of1.css` were pushed and the `of1` block's table cell reads exactly `of1`, or the site's own `styles/styles.css` foundation isn't loading (check the preview build succeeded).
 
-### Check 2: OF1 nav/footer matches /home
+### Check 2: OF1 nav/footer renders via the standard header/footer blocks
 
 ```bash
 playwright-cli open "${PREVIEW_BASE}/of1"
 sleep 6
 # Verify concrete elements exist — not just a visual comparison
-playwright-cli eval "document.querySelector('.site-header .logo svg') ? 'logo OK' : 'LOGO MISSING'"
-playwright-cli eval "document.querySelector('.site-header .nav-links li') ? 'nav links OK' : 'NAV LINKS MISSING'"
-playwright-cli eval "document.querySelector('.announcement-bar') ? 'announcement OK' : 'no announcement bar (may be expected)'"
-playwright-cli eval "document.querySelector('.site-footer') ? 'footer OK' : 'FOOTER MISSING'"
+playwright-cli eval "document.querySelector('header .header') ? 'header OK' : 'HEADER MISSING'"
+playwright-cli eval "document.querySelector('header .header a') ? 'nav links OK' : 'NAV LINKS MISSING'"
+playwright-cli eval "document.querySelector('footer .footer') ? 'footer OK' : 'FOOTER MISSING'"
 ```
 
 **Pass criteria (concrete, not just visual):**
-- Logo SVG renders inside `.site-header` (not just text)
-- Nav links are present as `<li>` elements (not a raw bullet list)
-- Footer has styled content (not empty or a single dark bar)
-- If the site has an announcement bar: it has a background color (not raw unstyled text)
+- `header .header` block renders (vanilla `aem-boilerplate`'s `decorateBlock` output — confirm the target's `blockWrapperClass` in `stardust/runtime-contract.json` if it drifts)
+- At least one nav link is present inside the header block
+- `footer .footer` block renders with styled content (not empty)
 
-**If fails:** `styles/of1.css` is missing chrome rules. Start from the prototype's inline `<style>` block — extract it from `deliverables/prototype-home.html` (stardust:deploy does not produce a per-slug `styles/prototype-home.css` file) into `styles/of1.css` and strip only `<main>`-content rules.
+**If fails:** the site's `content/nav.html`/`content/footer.html` didn't push correctly, or the preview hasn't picked up the latest deploy yet — re-check step 5/6 (`of1-stardust-deploy`, for the full e2e pipeline) or the existing site's own chrome (for `of1-adopt`, where nav/footer already existed before this pipeline ran).
 
 ### Check 3: All products have ≥2 images
 
