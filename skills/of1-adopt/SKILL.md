@@ -36,24 +36,25 @@ If `HAS_DESIGN_JSON=false`, Step 3 (extraction) runs in own-site mode (`OF1_EXTR
               │
        [DESIGN.json exists?]
          no → 3 (extraction, own-site mode)
-         yes → skip to 6/8 (of1-extraction itself no-ops and reports done)
+         yes → skip (of1-extraction itself no-ops and reports done)
               │
-      ┌───────┴────────┐
-      ↓                ↓
-  Track A          Track B
-  6 (templates:    8a (brand-voice) ∥ 8b (content-metadata) ∥ 10 (CTA template)
-  base→intent×5→          ↓
-  assemble)        9 (suggestions — needs 8a + 8b)
-      ↓                ↓
-  7 (OF1 styling)      │
-      └───────┬────────┘
-               ↓
+   ┌──────────┼───────────┬────────────┬────────────┐
+   ↓          ↓           ↓            ↓            ↓
+6-base        7          8a           8b           10
+(templates) (styling)  (brand-voice)(content)   (CTA template)
+   ↓                       └──────┬─────┘
+6a ∥ 6b ∥ 6c ∥ 6d ∥ 6e             ↓
+   ↓                     9 (suggestions — needs 8a + 8b)
+6-assemble                         │
+   │                               │
+   └──────────────┬────────────────┴───────────┬────┘
+                   ↓                            │
       11 (config review, inline — needs 8a + 8b + 9 + 10)
-               ↓
+                   ↓
       12 (deploy — needs 6-assemble + 7 + 11)
 ```
 
-Track A (6→7) and Track B (8a ∥ 8b ∥ 10 → 9) both dispatch as soon as step 3 returns `done` (whether it ran or was skipped) — they run concurrently, same rule `of1-demo-cc` already uses between its Track A/Track B steps.
+Steps 6-base, 7, 8a, 8b, and 10 all dispatch in the SAME message, in parallel, as soon as step 3 returns `done` (whether it ran or was skipped) — five siblings, not two sequential tracks. Step 7 has no dependency on step 6 at all; it only appears in the same fan-out because both become eligible at the same trigger. Step 9 waits for 8a + 8b. Step 11 waits for 8a + 8b + 9 + 10. Step 12 waits for 6-assemble + 7 + 11.
 
 | Trigger (ALL must be done) | Dispatch in one message |
 |---|---|
