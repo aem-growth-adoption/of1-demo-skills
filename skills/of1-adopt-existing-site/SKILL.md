@@ -92,7 +92,7 @@ Same step-graph, same dependency rules on both runtimes. Only the invocation mec
 - Dispatch each step as a `scoop_scoop()` call with `writablePaths` covering `/scoops/<name>/`, `/shared/`, and the project repo path — same pattern `of1-demo-orchestrator` already uses per step. **Step 3's scoop additionally needs `env: { OF1_EXTRACT_OWN_SITE: "1" }`** — same reason as the Claude Code column: without it, extraction crawls the wrong target.
 - Each scoop writes its own `/shared/of1-demo-orchestrator/step-N-status.json` on completion, exactly like every step skill already documents in its own "Completion" section — **do not** additionally push to a sprinkle. There is nothing listening for `sprinkle_send` on this skill.
 - Handle completions event-driven, not via polling: end your turn after dispatching, and react when a scoop-completion notification arrives — read its status file, check if it unblocks the next dispatch per the table above, and dispatch the next batch.
-- Model assignment: same as the Claude Code column above, using `claude-opus-4-6`/`claude-sonnet-5` model strings per `of1-demo-orchestrator`'s own convention.
+- Model assignment: same as the Claude Code column above, using `claude-opus-4-8`/`claude-sonnet-5` model strings per `of1-demo-orchestrator`'s own convention.
 
 ## Step 11 — Config review (inline, no dispatch on either runtime)
 

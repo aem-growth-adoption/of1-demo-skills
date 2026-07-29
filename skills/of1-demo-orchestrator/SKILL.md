@@ -51,7 +51,7 @@ User clicked Run on step N. Parse the step number, skill name, and domain from t
 
 **Model selection — assign per step, NOT a blanket choice:**
 
-Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everything-to-Opus was the old rule and made representative runs cost ~$50 / take ~55 min. Most sub-steps are pattern-matching, scripted tool use, or structured generation that Sonnet 5 handles equivalently. Use Opus only for the steps whose output quality cascades into everything downstream.
+Pass an explicit `model` parameter on every `scoop_scoop()` call. Most sub-steps are pattern-matching, scripted tool use, or structured generation that Sonnet 5 handles equivalently. Use Opus only for the steps whose output quality cascades into everything downstream.
 
 **Required model versions:**
 - `claude-opus-4-8` → must resolve to Opus 4.8 (`us.anthropic.claude-opus-4-8`)
@@ -73,7 +73,7 @@ Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everyt
 | 10 — CTA template | `claude-sonnet-5` | Generate one JSON file from DESIGN.json tokens. |
 | 12 — deploy + verify | `claude-sonnet-5` | Scripted sync + verification curls + screenshots. |
 
-**Rule of thumb:** keep Opus only for steps that **author content the downstream pipeline depends on for quality** (discovery's narrative, extraction's tokens, prototype's HTML). Everything else — including template generation, which surprises people — should be Sonnet 5.
+**Rule of thumb:** keep Opus only for steps that **author content the downstream pipeline depends on for quality** (discovery's narrative, extraction's tokens, prototype's HTML). Everything else — including template generation — should be Sonnet 5.
 
 If a Sonnet step produces visibly degraded output in practice, bump *that step* to Opus — not the whole pipeline.
 
@@ -282,7 +282,7 @@ S7   S6a∥6b∥6c∥6d∥6e
 
 ### Key rules:
 1. **Track B does NOT wait for Step 5** — it starts immediately after Step 4 is approved
-2. **Step 6 (Templates) no longer waits for Step 5** — it reads step 4's prototype HTML/CSS directly, so Step 5 (stardust:deploy) and Step 6-base dispatch together right after Step 4 is approved
+2. **Step 6 (Templates) does not wait for Step 5** — it reads step 4's prototype HTML/CSS directly, so Step 5 (stardust:deploy) and Step 6-base dispatch together right after Step 4 is approved
 3. **Step 7 (OF1 styling) runs AFTER Step 5** — it needs stardust:deploy's shared nav/footer chrome fragments and must not overwrite of1.css that S5 creates. S7 commits last. Step 7 does NOT wait for Step 6.
 4. **Step 6 is FANNED OUT into 5 parallel intent scoops (6a–6e) + 1 assemble scoop** — see "Step 6 fan-out detail" below
 5. **Steps 5, 6-base run in parallel; Step 7 dispatches once Step 5 alone finishes** (not gated on Step 6's progress)
@@ -291,7 +291,7 @@ S7   S6a∥6b∥6c∥6d∥6e
 
 ### Step 6 fan-out detail
 
-Step 6 (template generation) is split into 7 scoops across 3 phases plus a small inline screenshot step. Step 6 dispatches immediately alongside Step 5 — it no longer waits for stardust:deploy to finish:
+Step 6 (template generation) is split into 7 scoops across 3 phases plus a small inline screenshot step. Step 6 dispatches immediately alongside Step 5 — it does not wait for stardust:deploy to finish:
 
 - **Pre-fan-out (inline, orchestrator):** capture visual references of all prototypes directly from the static `deliverables/prototype-*.html` files so the intent scoops see the real design system, without needing an EDS render (see "Pre-fan-out: capture visual reference" below). Dispatch this immediately after Step 4 is approved, in parallel with Step 5.
 - **6-base (sequential, 1 scoop):** named `of1-s6-base`. Runs `of1-build-templates` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype's inline CSS — the shared design tokens all per-template CSS files `@import`. Writes `/shared/of1-demo-orchestrator/step-6-base-status.json`. Must finish before intent scoops start. Dispatches in parallel with Step 5 (stardust:deploy), not after it.
@@ -326,7 +326,7 @@ If any intent scoop fails, retry only that one. If `of1-s6-assemble` fails, fix 
 
 ### Step 8 split detail
 
-Step 8 used to be a single scoop that ran `of1-extract-brand-voice` and `of1-extract-content` back-to-back (~12 min). They're independent — both consume Step 3's extraction output and produce different config files — so split into two parallel scoops alongside Steps 9 and 10.
+Step 8 runs `of1-extract-brand-voice` and `of1-extract-content` as two parallel scoops alongside Steps 9 and 10. They're independent — both consume Step 3's extraction output and produce different config files.
 
 - **`of1-s8-brand`** — runs `of1-extract-brand-voice`. Produces `of1/config/brand-voice.json`. Writes `/shared/of1-demo-orchestrator/step-8-brand-status.json`. ~1–2 min.
 - **`of1-s8-content`** — runs `of1-extract-content`. Produces `of1/config/{products,personas,use-cases,features,faqs}.json` + uploads all product images. Writes `/shared/of1-demo-orchestrator/step-8-content-status.json`. ~3–5 min.
@@ -447,16 +447,13 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 
 **Track B (Config):** Steps 8a + 8b + 10 (parallel, start after step 4) → Step 9 (after 8 done) → Step 11 (Config review)
 
-**Both tracks start after Step 4 is approved.** Track B does NOT wait for Step 5. Step 6 no longer waits for Step 5 either — it dispatches in parallel. Step 7 DOES wait for Step 5 alone — it must commit AFTER S5 so it doesn't get overwritten, but it does not wait on Step 6.
+**Both tracks start after Step 4 is approved.** Track B does NOT wait for Step 5. Step 6 does not wait for Step 5 either — it dispatches in parallel. Step 7 DOES wait for Step 5 alone — it must commit AFTER S5 so it doesn't get overwritten, but it does not wait on Step 6.
 
 **Step 12 (Deploy)** requires Track A (step 6-assemble done AND step 7 done) AND Track B (step 11 approved).
 
 ## Step 1 — Setup
 
-Setup verifies prerequisites AND repo state (see the `of1-check-dependencies` skill —
-this absorbed what used to be a separate "Repo setup" step). It does NOT
-create a branch — it uses whatever branch is currently checked out at
-`OF1_DEMO_REPO`.
+Setup verifies prerequisites AND repo state (see the `of1-check-dependencies` skill). It does NOT create a branch — it uses whatever branch is currently checked out at `OF1_DEMO_REPO`.
 
 The step outputs `/shared/of1-demo-orchestrator/repo-config.json` which all subsequent steps use:
 ```json
@@ -830,7 +827,7 @@ After step 12 succeeds, all steps show green. The sprinkle stays open as a refer
 
 ## Shell Environment Pitfalls (SLICC-specific)
 
-These issues cost time in previous runs. Avoid them:
+Avoid these:
 
 1. **`set -o pipefail` is not supported** — don't run scripts that use it (`deploy-tenant.sh`). Execute commands manually or use the shell loop in the deploy skill.
 
@@ -878,7 +875,7 @@ These issues cost time in previous runs. Avoid them:
 
 ## DA Authentication & Content Upload (SLICC-specific)
 
-**This is the #1 time waster in previous runs. Follow these rules exactly:**
+**Follow these rules exactly:**
 
 ### Getting the IMS token
 ```bash

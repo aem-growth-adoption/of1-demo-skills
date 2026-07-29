@@ -115,7 +115,7 @@ for PAGE in $PROTOTYPE_PAGES; do
 done
 ```
 
-Do NOT commit these PNGs. They're local reference material. If screenshots fail, intent agents fall back to the prototype's inline CSS alone — degraded fidelity but functional. This step no longer depends on Step 5 — dispatch it immediately after Step 4, alongside Step 5 and Steps 8a/8b/10.
+Do NOT commit these PNGs. They're local reference material. If screenshots fail, intent agents fall back to the prototype's inline CSS alone — degraded fidelity but functional. This step does not depend on Step 5 — dispatch it immediately after Step 4, alongside Step 5 and Steps 8a/8b/10.
 
 If any 6a–6e fails, retry just that one; don't re-run the others. If `6-assemble` fails, re-run it alone — intent outputs are intact.
 
@@ -128,7 +128,7 @@ Steps 8a and 8b are independent — both consume Step 3's extraction output and 
 Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritance puts every sub-agent on Opus, which is wasteful.
 
 **Required model versions:**
-- `opus` → Claude Opus 4.6 v1 1M context (`us.anthropic.claude-opus-4-6-v1[1m]`)
+- `opus` → Claude Opus 4.8 (`us.anthropic.claude-opus-4-8`)
 - `sonnet` → Claude Sonnet 5 (`us.anthropic.claude-sonnet-5`)
 
 ⚠️ Do NOT use `haiku` — it resolves to a smaller model insufficient for this pipeline.

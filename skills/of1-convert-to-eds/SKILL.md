@@ -46,7 +46,7 @@ echo "Converting: $PROTOTYPES"
 
 ### 2. Invoke the `stardust:deploy` skill
 
-Invoke `stardust:deploy` once for the whole prototype set — unlike the old snowflake wrapper, stardust:deploy's own Step 7 ("Blocks — parallel agents") already fans out internally across page-archetype clusters. Do NOT loop and invoke it once per prototype; that duplicates its own internal parallelism and risks duplicate/conflicting block names across invocations.
+Invoke `stardust:deploy` once for the whole prototype set — its own Step 7 ("Blocks — parallel agents") already fans out internally across page-archetype clusters. Do NOT loop and invoke it once per prototype; that duplicates its own internal parallelism and risks duplicate/conflicting block names across invocations.
 
 **How to invoke in each runtime:**
 
