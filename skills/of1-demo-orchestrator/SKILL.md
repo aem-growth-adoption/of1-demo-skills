@@ -280,14 +280,11 @@ S7   S6a∥6b∥6c∥6d∥6e
     Step 12 (Deploy)
 ```
 
-### Key rules:
-1. **Track B does NOT wait for Step 5** — it starts immediately after Step 4 is approved
-2. **Step 6 (Templates) does not wait for Step 5** — it reads step 4's prototype HTML/CSS directly, so Step 5 (stardust:deploy) and Step 6-base dispatch together right after Step 4 is approved
-3. **Step 7 (OF1 styling) runs AFTER Step 5** — it needs stardust:deploy's shared nav/footer chrome fragments and must not overwrite of1.css that S5 creates. S7 commits last. Step 7 does NOT wait for Step 6.
-4. **Step 6 is FANNED OUT into 5 parallel intent scoops (6a–6e) + 1 assemble scoop** — see "Step 6 fan-out detail" below
-5. **Steps 5, 6-base run in parallel; Step 7 dispatches once Step 5 alone finishes** (not gated on Step 6's progress)
-6. **Steps 8a, 8b, 10 run at once** — spawn all 3 scoops simultaneously. **Step 9 waits for step 8 to finish** (it needs products.json + brand-voice.json to ground suggestions in real content)
-7. **Push each status as it arrives** — don't wait for all parallel steps to finish before updating the sprinkle
+### Why the non-obvious edges exist (the table above is the source of truth):
+- **Step 7 must run AFTER Step 5, and commit last** — it needs stardust:deploy's shared nav/footer chrome fragments and must not overwrite the `of1.css` that S5 creates. It does NOT wait for Step 6.
+- **Step 9 waits for Step 8** — it needs products.json + brand-voice.json to ground suggestions in real content.
+- **Neither Track B nor Step 6 waits for Step 5** — Step 6 reads step 4's prototype HTML/CSS directly, so it dispatches in parallel with Step 5.
+- **Push each status as it arrives** — don't batch parallel completions before updating the sprinkle.
 
 ### Step 6 fan-out detail
 
@@ -441,15 +438,7 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 | 11 | Config review | (orchestrator-inline) | Yes | B | steps 8+9+10 |
 | 12 | Deploy | `of1-publish` | Yes | — | steps 6+7+11 |
 
-### Track Summary
-
-**Track A (EDS Site):** Step 5 (stardust:deploy) AND Step 6-base (Templates) dispatch together after Step 4 is approved → Steps 6a–6e (5 parallel intent scoops) start once 6-base finishes → Step 6-assemble runs once 6a–6e all complete. Step 7 (OF1 styling) dispatches once Step 5 alone finishes — independent of Step 6's progress.
-
-**Track B (Config):** Steps 8a + 8b + 10 (parallel, start after step 4) → Step 9 (after 8 done) → Step 11 (Config review)
-
-**Both tracks start after Step 4 is approved.** Track B does NOT wait for Step 5. Step 6 does not wait for Step 5 either — it dispatches in parallel. Step 7 DOES wait for Step 5 alone — it must commit AFTER S5 so it doesn't get overwritten, but it does not wait on Step 6.
-
-**Step 12 (Deploy)** requires Track A (step 6-assemble done AND step 7 done) AND Track B (step 11 approved).
+Two tracks run concurrently after Step 4 — **Track A** (S5, S6, S7 — the EDS site) and **Track B** (S8–S11 — config). See the dependency graph and "When to spawn what" table above for the full ordering. **Step 12 (Deploy)** is the join: it requires Track A (step 6-assemble done AND step 7 done) AND Track B (step 11 approved).
 
 ## Step 1 — Setup
 
@@ -825,125 +814,21 @@ sprinkle send of1-demo-orchestrator '{"type":"audit","file":"/shared/of1-demo-or
 
 After step 12 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.
 
-## Shell Environment Pitfalls (SLICC-specific)
+## Reference — pitfalls & schemas
 
-Avoid these:
+The cross-cutting DA/EDS/git/image/logo rules are NOT restated here. Each step scoop reads its own step skill (which owns those rules), and the durable versions live in:
 
-1. **`set -o pipefail` is not supported** — don't run scripts that use it (`deploy-tenant.sh`). Execute commands manually or use the shell loop in the deploy skill.
+- **`knowledge/common-pitfalls.md`** — DA content authoring, image handling, brand logo, URL patterns, curl traps, git workflow, runtime-specific traps (`[SLICC]`/`[CC]` tagged), DA+EDS preview auth, and the allowed-domain table. Consult it whenever you (or a scoop) hit a DA/EDS/upload issue.
+- **`knowledge/worker-config-schemas.md`** — the JSON schemas for every `of1/config/*.json` file (brand-voice, products, personas, use-cases, features, faqs, suggestions, cta-template, templates catalog). Useful when validating config inline at Step 11.
 
-2. **No python3 in SLICC** — use `run_jsh` with the `.jsh` versions of skill scripts. For inline validation logic (e.g. JSON checks), use `node -e` or `jq` instead of `python3 << 'EOF'` heredocs.
+## Orchestrator inline-execution notes (SLICC-specific)
 
-3. **Config sync uses EDS** — configs are committed to `of1/config/` in git, then synced via `POST /api/tenants/{id}/sync`. The tenant ID is `{branch}--{repo}--{owner}` format.
+These apply to the work the **cone runs inline** (pre-fan-out screenshots, Step 11 config review, Step 12 deploy + pre-launch checks) — the parts that do NOT go through a step skill:
 
-4. **Step 12 (Deploy)** — just `git push` + one POST to `/api/tenants/{id}/sync`. Can be done inline by the cone (no scoop needed).
+1. **`set -o pipefail` is not supported** — don't run scripts that use it. Execute commands manually or use the shell loop in the deploy skill.
+2. **No python3 in SLICC** — for inline validation (e.g. JSON checks), use `run_jsh`, `node -e`, or `jq`, not `python3 << 'EOF'` heredocs.
+3. **Config sync** — Step 12 is `git push` + one `POST /api/tenants/{id}/sync` (tenant ID = `{branch}--{repo}--{owner}`). Done inline by the cone; no scoop needed.
+4. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else (e.g. "approved", "running", "complete") corrupts the UI state.
+5. **Always close Playwright tabs after use** — open tabs accumulate across steps and consume memory. After every `playwright-cli open` + screenshot/eval, close the tab (`playwright-cli tab-close "$TAB_ID"`), or close all at the end of the step.
 
-5. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else (e.g. "approved", "running", "complete") corrupts the UI state.
-
-6. **EDS buttons** — `<strong><a>` = primary, `<em><a>` = secondary. The wrapper (`strong`/`em`) goes OUTSIDE the anchor, not inside.
-
-7. **DA preview auth** — use `oauth-token adobe` to get the IMS token. For preview triggers, pass BOTH `Authorization: Bearer <token>` AND `x-content-source-authorization: Bearer <token>` headers to `admin.hlx.page`.
-
-8. **DA uploads in SLICC** — `/mnt/da/` and `--data-binary` both fail silently; uploads must go through the admin.da.live API and then be previewed before the image URL resolves. Full rules, exact curl commands, and the allowed-domain table live in "DA Authentication & Content Upload" below — follow that section, not a condensed copy.
-
-9. **Deliverable HTML with images** — When HTML deliverables reference images (screenshots, logos), paths must be absolute from the repo root (e.g., `/deliverables/assets/screenshots/home.png`) so they resolve on the EDS preview URL. Relative paths like `assets/screenshots/...` break because the HTML is served at `/deliverables/brand-review.html` while images are at `/deliverables/assets/screenshots/`. Always commit the image assets alongside the HTML.
-
-10. **Logo SVG extraction** — The brand logo extracted via Playwright can be truncated if it comes from a `<symbol>` sprite. Always extract the full `innerHTML` of the symbol element and wrap it in a standalone `<svg>` with the correct `viewBox`. Verify the rendered SVG shows the complete wordmark before committing.
-
-11. **Brand logo in prototypes** — Prototypes MUST use the real brand SVG logo (extracted in Step 4 and saved to `stardust/current/assets/logo.svg` or inline in `_brand-extraction.json`). Never substitute with text or a placeholder. The logo SVG should be inlined directly in the nav HTML of every prototype page.
-
-12. **DA strips images from programmatic content** — DA's HTML→MD→HTML pipeline removes ALL `<img>`, `<picture>`, and `<svg>` elements from content uploaded via PUT. The solution: store image URLs as plain text in block cells, and have block JS create `<img>` elements at runtime. Every block that handles images needs a `convertTextToImages(block)` helper. See `of1-convert-to-eds` skill § "EDS Content Authoring Constraints" for the full pattern.
-
-13. **Full-bleed blocks need wrapper override** — EDS wraps sections in `.{block}-wrapper` with `max-width: 1440px`. Hero, banners, and other full-width blocks MUST have `.{block}-wrapper { max-width: 100% !important; padding: 0 !important; }` in `styles/styles.css`.
-
-14. **Brand logo in EDS header** — DA strips SVGs from nav content. Commit logo to `/icons/logo.svg` and have `header.js` fetch + inject it into the brand link at runtime. Never rely on inline SVG in DA content.
-
-15. **Static file URLs need `.html` extension** — EDS serves git-committed static HTML files at their exact path including the extension. A file at `deliverables/config-review.html` is served at `/deliverables/config-review.html` — NOT at `/deliverables/config-review` (that 404s). Always include the `.html` extension in deliverable URLs sent to the sprinkle. DA-authored content pages (like `/home`, `/block-catalog`) do NOT need the extension.
-
-16. **NEVER use `git add .` or `git add -A` in a scoop** — SLICC scoops may have an incomplete working tree (they only see files they touched). `git add .` creates a commit containing ONLY the local files, which on push **deletes everything else in the repo**. Always add specific paths: `git add templates/ styles/ fragments/ of1/config/`. The only safe place for `git add -A` is `of1-check-dependencies`'s clean-slate step (which is removing files intentionally from a complete tree).
-
-17. **Always close Playwright tabs after use** — open tabs consume significant memory and accumulate across steps. After every `playwright-cli open` + screenshot/eval sequence, close the tab immediately:
-    ```bash
-    # After you're done with a tab:
-    playwright-cli tab-close "$TAB_ID"
-    
-    # Or close all tabs at the end of a step:
-    playwright-cli tab-list | grep -oE '[0-9]+' | while read TAB; do
-      playwright-cli tab-close "$TAB" 2>/dev/null
-    done
-    ```
-    This applies to ALL steps that use playwright-cli (discovery, extraction, prototype, stardust:deploy, styling, deploy). Never leave tabs open after completing your work.
-
-## DA Authentication & Content Upload (SLICC-specific)
-
-**Follow these rules exactly:**
-
-### Getting the IMS token
-```bash
-DA_TOKEN=$(oauth-token adobe)
-```
-That's it. No npx, no da-auth-helper, no browser flow, no manual paste. Works instantly.
-
-### Writing DA content — admin.da.live API ONLY
-
-**⚠️ NEVER use `/mnt/da/`.** The DA mount is unreliable — writes appear to succeed locally but binaries (images) do NOT persist on the DA backend. Always use the API. After a successful upload, also **trigger a preview** (`admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/media/{filename}`, same dual-header auth as page previews) — without it, the file sits in DA's source store only. `content.da.live` is access-restricted (not a public delivery domain); the reachable image URL is the site's own `${BRANCH}--${REPO}--${OWNER}.aem.page/media/{filename}` path, and only after the preview trigger.
-
-**For short HTML content (DA pages, fragments):**
-```bash
-DA_TOKEN=$(oauth-token adobe)
-HTML_CONTENT=$(cat /path/to/content.html)
-
-curl -s -X PUT \
-  -H "Authorization: Bearer ${DA_TOKEN}" \
-  -H "Content-Type: text/html" \
-  -d "$HTML_CONTENT" \
-  "https://admin.da.live/source/${OWNER}/${REPO}/page-name.html"
-```
-
-**For binary files (images) — multipart POST:**
-```bash
-DA_TOKEN=$(oauth-token adobe)
-
-curl -s -X POST \
-  -H "Authorization: Bearer ${DA_TOKEN}" \
-  -F "data=@/path/to/image.png;type=image/png" \
-  "https://admin.da.live/source/${OWNER}/${REPO}/media/filename.png"
-```
-
-See `download-images.jsh` for the full parallel upload pattern with verification.
-
-**⚠️ IMPORTANT: `--data-binary @-` and `--data-binary @file` both fail silently in SLICC scoops** (they store the literal string instead of content). For HTML, use `-d "$VAR"` with content in a shell variable. For binary uploads, use `-F "data=@file"` (multipart form). Always verify uploads by reading back from admin.da.live.
-
-**DO NOT:**
-- Use `npx da-auth-helper` — it doesn't work in this environment
-- Try to extract tokens from `~/.aem/da-token.json` — it doesn't exist
-- Spend time exploring auth options — mount first, API second, that's it
-
-### Triggering preview — USE admin.hlx.page
-
-`admin.hlx.page` IS in the allowed secret domains. Use it for preview triggers:
-
-```bash
-DA_TOKEN=$(oauth-token adobe)
-curl -s -X POST \
-  -H "Authorization: Bearer ${DA_TOKEN}" \
-  -H "x-content-source-authorization: Bearer ${DA_TOKEN}" \
-  "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${PAGE_SLUG}"
-```
-
-### Content URL pattern
-
-The EDS demo repo uses branches to isolate demos. Content URLs use the branch in the subdomain, NOT as a path prefix:
-```
-https://{branch}--{repo}--{owner}.aem.page/{page}
-```
-
-Example: `https://frescopa--labs-abc123--of1-labs.aem.page/home`
-
-### Summary of allowed domains for curl with oauth.adobe.token
-
-| Domain | Allowed | Use for |
-|--------|---------|---------|
-| `admin.hlx.page` | ✅ Yes | Preview/publish triggers |
-| `admin.da.live` | ✅ Yes | Read/write DA content (PUT for upload, GET for read) |
-| `content.da.live` | ⚠️ No | Access-restricted DA source store — NOT a public delivery domain. Never link images here; link the `.aem.page` URL after preview instead. |
-| `*.adobelogin.com` | ✅ Yes | (IMS auth, handled by oauth-token) |
+For the IMS token, DA upload commands, and preview-trigger curls used inline, follow `knowledge/common-pitfalls.md` §5, §7, §8 (they carry both the `[SLICC]` and `[CC]` variants).

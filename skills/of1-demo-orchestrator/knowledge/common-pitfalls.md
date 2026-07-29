@@ -108,14 +108,16 @@ A file committed at `deliverables/config-review.html` is served at `/deliverable
 
 ## 5. Curl pitfalls
 
-### 5.1 `--data-binary @/path/file` can silently fail
-Curl's `@<path>` expansion can fail under sandboxed shells (notably SLICC scoops), uploading the literal string `@/workspace/...` instead of the file contents. Always pipe via stdin:
-```bash
-cat file | curl ... --data-binary @-
-```
+### 5.1 `--data-binary` silently fails in SLICC scoops
+Under SLICC's sandboxed shell, BOTH `--data-binary @/path/file` AND `cat file | curl --data-binary @-` (stdin) store the literal string instead of the file contents — the upload appears to succeed but the file is corrupt. Reliable methods by content type:
+- **`[SLICC]` short HTML/JSON** — put the content in a shell variable and use `-d "$VAR"`.
+- **`[SLICC]` binary (images)** — use a multipart POST: `-F "data=@/path/file;type=image/png"`.
+- **`[CC]` any content** — `cat file | curl --data-binary @-` (stdin) works.
+
+Always verify by reading the content back (`curl -s -H "Authorization: Bearer $DA_TOKEN" "https://admin.da.live/source/..."`) and checking it contains the expected bytes.
 
 ### 5.2 Use `-d "$VAR"` only for short strings
-For binary or multi-KB content, always pipe via stdin. For short JSON or headers, `-d "$VAR"` is fine.
+For short JSON or headers, `-d "$VAR"` is fine in both runtimes. For binary/multi-KB content, follow 5.1 per runtime.
 
 ---
 

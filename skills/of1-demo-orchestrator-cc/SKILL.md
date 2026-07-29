@@ -1,6 +1,6 @@
 ---
 name: of1-demo-orchestrator-cc
-description: "Claude Code ONLY orchestrator for the OF1 demo pipeline. DO NOT USE IN SLICC — use of1-demo-orchestrator instead."
+description: "Claude Code ONLY orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services — crawls the site, extracts design tokens, generates branded templates, converts to EDS, and deploys. Use when the user asks to build or one-shot an OF1 demo for a domain while running in Claude Code. DO NOT USE IN SLICC — use of1-demo-orchestrator instead."
 user-invocable: false
 ---
 
@@ -35,7 +35,7 @@ Use **TaskCreate** with one task per pipeline step:
 3.  Extraction      — design tokens, logo, screenshots (parallel with 2)
 4.  Prototype       — pixel-perfect HTML (needs 2 + 3)
 5.  Stardust deploy — convert prototypes to EDS blocks + pages
-6.  Templates       — 25 branded templates (base + fan-out: 5 intents + assemble; needs 4, NOT 5)
+6.  Templates       — 15 branded templates (base + fan-out: 5 intents + assemble; needs 4, NOT 5)
 7.  OF1 styling     — generative-block CSS + /of1 page setup (needs 5)
 8a. Brand voice     — voice extraction (parallel)
 8b. Content meta    — products, personas, FAQs + image upload (parallel)
@@ -75,17 +75,17 @@ The dependency graph and parallelism rules:
 | Steps 8a + 8b + 9 + 10 ALL done | Step 11 (inline — do NOT run until all four are confirmed done) |
 | Steps 6-assemble + 7 + 11 ALL done | Step 12 |
 
-**Common mistakes to avoid:**
-- Do NOT run Step 11 as soon as 8a finishes — it needs 8a + 8b + 9 + 10 ALL completed.
-- Do NOT wait for Step 5 before dispatching Step 6-base — Step 6 now reads step 4's prototype output directly and is fully independent of Step 5. Dispatch both together right after Step 4.
-- Do NOT dispatch Step 7 before Step 5 returns — Step 7 needs stardust:deploy's shared nav/footer chrome fragments. Step 7 does NOT need to wait for Step 6.
-- Do NOT run Step 9 before BOTH 8a and 8b return — it needs both brand-voice.json and products.json.
+**Why the non-obvious edges exist (the table above is the source of truth):**
+- **Step 6 does not wait for Step 5** — it reads step 4's prototype output directly, so dispatch 6-base together with Step 5 right after Step 4.
+- **Step 7 waits for Step 5, not Step 6** — it needs stardust:deploy's shared nav/footer chrome fragments.
+- **Step 9 waits for BOTH 8a and 8b** — it needs brand-voice.json AND products.json.
+- **Step 11 waits for all four of 8a + 8b + 9 + 10** — not just 8a.
 
 ### Step 6 fan-out detail
 
 Step 6 (template generation) is split into 7 dispatches across 3 phases:
 
-- **6-base (sequential, 1 agent):** runs `of1-build-templates` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all 25 per-template CSS files `@import`. Must finish before intent agents start so they can read the tokens.
+- **6-base (sequential, 1 agent):** runs `of1-build-templates` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all 15 per-template CSS files `@import`. Must finish before intent agents start so they can read the tokens.
 - **6a–6e (parallel, 5 agents):** each runs the same skill with `OF1_TG_MODE=intent` and `OF1_TG_INTENT` set to one of `comparison`, `recommendation`, `deep-dive`, `budget`, `discovery`. Each writes only its own `templates/of1-{intent}-*` + `styles/of1-{intent}-*` files. No git operations.
 - **6-assemble (sequential, 1 agent):** same skill with `OF1_TG_MODE=assemble`. Verifies base CSS exists, assembles the fully-inlined catalog, runs `fill-template.py`, installs the gallery, and commits everything in one push.
 
@@ -149,7 +149,7 @@ Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritan
 | 10 — CTA template | `sonnet` | Generate one JSON file from DESIGN.json tokens. |
 | 12 — deploy + verify | `sonnet` | Scripted sync + verification curls + screenshots. |
 
-**Rule of thumb:** Opus only for steps that author content the downstream pipeline depends on for quality (discovery narrative, extraction tokens, prototype HTML). Everything else should be Sonnet 4.6.
+**Rule of thumb:** Opus only for steps that author content the downstream pipeline depends on for quality (discovery narrative, extraction tokens, prototype HTML). Everything else should be Sonnet 5.
 
 ## Step dispatch template
 
@@ -210,7 +210,7 @@ For the assemble agent:
 ## Mode (Step 6 fan-out)
 - `export OF1_TG_MODE=assemble`
 - Follow the skill's "Mode: assemble" section.
-- Precondition: all 25 templates/of1-*.html, .metadata.json, .sample.json + styles/of1-*.css exist. Fail fast if missing.
+- Precondition: all 15 templates/of1-*.html, .metadata.json, .sample.json + styles/of1-*.css exist. Fail fast if missing.
 ```
 
 ## Auto-approve vs review mode
@@ -249,7 +249,7 @@ After step 11 approved AND steps 6-assemble + 7 done, run step 12 inline (read t
 1. OF1 page loads with styled search UI
 2. OF1 nav/footer matches /home
 3. All products have ≥2 images
-4. Template catalog has 25 of1-* entries across all 5 intents
+4. Template catalog has 15 of1-* entries across all 5 intents
 5. All deliverable URLs return 200
 
 Mark task 12 `completed` only after all 5 pass.
