@@ -1,0 +1,378 @@
+---
+name: of1-demo-orchestrator-cc
+description: "Claude Code ONLY orchestrator for the OF1 demo pipeline. DO NOT USE IN SLICC — use of1-demo-orchestrator instead."
+user-invocable: false
+---
+
+# OF1 Demo — Claude Code Orchestrator
+
+Turns any website into a branded OF1 generative-search demo on Adobe Edge Delivery Services. 12 steps. Auto-approves by default; user can interrupt to revise any step.
+
+**🚫 SLICC HARD GATE: This skill is ONLY for Claude Code. If you are running in SLICC, STOP IMMEDIATELY and use the `of1-demo-orchestrator` skill instead.** This skill uses Claude Code-specific primitives (Agent dispatch, TaskCreate) that do not exist in SLICC. Using it in SLICC will produce broken orchestration with no progress tracking and no scoop dispatch. There is zero reason to use this skill in SLICC.
+
+## Entry
+
+The user invokes you with a target domain — e.g. "one-shot demo for frescopa.coffee" or "/of1-demo-orchestrator-cc frescopa.coffee". Extract:
+
+- `DOMAIN` — bare hostname (no protocol, no path). Required.
+- `MODE` — `one-shot` (default) or `step` (pause for review between every step). Default to `one-shot` unless the user explicitly says "pause", "wait for my review", or "step by step".
+
+If `DOMAIN` is missing, ask the user once using `AskUserQuestion`, then proceed.
+
+## Phase 0 — Verify dependencies + repo state (inline)
+
+Invoke the `of1-check-dependencies` skill via the **Skill tool** (not Agent — this is light and must run in your context to read the verified state, and its "Repo state" section may need `AskUserQuestion` for continue/restart). If it fails, surface the exact error and stop.
+
+After it succeeds, read `<STATE_DIR>/setup.json` for `stateDir`/`of1Repo` and `<STATE_DIR>/repo-config.json` for `owner`/`repo`/`branch`/`domain`. Use these for all subsequent steps.
+
+## Phase 1 — Initialize task list
+
+Use **TaskCreate** with one task per pipeline step:
+
+```
+1.  Setup           (already done if you got here — verifies deps + repo state, outputs repo-config.json)
+2.  Discovery       — crawl site, propose narrative
+3.  Extraction      — design tokens, logo, screenshots (parallel with 2)
+4.  Prototype       — pixel-perfect HTML (needs 2 + 3)
+5.  Stardust deploy — convert prototypes to EDS blocks + pages
+6.  Templates       — 25 branded templates (base + fan-out: 5 intents + assemble; needs 4, NOT 5)
+7.  OF1 styling     — generative-block CSS + /of1 page setup (needs 5)
+8a. Brand voice     — voice extraction (parallel)
+8b. Content meta    — products, personas, FAQs + image upload (parallel)
+9.  Suggestions     — search chips + UI copy (parallel)
+10. CTA template    — branded CTA JSON (parallel)
+11. Config review   — generate review page (inline; needs 8a + 8b + 9 + 10)
+12. Deploy          — push, sync, pre-launch checklist
+```
+
+Mark task 1 completed immediately. Mark each task `in_progress` when its dispatch begins and `completed`/`failed` when the Agent returns.
+
+## Phase 2 — Run the pipeline
+
+**Completion tracking:** Maintain a mental ledger of which steps have returned `"status": "done"`. Before dispatching ANY step, verify its prerequisites are ALL in the "done" set. If you're unsure, do NOT dispatch — wait for the pending Agent results first.
+
+The dependency graph and parallelism rules:
+
+```
+1  →  2 ∥ 3  →  4  →  ┬─ 5  →  7  ──────────────────────────────────────────────────┐
+                      ├─ 6-base → 6a ∥ 6b ∥ 6c ∥ 6d ∥ 6e  →  6-assemble  ────────────┤
+                      └─ 8a ∥ 8b ∥ 10  →  9  →  11  ───────────────────────────────┴─→  12
+```
+
+**Parallelism is mandatory** — at each fan-out point, dispatch all eligible step Agents **in a single message with multiple Agent tool-use blocks**. Do NOT serialize what the graph says is parallel.
+
+**HARD RULE — dependency enforcement:** You MUST NOT dispatch a step until ALL of its listed prerequisites have returned `done`. No exceptions. No "it's probably fine." Wait for the Agent result, confirm `"status": "done"`, THEN dispatch the next step. Violating this corrupts the pipeline output.
+
+| Trigger (ALL must be done) | Dispatch in one message |
+|---------|-------------------------|
+| Step 1 done | Step 2 AND Step 3 |
+| Steps 2 + 3 done | Step 4 |
+| Step 4 done | Step 5 AND Step 6-base AND Steps 8a, 8b, 10 (5 agents in one message) |
+| Step 5 done | Step 7 (independent of Step 6's progress) |
+| Step 6-base done | Steps 6a–6e (5 intent agents in one message) |
+| Steps 8a + 8b done | Step 9 (needs products.json + brand-voice.json) |
+| Steps 6a–6e all done | Step 6-assemble (1 agent, sequential) |
+| Steps 8a + 8b + 9 + 10 ALL done | Step 11 (inline — do NOT run until all four are confirmed done) |
+| Steps 6-assemble + 7 + 11 ALL done | Step 12 |
+
+**Common mistakes to avoid:**
+- Do NOT run Step 11 as soon as 8a finishes — it needs 8a + 8b + 9 + 10 ALL completed.
+- Do NOT wait for Step 5 before dispatching Step 6-base — Step 6 now reads step 4's prototype output directly and is fully independent of Step 5. Dispatch both together right after Step 4.
+- Do NOT dispatch Step 7 before Step 5 returns — Step 7 needs stardust:deploy's shared nav/footer chrome fragments. Step 7 does NOT need to wait for Step 6.
+- Do NOT run Step 9 before BOTH 8a and 8b return — it needs both brand-voice.json and products.json.
+
+### Step 6 fan-out detail
+
+Step 6 (template generation) is split into 7 dispatches across 3 phases:
+
+- **6-base (sequential, 1 agent):** runs `of1-build-templates` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all 25 per-template CSS files `@import`. Must finish before intent agents start so they can read the tokens.
+- **6a–6e (parallel, 5 agents):** each runs the same skill with `OF1_TG_MODE=intent` and `OF1_TG_INTENT` set to one of `comparison`, `recommendation`, `deep-dive`, `budget`, `discovery`. Each writes only its own `templates/of1-{intent}-*` + `styles/of1-{intent}-*` files. No git operations.
+- **6-assemble (sequential, 1 agent):** same skill with `OF1_TG_MODE=assemble`. Verifies base CSS exists, assembles the fully-inlined catalog, runs `fill-template.py`, installs the gallery, and commits everything in one push.
+
+### Pre-fan-out: capture visual references (inline, orchestrator turn)
+
+Right after Step 4 returns `done` — in parallel with dispatching Step 5 — screenshot every static prototype page directly (no EDS render needed; `deliverables/prototype-*.html` is served as-is from the code bus). The intent agents read these from disk to match their templates to the design system.
+
+```bash
+PROTOTYPE_PAGES=$(ls "${OF1_REPO}/deliverables/"prototype-*.html 2>/dev/null \
+  | xargs -n1 basename | sed 's/\.html$//')
+
+OWNER=$(jq -r .owner "$OF1_STATE_DIR/repo-config.json")
+REPO=$(jq -r .repo "$OF1_STATE_DIR/repo-config.json")
+
+for PAGE in $PROTOTYPE_PAGES; do
+  URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/${PAGE}.html"
+  REF="${OF1_REPO}/deliverables/eds-${PAGE}.png"
+  playwright-cli open "$URL"
+  sleep 3
+  playwright-cli screenshot --fullPage=true --filename "$REF"
+
+  if [ -s "$REF" ] && [ "$(stat -f%z "$REF" 2>/dev/null || stat -c%s "$REF")" -gt 51200 ]; then
+    echo "Reference saved: $REF"
+  else
+    echo "WARN: screenshot for ${PAGE} empty/missing — intent agents fall back to the prototype's inline <style> alone"
+  fi
+done
+```
+
+Do NOT commit these PNGs. They're local reference material. If screenshots fail, intent agents fall back to the prototype's inline CSS alone — degraded fidelity but functional. This step no longer depends on Step 5 — dispatch it immediately after Step 4, alongside Step 5 and Steps 8a/8b/10.
+
+If any 6a–6e fails, retry just that one; don't re-run the others. If `6-assemble` fails, re-run it alone — intent outputs are intact.
+
+### Step 8 split
+
+Steps 8a and 8b are independent — both consume Step 3's extraction output and produce different files. Dispatch both in the same message as Step 10 (5 agents total after Step 4: Step 5, Step 6-base, 8a, 8b, 10).
+
+## Model assignment per step
+
+Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritance puts every sub-agent on Opus, which is wasteful.
+
+**Required model versions:**
+- `opus` → Claude Opus 4.6 v1 1M context (`us.anthropic.claude-opus-4-6-v1[1m]`)
+- `sonnet` → Claude Sonnet 5 (`us.anthropic.claude-sonnet-5`)
+
+⚠️ Do NOT use `haiku` — it resolves to a smaller model insufficient for this pipeline.
+
+| Step | Model | Why |
+|------|-------|-----|
+| 2 — discovery | `opus` | Brand/narrative synthesis from crawled pages. Drives demo story. |
+| 3 — extraction | `opus` | Design-token extraction. Wrong tokens cascade everywhere. |
+| 4 — prototype | `opus` | Pixel-perfect HTML requiring visual judgment. |
+| 5 — stardust deploy | `opus` | Runs `of1-convert-to-eds`, a thin wrapper that invokes the adobe stardust:deploy skill. Complex multi-phase conversion (naming lock, block extraction, fonts, DA upload, verification gates) requiring precise instruction-following. |
+| 6-base | `sonnet` | Reads prototype CSS → writes `:root` tokens. Structured extraction. |
+| 6a–6e — template intents | `sonnet` | Structured generation from a clear pattern. 5 parallel = biggest cost block. |
+| 6-assemble | `sonnet` | Runs scripts + one commit. Bump to `opus` if quality dips. |
+| 7 — OF1 styling | `opus` | CSS generation + /of1 page setup. Must follow multi-step instructions precisely (copy base CSS, patch scripts.js, copy fragments, upload DA content). Sonnet deviates from the procedure. |
+| 8a — brand voice | `sonnet` | Synthesis from existing extraction JSON. |
+| 8b — content metadata | `sonnet` | Scrape product pages + run download-images.py. Structured. |
+| 9 — quick suggestions | `sonnet` | Generate 12 chips from discovery narrative. |
+| 10 — CTA template | `sonnet` | Generate one JSON file from DESIGN.json tokens. |
+| 12 — deploy + verify | `sonnet` | Scripted sync + verification curls + screenshots. |
+
+**Rule of thumb:** Opus only for steps that author content the downstream pipeline depends on for quality (discovery narrative, extraction tokens, prototype HTML). Everything else should be Sonnet 4.6.
+
+## Step dispatch template
+
+Each step is a single `Agent` call. Sub-agents see none of this conversation — the prompt must be self-contained. **Always pass `model` and `mode: "bypassPermissions"`.**
+
+```
+You are executing **Step N (<step-name>)** of the OF1 demo pipeline for `<DOMAIN>`.
+
+## Load the step skill
+Read the skill file and follow it as written:
+  Read: <absolute path to .claude/skills/<skill>/SKILL.md>
+
+## Environment (export these at the top of your work)
+export OF1_STATE_DIR="<stateDir>"
+export OF1_DEMO_REPO="<of1Repo>"
+export ADOBE_IMS_TOKEN="<token>"    # or: export OF1_TOKEN_FILE="<path>"
+export SKILL_DIR="<absolute path to the step skill's directory>"
+
+## Project context
+- Branch: <branch>          (from repo-config.json)
+- DA owner/repo: <owner>/<repo>  (from repo-config.json)
+- Prior step outputs you need: <list specific files>
+
+## Platform notes
+- If the skill calls `upskill ...`: STOP — that means a dependency is missing; report failure.
+- playwright-cli: the shim at of1-check-dependencies/scripts/playwright-cli-shim.sh translates
+  legacy syntax (visit/--output) to the modern binary automatically. No manual renames needed.
+
+## Output contract
+End your last message with EXACTLY this fenced block (the orchestrator parses it):
+
+```json
+{"step": N, "status": "done" | "review" | "failed", "summary": "<one sentence>", "deliverables": [{"url": "...", "label": "..."}]}
+```
+
+If status is `failed`, also write what specifically broke and what to retry.
+```
+
+### Per-dispatch prompt additions for Step 6
+
+For the base agent:
+```
+## Mode (Step 6)
+- `export OF1_TG_MODE=base`
+- Follow the skill's "Mode: base" section.
+```
+
+For each intent agent (6a–6e):
+```
+## Mode (Step 6 fan-out)
+- `export OF1_TG_MODE=intent`
+- `export OF1_TG_INTENT=<comparison|recommendation|deep-dive|budget|discovery>`
+- Follow the skill's "Mode: intent" section. Do NOT generate styles/of1-template-base.css, the catalog, the gallery, or commit anything.
+```
+
+For the assemble agent:
+```
+## Mode (Step 6 fan-out)
+- `export OF1_TG_MODE=assemble`
+- Follow the skill's "Mode: assemble" section.
+- Precondition: all 25 templates/of1-*.html, .metadata.json, .sample.json + styles/of1-*.css exist. Fail fast if missing.
+```
+
+## Auto-approve vs review mode
+
+After each step's Agent returns:
+
+- **One-shot mode (default):** Mark task completed. Continue immediately.
+- **Step mode:** If the returned status is `review`, call `AskUserQuestion` with "Approve and continue" / "Revise — describe changes".
+
+  On "Revise", re-dispatch the same step's Agent with the user's feedback appended under a `## Revision feedback` section.
+
+The user can interrupt at any time ("revise step N") — re-dispatch with their feedback.
+
+## Step 11 — Config review (inline, no Agent)
+
+**PREREQUISITE GATE:** Do NOT execute this step until you have confirmed ALL FOUR of these steps returned `"status": "done"`: 8a (brand voice), 8b (content metadata), 9 (suggestions), 10 (CTA template). If ANY of these is still running or has not been dispatched yet, WAIT.
+
+Once all four are confirmed done, run inline:
+
+```bash
+cd "$OF1_REPO"
+python3 "$SKILL_DIR_CONFIG_REVIEW/assets/fill-config-review.py" . "$DOMAIN"
+git add deliverables/config-review.html
+git commit -m "docs: config review page for $DOMAIN"
+git push origin "$BRANCH"
+```
+
+(`$SKILL_DIR_CONFIG_REVIEW` = absolute path to `.claude/skills/of1-generate-config-review`.)
+
+Deliverable: `https://<branch>--<repo>--<owner>.aem.page/deliverables/config-review.html`
+
+## Step 12 — Deploy (inline)
+
+After step 11 approved AND steps 6-assemble + 7 done, run step 12 inline (read the `of1-publish` skill and follow it). The pre-launch checklist has **5 checks** — all must pass:
+
+1. OF1 page loads with styled search UI
+2. OF1 nav/footer matches /home
+3. All products have ≥2 images
+4. Template catalog has 25 of1-* entries across all 5 intents
+5. All deliverable URLs return 200
+
+Mark task 12 `completed` only after all 5 pass.
+
+## State files
+
+The orchestrator writes/reads under `<stateDir>/`:
+
+| File | Owner | Purpose |
+|------|-------|---------|
+| `setup.json` | of1-check-dependencies | Verified paths + owner/repo/branch + token source |
+| `repo-config.json` | Step 1 (Setup) | owner, repo, branch, contentPrefix, repoDir, domain |
+| `step-<N>-summary.json` | Orchestrator (parsed from Agent return) | Step result, for resuming/debug |
+| `pipeline.log` | Orchestrator | Append-only dispatch/return log |
+
+You parse each Agent's final JSON block and write it to `step-<N>-summary.json` yourself.
+
+## Failure recovery
+
+If a step returns `failed`:
+1. Mark its task `failed` and pause (do NOT dispatch downstream steps).
+2. Show the user the failure message.
+3. Ask: retry as-is / retry with guidance / skip / abort.
+4. On retry, re-dispatch with guidance appended.
+5. On skip, only allow if no downstream step structurally depends on it.
+
+## Pipeline audit
+
+After every Agent dispatch returns, record the step's telemetry from the `<usage>` block in the Agent result. The orchestrator tracks this in memory and writes the full audit to `$OF1_STATE_DIR/pipeline-audit.json` after the pipeline finishes (or fails).
+
+### What to record per step
+
+| Field | Source |
+|---|---|
+| `step` | Step number |
+| `name` | Step name (e.g. "discovery") |
+| `model` | Model used for this dispatch |
+| `startedAt` | ISO timestamp when the Agent was dispatched |
+| `durationMs` | From the `<usage>` block: `duration_ms` |
+| `totalTokens` | From the `<usage>` block: `total_tokens` |
+| `toolUses` | From the `<usage>` block: `tool_uses` |
+| `status` | From the agent's return JSON (`done` / `review` / `failed`) |
+| `summary` | From the agent's return JSON |
+| `retries` | Number of retries for this step (0 if first-pass success) |
+| `error` | If failed: the failure message. Otherwise `null`. |
+
+### When to write the audit file
+
+Write `$OF1_STATE_DIR/pipeline-audit.json` at **two points**:
+1. After step 12 completes (success path)
+2. If the pipeline aborts (failure path — partial audit is still useful)
+
+### Capture skill version at pipeline start
+
+Before the first dispatch, record the git hash of the skill plugin so the audit is tied to a reproducible version:
+
+```bash
+SKILL_PLUGIN_DIR="<absolute path to the of1-demo-skills plugin root>"
+SKILL_VERSION=$(git -C "$SKILL_PLUGIN_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+SKILL_BRANCH=$(git -C "$SKILL_PLUGIN_DIR" branch --show-current 2>/dev/null || echo "unknown")
+```
+
+Include both in the audit file's top-level fields.
+
+### Audit file shape
+
+```json
+{
+  "domain": "<DOMAIN>",
+  "skillVersion": "<git short hash of the skill plugin>",
+  "skillBranch": "<branch name of the skill plugin>",
+  "startedAt": "<ISO timestamp of first dispatch>",
+  "completedAt": "<ISO timestamp of last step return>",
+  "totalTokens": <sum across all steps>,
+  "totalDurationMs": <wall-clock from start to finish>,
+  "stepCount": <number of dispatches including retries>,
+  "steps": [
+    {
+      "step": 1,
+      "name": "setup",
+      "model": "sonnet",
+      "startedAt": "...",
+      "durationMs": 12400,
+      "totalTokens": 3200,
+      "toolUses": 8,
+      "status": "done",
+      "summary": "prerequisites verified, repo-config ready",
+      "retries": 0,
+      "error": null
+    }
+  ]
+}
+```
+
+### Improvements section (append after completion)
+
+After writing the audit, analyze the run and append an `improvements` array to `pipeline-audit.json`. For each step that had issues — retries, high token usage relative to its task complexity, unexpectedly long duration, or a `failed` status that was recovered — write a brief, actionable observation:
+
+```json
+{
+  "improvements": [
+    {
+      "step": 4,
+      "issue": "Prototype generation took 14 min (3× expected) — agent re-generated the full page 4 times instead of iterating on specific sections",
+      "suggestion": "Add a 'targeted fix only — do not regenerate the full page' instruction to the stardust:prototype invocation"
+    },
+    {
+      "step": 8,
+      "issue": "Content-metadata retried 2× — download-images.py failed on first run because products.json had 3 products with only external CDN URLs (no source images found on detail pages)",
+      "suggestion": "Have the extraction step (3) capture more image URLs per product page upfront, or fall back to listing-page carousel images when detail pages have <2"
+    }
+  ]
+}
+```
+
+Rules for the improvements section:
+- Only include steps that had actual problems (retries, failures, token spend >2× the expected range from the model table, duration >3× expected)
+- Be specific: name the exact behavior that went wrong, not generic "could be better"
+- Each `suggestion` should be a concrete change to a skill or dispatch prompt — something actionable for the next pipeline run
+- If the run was clean (no retries, all steps within expected bounds), write `"improvements": []` — don't invent issues
+- This section is for pipeline-level learning; skill-level bugs should be filed as skill edits, not left as audit notes
+
+## Notes
+
+- Resuming across sessions is not yet implemented (state files exist but resume logic would need to read `step-<N>-summary.json` and rebuild the task list).
+- One domain at a time. No multi-tenant parallel pipelines.
