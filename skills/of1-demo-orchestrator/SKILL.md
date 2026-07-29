@@ -1,6 +1,6 @@
 ---
 name: of1-demo-orchestrator
-description: Orchestrate full demo preparation for any website — user-driven step pipeline via sprinkle UI
+description: Runs the end-to-end OF1 demo pipeline for a website — discovery, design-token extraction, prototyping, EDS conversion, template generation, config, and deploy — dispatching each step skill and tracking progress in a sprinkle UI. Use when the user asks to build or demo an OF1 personalization site for a domain, or says "one shot a demo of <domain>".
 user-invocable: true
 ---
 
@@ -54,21 +54,19 @@ User clicked Run on step N. Parse the step number, skill name, and domain from t
 Pass an explicit `model` parameter on every `scoop_scoop()` call. Default-everything-to-Opus was the old rule and made representative runs cost ~$50 / take ~55 min. Most sub-steps are pattern-matching, scripted tool use, or structured generation that Sonnet 5 handles equivalently. Use Opus only for the steps whose output quality cascades into everything downstream.
 
 **Required model versions:**
-- `claude-opus-4-6` → must resolve to Opus 4.6 v1 1M context (`us.anthropic.claude-opus-4-6-v1[1m]`)
+- `claude-opus-4-8` → must resolve to Opus 4.8 (`us.anthropic.claude-opus-4-8`)
 - `claude-sonnet-5` → must resolve to Sonnet 5 1M context (`us.anthropic.claude-sonnet-5`)
-
-⚠️ Do NOT use `claude-sonnet-4-5` or any older model — Sonnet 4.5 produces visibly degraded output for this pipeline.
 
 | Step | Model | Why |
 |------|-------|-----|
-| 2 — discovery | `claude-opus-4-6` | Brand/narrative synthesis from crawled pages. Drives the demo story. |
-| 3 — extraction | `claude-opus-4-6` | Design-token + visual-system extraction. Wrong tokens cascade. |
-| 4 — prototype | `claude-opus-4-6` | Pixel-perfect HTML generation requiring visual judgment. |
+| 2 — discovery | `claude-opus-4-8` | Brand/narrative synthesis from crawled pages. Drives the demo story. |
+| 3 — extraction | `claude-opus-4-8` | Design-token + visual-system extraction. Wrong tokens cascade. |
+| 4 — prototype | `claude-opus-4-8` | Pixel-perfect HTML generation requiring visual judgment. |
 | 5 — stardust:deploy | `claude-sonnet-5` | Invokes the `stardust:deploy` skill once for the full prototype set (stardust:deploy fans out internally). Complex multi-phase conversion requiring precise instruction-following. |
 | 6a–6e — template intents | `claude-sonnet-5` | Structured generation following a clear pattern + EDS visual reference. 5 parallel scoops — biggest cost saving. |
 | 6-base | `claude-sonnet-5` | Reads prototype CSS → writes `styles/of1-template-base.css` (shared tokens). Sequential, before intent fan-out. |
 | 6-assemble | inline (no scoop) | Purely scripted: runs `assemble-catalog.jsh` + `fill-template.jsh`, installs gallery, single commit + push. Runs inline in the orchestrator — no LLM reasoning needed. |
-| 7 — OF1 styling | `claude-opus-4-6` | CSS generation + /of1 page setup. Must follow multi-step instructions precisely (copy base CSS, patch scripts.js, create template/fragments, upload DA content). Sonnet deviates from the procedure. |
+| 7 — OF1 styling | `claude-opus-4-8` | CSS generation + /of1 page setup. Must follow multi-step instructions precisely (copy base CSS, patch scripts.js, create template/fragments, upload DA content). Sonnet deviates from the procedure. |
 | 8a — brand voice | `claude-sonnet-5` | Synthesis from existing extraction JSON. |
 | 8b — content metadata | `claude-sonnet-5` | Scrape product pages + run `download-images.jsh`. Structured. |
 | 9 — quick suggestions | `claude-sonnet-5` | Generate 12 chips from discovery narrative. |
@@ -110,9 +108,9 @@ Run these in the same orchestrator turn as scoops 9 + 10 (four scoops in one bat
 
 **For step 6 (Templates), spawn SIX scoops across 2 phases — one `base` scoop + five parallel intent scoops — then run assemble INLINE** (see "Step 6 fan-out detail" below for the rationale):
 
-⚠️ **NEVER use `OF1_TG_MODE=all` (single-scoop mode).** It runs all 25 templates serially in one scoop (~18+ min) and produces incomplete output. Always use the 3-phase fan-out below. The `all` mode exists in the skill only as a fallback for environments that cannot fan out — SLICC CAN fan out, so always do so.
+⚠️ **NEVER use `OF1_TG_MODE=all` (single-scoop mode).** It runs all 15 templates serially in one scoop (~18+ min) and produces incomplete output. Always use the 3-phase fan-out below. The `all` mode exists in the skill only as a fallback for environments that cannot fan out — SLICC CAN fan out, so always do so.
 
-**Phase 1 — base (parallel with Step 5):** spawn `of1-s6-base` in the same orchestrator turn as Step 5 (stardust:deploy) — it does NOT wait for Step 5. It generates `styles/of1-template-base.css` from the prototype's inline CSS — the shared design tokens all 25 per-template CSS files `@import`. Must finish before intent agents start. Step 7 is NOT spawned alongside it — Step 7 dispatches independently once Step 5 alone finishes.
+**Phase 1 — base (parallel with Step 5):** spawn `of1-s6-base` in the same orchestrator turn as Step 5 (stardust:deploy) — it does NOT wait for Step 5. It generates `styles/of1-template-base.css` from the prototype's inline CSS — the shared design tokens all 15 per-template CSS files `@import`. Must finish before intent agents start. Step 7 is NOT spawned alongside it — Step 7 dispatches independently once Step 5 alone finishes.
 ```
 scoop_scoop({
   name: "of1-s6-base",
@@ -122,7 +120,7 @@ scoop_scoop({
 })
 ```
 
-**Phase 2 — intent (5 parallel scoops, after base finishes):** spawn once `/shared/of1-demo-orchestrator/step-6-base-status.json` exists. Each writes only 5 templates (20 files). Do NOT combine intents into fewer scoops — parallelism is the speed win.
+**Phase 2 — intent (5 parallel scoops, after base finishes):** spawn once `/shared/of1-demo-orchestrator/step-6-base-status.json` exists. Each writes only 3 templates (12 files). Do NOT combine intents into fewer scoops — parallelism is the speed win.
 ```
 for INTENT in comparison recommendation deep-dive budget discovery; do
   scoop_scoop({
@@ -148,9 +146,9 @@ for TPL in templates/of1-*.html; do
 done
 cp /workspace/skills/of1-build-templates/assets/gallery.html gallery/index.html
 git add styles/of1-template-base.css styles/of1-*.css templates/ of1/config/templates.json drafts/ tools/ gallery/
-git commit -m "feat: 25 OF1 templates (5 intents × 5 variations) for ${DOMAIN}"
+git commit -m "feat: 15 OF1 templates (5 intents × 3 variations) for ${DOMAIN}"
 git push origin "$BRANCH"
-echo '{"step":6,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/gallery/index.html","summary":"25 templates assembled."}' > /shared/of1-demo-orchestrator/step-6-status.json
+echo '{"step":6,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/gallery/index.html","summary":"15 templates assembled."}' > /shared/of1-demo-orchestrator/step-6-status.json
 ```
 
 ```
@@ -359,16 +357,7 @@ When parallel scoops are running, you receive a lick/notification each time one 
 3. Check if this completion unblocks the next dispatch (per the dependency graph)
 4. If yes, spawn the next scoop(s) and end your turn again
 
-**Step 8 merge logic:** when both `step-8-brand-status.json` and `step-8-content-status.json` exist, merge them:
-
-```bash
-BRAND_SUM=$(jq -r .summary /shared/of1-demo-orchestrator/step-8-brand-status.json)
-CONTENT_SUM=$(jq -r .summary /shared/of1-demo-orchestrator/step-8-content-status.json)
-jq -n --arg s1 "$BRAND_SUM" --arg s2 "$CONTENT_SUM" \
-  '{step:8, status:"done", summary:($s1 + " | " + $s2)}' \
-  > /shared/of1-demo-orchestrator/step-8-status.json
-sprinkle send of1-demo-orchestrator "$(cat /shared/of1-demo-orchestrator/step-8-status.json)"
-```
+**Step 8 merge logic:** when both `step-8-brand-status.json` and `step-8-content-status.json` exist, merge them into `step-8-status.json` and push — see the jq block in "Step 8 split detail" above.
 
 **Step 6 fan-out logic:** when all 5 `step-6-intent-<intent>-status.json` files exist, run assemble (inline or spawn — see Phase 3 above). Only push step 6 status after assemble writes `step-6-status.json`.
 
@@ -591,8 +580,8 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 5 (stardust:deploy)** needs: domain, prototypes from step 4, repo-config.json
 - **Step 6 (Templates)** is fanned out into 1 `base` + 5 parallel `intent` + 1 `assemble` scoop (see "Step 6 fan-out detail"):
   - The base scoop needs: domain, `DESIGN.json` from step 3, the prototype's inline CSS directly from step 4's output (`deliverables/prototype-*.html`). No dependency on step 5 — it generates `styles/of1-template-base.css`.
-  - Each intent scoop needs: domain, `styles/of1-template-base.css` (from base), demo narrative from step 2, the prototype's inline CSS directly from step 4's output (`deliverables/prototype-*.html`), plus its assigned `OF1_TG_INTENT`. No dependency on step 5 — each intent scoop authors its own `data-slot` markers when generating its 5 templates.
-  - The assemble scoop needs: all 25 per-intent template + CSS files (from the 5 intent scoops), repo-config.json. It owns the single commit + push.
+  - Each intent scoop needs: domain, `styles/of1-template-base.css` (from base), demo narrative from step 2, the prototype's inline CSS directly from step 4's output (`deliverables/prototype-*.html`), plus its assigned `OF1_TG_INTENT`. No dependency on step 5 — each intent scoop authors its own `data-slot` markers when generating its 3 templates.
+  - The assemble scoop needs: all 15 per-intent template + CSS files (from the 5 intent scoops), repo-config.json. It owns the single commit + push.
 - **Step 7 (OF1 styling)** needs: domain, block names from step 5, `stardust/` data
 - **Steps 8–11 (Track B)** need: domain, `stardust/` data from step 3. They do NOT depend on stardust:deploy — they can start immediately after step 4.
 - **Step 11 (Config review)** needs: all `of1/config/` files from steps 8-10 — orchestrator generates review page inline
@@ -706,7 +695,7 @@ EOF
 ```
 If this fails: download additional images from the site, upload to DA, update products.json, re-sync.
 
-### Check 4: Template catalog has 25 entries
+### Check 4: Template catalog has 15 entries
 ```bash
 python3 << 'EOF'
 import json, sys
@@ -716,8 +705,8 @@ if not p.exists():
     print("✗ templates-catalog.json missing"); sys.exit(1)
 catalog = json.loads(p.read_text())
 of1_entries = [t for t in catalog.get('templates', []) if t.get('name', '').startswith('of1-')]
-if len(of1_entries) < 25:
-    print(f"✗ Only {len(of1_entries)} of1-* templates (need 25)"); sys.exit(1)
+if len(of1_entries) < 15:
+    print(f"✗ Only {len(of1_entries)} of1-* templates (need 15)"); sys.exit(1)
 intents = {t.get('intent') for t in of1_entries}
 missing = {'comparison', 'recommendation', 'deep-dive', 'budget', 'discovery'} - intents
 if missing:
@@ -725,7 +714,7 @@ if missing:
 print(f"✓ Catalog has {len(of1_entries)} of1-* templates across all 5 intents")
 EOF
 ```
-Pass: 25+ of1-* templates across all 5 intents.
+Pass: 15+ of1-* templates across all 5 intents.
 
 ### Check 5: All quick link URLs return 200
 ```bash
@@ -857,10 +846,7 @@ These issues cost time in previous runs. Avoid them:
 
 7. **DA preview auth** — use `oauth-token adobe` to get the IMS token. For preview triggers, pass BOTH `Authorization: Bearer <token>` AND `x-content-source-authorization: Bearer <token>` headers to `admin.hlx.page`.
 
-8. **DA uploads in SLICC** — both `--data-binary @file` AND `cat file | curl --data-binary @-` silently store the literal string instead of file contents. **NEVER use `/mnt/da/`** — writes appear to succeed locally but binaries (images) do NOT persist on the DA backend. The ONLY reliable upload methods are:
-   - **Shell variable:** `curl -d "$HTML_VAR" ...` (works for short HTML content like DA pages)
-   - **DA API multipart POST:** for binary files (images), use the `admin.da.live` multipart upload endpoint (see `download-images.jsh` for the pattern)
-   Always verify the upload by reading back: `curl -s -H "Authorization: Bearer $DA_TOKEN" "https://admin.da.live/source/..."` and checking the response contains expected content. Uploading is not enough to make the image reachable — you must also **trigger a preview** (`admin.hlx.page/preview/...`) so EDS's Media Bus ingests it. `content.da.live` is access-restricted and is NOT a public delivery domain; the working image URL is the site's own `{branch}--{repo}--{owner}.aem.page/media/...` path, only reachable after preview.
+8. **DA uploads in SLICC** — `/mnt/da/` and `--data-binary` both fail silently; uploads must go through the admin.da.live API and then be previewed before the image URL resolves. Full rules, exact curl commands, and the allowed-domain table live in "DA Authentication & Content Upload" below — follow that section, not a condensed copy.
 
 9. **Deliverable HTML with images** — When HTML deliverables reference images (screenshots, logos), paths must be absolute from the repo root (e.g., `/deliverables/assets/screenshots/home.png`) so they resolve on the EDS preview URL. Relative paths like `assets/screenshots/...` break because the HTML is served at `/deliverables/brand-review.html` while images are at `/deliverables/assets/screenshots/`. Always commit the image assets alongside the HTML.
 
