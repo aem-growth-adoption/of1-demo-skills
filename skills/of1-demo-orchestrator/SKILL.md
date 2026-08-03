@@ -20,7 +20,9 @@ Lightweight orchestrator that opens the demo pipeline sprinkle and dispatches st
      `OF1_REPLICA_DONE_FILE=/shared/of1-demo-orchestrator/replica-done.json`. Adopt-site owns
      steps 6–12 and their parallelism; it runs its content track immediately and gates the
      site-integration track on the done-file.
-5. Stage 3 emits its own step-level sub-progress; the sprinkle renders it under the OF1-integration stage.
+5. Adopt-site's sub-step scoops write per-step status files but never call `sprinkle send`; the
+   cone relays each one to the sprinkle's Stage-3 sub-step rows (see "Stage 3 sub-progress relay"
+   below).
 
 ## Setup
 
@@ -170,6 +172,41 @@ just yield and wait.
 Only the of1-demo-orchestrator cone may call `sprinkle send`. Step scoops write files; the cone
 reads them and pushes to the sprinkle.
 
+### Stage 3 sub-progress relay (cone → sprinkle)
+
+Stage 3 delegates to `of1-adopt-existing-site`, which internally dispatches its own sub-step
+scoops (steps 6–12) and writes each one's `/shared/of1-demo-orchestrator/step-<N>-status.json`.
+Adopt-site never calls `sprinkle send` — only THIS cone does. To drive the sprinkle's Stage-3
+sub-step rows, the cone relays each sub-step completion:
+
+- adopt-site's sub-step scoop notifies the cone on completion (standard scoop-completion lick).
+  The cone reads that `step-<N>-status.json`, maps N to the sprinkle subStep key (table below),
+  and pushes it:
+
+```bash
+# On a Stage-3 sub-step completion notification (step N, status S):
+case "$N" in
+  6|6-base|6a|6b|6c|6d|6e|6-assemble) KEY=templates ;;
+  7)  KEY=styling ;;
+  8a) KEY=brand ;;
+  8b) KEY=content ;;
+  9)  KEY=suggest ;;
+  10) KEY=cta ;;
+  11) KEY=config ;;
+  12) KEY=deploy ;;
+  *)  KEY="" ;;
+esac
+[ -n "$KEY" ] && sprinkle send of1-demo-orchestrator "{\"stage\":3,\"subStep\":\"$KEY\",\"status\":\"$S\"}"
+```
+
+- When a sub-step goes `active` (dispatched) the cone MAY push `{"stage":3,"subStep":"$KEY","status":"active"}`
+  so the row animates; at minimum push the terminal `done`/`review`/`failed` status.
+- Keep pushing the top-level `{"stage":3,"status":...}` for the OF1-integration stage itself
+  (active when the first sub-step starts, done when Stage 3's scoop returns).
+
+**subStep keys are EXACTLY** `brand, content, suggest, templates, styling, cta, config, deploy`
+— they must match the sprinkle's `subSteps[]` keys or the row won't update.
+
 ## scoop_wait timeout policy
 
 When using `scoop_wait` for long-running stages (Stage 2 replica, Stage 3 adopt-site), always set a generous timeout:
@@ -308,7 +345,7 @@ If a stage fails or the user requests revisions:
 
 After the pipeline finishes (or aborts), write a structured audit to `/shared/of1-demo-orchestrator/pipeline-audit.json`. This gives cost/time visibility per run and a feedback loop for iterating on skill quality.
 
-Only the 3 top-level scoops the orchestrator itself dispatches are recorded here (Stage 1, Stage 2, Stage 3). Stage 3 (`of1-adopt-existing-site`) is a single black-box dispatch from the orchestrator's point of view — its internal sub-steps (templates, styling, brand voice, content, suggestions, CTA, config review, deploy) are owned and audited by adopt-site itself, not by this file.
+Only the 3 top-level scoops the orchestrator itself dispatches are recorded here (Stage 1, Stage 2, Stage 3). Stage 3 (`of1-adopt-existing-site`) is a single top-level dispatch for audit purposes — the cone does relay each of its internal sub-steps' status to the sprinkle in real time (see "Stage 3 sub-progress relay"), but the sub-steps themselves (templates, styling, brand voice, content, suggestions, CTA, config review, deploy) are owned and audited by adopt-site itself, not recorded individually in this file.
 
 ### What to record per stage
 
@@ -370,7 +407,7 @@ Write `/shared/of1-demo-orchestrator/pipeline-audit.json`:
 
 ### Improvements section
 
-After writing the stage data, analyze the run and append an `improvements` array. For each stage that had issues — retries, unexpectedly long duration (>3× expected), or a `failed`/`review` status that was recovered — write a brief, actionable observation. Since Stage 3 is a black box, its "issue" can only describe what was observable from the outside (timing, retries, the returned status/summary) — not its internal sub-step behavior:
+After writing the stage data, analyze the run and append an `improvements` array. For each stage that had issues — retries, unexpectedly long duration (>3× expected), or a `failed`/`review` status that was recovered — write a brief, actionable observation. For Stage 3, the audit still only records the top-level dispatch, so its "issue" can only describe what was observable at that level (timing, retries, the returned status/summary, and the sub-step statuses relayed to the sprinkle) — not adopt-site's internal implementation:
 
 ```json
 {
@@ -386,7 +423,7 @@ After writing the stage data, analyze the run and append an `improvements` array
 
 Rules:
 - Only include stages with actual problems (retries, failures, duration >3× expected)
-- Be specific: name the exact behavior that went wrong (to the extent observable — Stage 3's internals are opaque)
+- Be specific: name the exact behavior that went wrong (to the extent observable at the audit's top-level granularity — adopt-site owns its own internal sub-step diagnostics)
 - Each `suggestion` should be a concrete change to a skill or dispatch prompt
 - If the run was clean: `"improvements": []` — don't invent issues
 - This section is for pipeline-level learning; skill-level bugs (including those inside adopt-site's internal steps) should be filed as skill edits, not left as audit notes
