@@ -1,6 +1,6 @@
 ---
 name: of1-demo-orchestrator
-description: Runs the end-to-end OF1 demo pipeline for a website — discovery, design-token extraction, prototyping, EDS conversion, template generation, config, and deploy — dispatching each step skill and tracking progress in a sprinkle UI. Use when the user asks to build or demo an OF1 personalization site for a domain, or says "one shot a demo of <domain>".
+description: SLICC orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, run as 3 stages via a sprinkle UI and scoop dispatch — discover a narrative and focus pages, recreate those pages as a branded EDS replica via stardust:replica, then delegate OF1 integration (content, styling, config review, deploy) to of1-adopt-existing-site. Use when the user asks to build or demo an OF1 personalization site for a domain, or says "one shot a demo of <domain>".
 user-invocable: true
 ---
 
@@ -10,15 +10,17 @@ Lightweight orchestrator that opens the demo pipeline sprinkle and dispatches st
 
 ## How It Works
 
-1. The sprinkle (`of1-demo-orchestrator`) shows 12 steps as a pipeline
-2. User enters a domain and clicks "Run" on each step
-3. Each click fires a lick to the cone with `{action: "run:<step>:<skill>:<domain>"}`
-4. The cone spawns a scoop to execute the step skill with appropriate context
-5. Steps with review gates pause for user approval (Approve/Revise buttons in sprinkle)
-6. After step 4 (Prototype), two tracks run in parallel:
-   - **Track A (EDS Site):** Step 5 (stardust:deploy) and Step 6-base (Templates) dispatch together; Steps 6a–6e finish once 6-base finishes; Step 7 (OF1 styling) dispatches once Step 5 alone finishes, independent of Step 6's progress
-   - **Track B (Config):** Steps 8–10 (Brand & content, Suggestions, CTA) in parallel → Step 11 (Config review)
-7. Step 12 (Deploy) requires Track A step 6 done AND Track B step 11 approved
+1. The sprinkle shows THREE stages: Collect, Replica, OF1 integration.
+2. User enters a domain and runs the pipeline.
+3. Stage 1 (`of1-discover-narrative`) scoop → `narrative.json` (keyPages/focus/persona).
+4. Stages 2 and 3 launch as scoops CONCURRENTLY:
+   - Stage 2: `stardust:replica <URL> --pages <slugs>` → EDS site + DESIGN.json → writes
+     `/shared/of1-demo-orchestrator/replica-done.json` on completion.
+   - Stage 3: `of1-adopt-existing-site` with `OF1_PIPELINE_MODE=1`, `OF1_CONTENT_SOURCE=<domain>`,
+     `OF1_REPLICA_DONE_FILE=/shared/of1-demo-orchestrator/replica-done.json`. Adopt-site owns
+     steps 6–12 and their parallelism; it runs its content track immediately and gates the
+     site-integration track on the done-file.
+5. Stage 3 emits its own step-level sub-progress; the sprinkle renders it under the OF1-integration stage.
 
 ## Setup
 
@@ -46,113 +48,36 @@ User entered the target domain. Store it for all subsequent steps.
 - No manual reset of individual steps is needed — the domain change handles it.
 - Quick links are also cleared because they derive from step deliverables.
 
-### `run:<step>:<skill>:<domain>`
-User clicked Run on step N. Parse the step number, skill name, and domain from the colon-delimited string. Spawn a scoop to execute the skill.
+### `run:<domain>`
+User entered a domain and started the pipeline. Dispatch Stage 1.
 
-**Model selection — assign per step, NOT a blanket choice:**
+## Dispatch (3 stages)
 
-Pass an explicit `model` parameter on every `scoop_scoop()` call. Most sub-steps are pattern-matching, scripted tool use, or structured generation that Sonnet 5 handles equivalently. Use Opus only for the steps whose output quality cascades into everything downstream.
+- **Stage 1:** one scoop `of1-s1-discovery` (model `claude-opus-4-8`) → await → read `narrative.json`,
+  build the comma-separated slug list.
+- **Stages 2 + 3 in the same turn (two scoops):**
+  - `of1-s2-replica` (model `claude-opus-4-8`, writablePaths incl. the repo + `/shared/`): invoke
+    `stardust:replica https://<DOMAIN> --pages <SLUGS>`; on success write
+    `/shared/of1-demo-orchestrator/replica-done.json`.
+  - `of1-s3-adopt` (writablePaths incl. repo + `/shared/`, env: `OF1_PIPELINE_MODE=1`,
+    `OF1_CONTENT_SOURCE=<DOMAIN>`, `OF1_REPLICA_DONE_FILE=/shared/of1-demo-orchestrator/replica-done.json`):
+    invoke `of1-adopt-existing-site`. It manages its own internal scoop fan-out for steps 6–12.
+- Handle completions event-driven (no sleep-poll). Push each stage's status to the sprinkle as it arrives.
+
+**HARD RULE:** do NOT re-implement steps 6–12 here — Stage 3 is a single delegation to adopt-site.
 
 **Required model versions:**
 - `claude-opus-4-8` → must resolve to Opus 4.8 (`us.anthropic.claude-opus-4-8`)
 - `claude-sonnet-5` → must resolve to Sonnet 5 1M context (`us.anthropic.claude-sonnet-5`)
 
-| Step | Model | Why |
-|------|-------|-----|
-| 2 — discovery | `claude-opus-4-8` | Brand/narrative synthesis from crawled pages. Drives the demo story. |
-| 3 — extraction | `claude-opus-4-8` | Design-token + visual-system extraction. Wrong tokens cascade. |
-| 4 — prototype | `claude-opus-4-8` | Pixel-perfect HTML generation requiring visual judgment. |
-| 5 — stardust:deploy | `claude-sonnet-5` | Invokes the `stardust:deploy` skill once for the full prototype set (stardust:deploy fans out internally). Complex multi-phase conversion requiring precise instruction-following. |
-| 6a–6e — template intents | `claude-sonnet-5` | Structured generation following a clear pattern + EDS visual reference. 5 parallel scoops — biggest cost saving. |
-| 6-base | `claude-sonnet-5` | Reads prototype CSS → writes `styles/of1-template-base.css` (shared tokens). Sequential, before intent fan-out. |
-| 6-assemble | inline (no scoop) | Purely scripted: runs `assemble-catalog.jsh` + `fill-template.jsh`, installs gallery, single commit + push. Runs inline in the orchestrator — no LLM reasoning needed. |
-| 7 — OF1 styling | `claude-opus-4-8` | CSS generation + /of1 page setup. Must follow multi-step instructions precisely (copy base CSS, patch scripts.js, create template/fragments, upload DA content). Sonnet deviates from the procedure. |
-| 8a — brand voice | `claude-sonnet-5` | Synthesis from existing extraction JSON. |
-| 8b — content metadata | `claude-sonnet-5` | Scrape product pages + run `download-images.jsh`. Structured. |
-| 9 — quick suggestions | `claude-sonnet-5` | Generate 12 chips from discovery narrative. |
-| 10 — CTA template | `claude-sonnet-5` | Generate one JSON file from DESIGN.json tokens. |
-| 12 — deploy + verify | `claude-sonnet-5` | Scripted sync + verification curls + screenshots. |
-
-**Rule of thumb:** keep Opus only for steps that **author content the downstream pipeline depends on for quality** (discovery's narrative, extraction's tokens, prototype's HTML). Everything else — including template generation — should be Sonnet 5.
-
-If a Sonnet step produces visibly degraded output in practice, bump *that step* to Opus — not the whole pipeline.
-
-**For step 5 (stardust:deploy), the scoop MUST additionally be created with write access to the project repo AND the DA mount:**
-```
-scoop_scoop({
-  name: "of1-s5",
-  model: "claude-sonnet-5",
-  writablePaths: ["/scoops/of1-s5/", "/shared/", "/workspace/{REPO_NAME}/"]
-})
-```
-This allows the scoop to write blocks, styles, and content directly into the repo. DA uploads use the admin.da.live API (no mount needed).
-
-**For step 8 (Brand voice + Content metadata), spawn TWO parallel scoops** — see "Step 8 split detail" below:
+### Stage 1 dispatch
 
 ```
 scoop_scoop({
-  name: "of1-s8-brand",
-  model: "claude-sonnet-5",
-  writablePaths: ["/scoops/of1-s8-brand/", "/shared/", "/workspace/{REPO_NAME}/"]
+  name: "of1-s1-discovery",
+  model: "claude-opus-4-8",
+  writablePaths: ["/scoops/of1-s1-discovery/", "/shared/", "/workspace/{REPO_NAME}/"]
 })
-
-# Content metadata uploads images via admin.da.live API (no mount needed).
-scoop_scoop({
-  name: "of1-s8-content",
-  model: "claude-sonnet-5",
-  writablePaths: ["/scoops/of1-s8-content/", "/shared/", "/workspace/{REPO_NAME}/"]
-})
-```
-
-Run these in the same orchestrator turn as scoops 9 + 10 (four scoops in one batch after step 4).
-
-**For step 6 (Templates), spawn SIX scoops across 2 phases — one `base` scoop + five parallel intent scoops — then run assemble INLINE** (see "Step 6 fan-out detail" below for the rationale):
-
-⚠️ **NEVER use `OF1_TG_MODE=all` (single-scoop mode).** It runs all 15 templates serially in one scoop (~18+ min) and produces incomplete output. Always use the 3-phase fan-out below. The `all` mode exists in the skill only as a fallback for environments that cannot fan out — SLICC CAN fan out, so always do so.
-
-**Phase 1 — base (parallel with Step 5):** spawn `of1-s6-base` in the same orchestrator turn as Step 5 (stardust:deploy) — it does NOT wait for Step 5. It generates `styles/of1-template-base.css` from the prototype's inline CSS — the shared design tokens all 15 per-template CSS files `@import`. Must finish before intent agents start. Step 7 is NOT spawned alongside it — Step 7 dispatches independently once Step 5 alone finishes.
-```
-scoop_scoop({
-  name: "of1-s6-base",
-  model: "claude-sonnet-5",
-  writablePaths: ["/scoops/of1-s6-base/", "/shared/", "/workspace/{REPO_NAME}/"],
-  env: { OF1_TG_MODE: "base" }
-})
-```
-
-**Phase 2 — intent (5 parallel scoops, after base finishes):** spawn once `/shared/of1-demo-orchestrator/step-6-base-status.json` exists. Each writes only 3 templates (12 files). Do NOT combine intents into fewer scoops — parallelism is the speed win.
-```
-for INTENT in comparison recommendation deep-dive budget discovery; do
-  scoop_scoop({
-    name: "of1-s6-${INTENT}",
-    model: "claude-sonnet-5",
-    writablePaths: ["/scoops/of1-s6-${INTENT}/", "/shared/", "/workspace/{REPO_NAME}/"],
-    env: { OF1_TG_MODE: "intent", OF1_TG_INTENT: "${INTENT}" }
-  })
-done
-```
-Intent scoops do NOT need DA mount access — they only write to the local repo.
-
-**Phase 3 — assemble (ALWAYS inline, NEVER a scoop):** once all 5 intent status files (`/shared/of1-demo-orchestrator/step-6-intent-<intent>-status.json`) exist, run assemble **inline in the orchestrator**. Assemble is purely scripted — no LLM reasoning needed. Do NOT spawn a scoop; it adds 15+ min of scheduling overhead for zero benefit.
-
-```bash
-cd "$REPO_DIR"
-run_jsh /workspace/skills/of1-build-templates/assets/assemble-catalog.jsh . "$OWNER" "$REPO" "$BRANCH"
-mkdir -p tools drafts gallery
-cp /workspace/skills/of1-build-templates/assets/fill-template.jsh tools/fill-template.jsh
-for TPL in templates/of1-*.html; do
-  NAME=$(basename "$TPL" .html)
-  [ -f "templates/${NAME}.sample.json" ] && run_jsh tools/fill-template.jsh "$TPL" "templates/${NAME}.sample.json" "drafts/${NAME}-sample.html"
-done
-cp /workspace/skills/of1-build-templates/assets/gallery.html gallery/index.html
-git add styles/of1-template-base.css styles/of1-*.css templates/ of1/config/templates.json drafts/ tools/ gallery/
-git commit -m "feat: 15 OF1 templates (5 intents × 3 variations) for ${DOMAIN}"
-git push origin "$BRANCH"
-echo '{"step":6,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/gallery/index.html","summary":"15 templates assembled."}' > /shared/of1-demo-orchestrator/step-6-status.json
-```
-
-```
-feed_scoop("of1-demo-step-N", <system prompt with skill instructions + context>)
 ```
 
 The system prompt MUST include — in this order:
@@ -160,13 +85,9 @@ The system prompt MUST include — in this order:
 ```
 ## STEP 1 — MANDATORY (do this FIRST, before anything else)
 
-Run: read_file /workspace/skills/{skill-name}/SKILL.md
+Run: read_file /workspace/skills/of1-discover-narrative/SKILL.md
 Then follow those instructions EXACTLY. Do NOT improvise your own implementation.
 If you skip this step, your output WILL be rejected by the verification gates.
-
-The skill is the tested, validated procedure. It tells you what to do, what tools
-to invoke (including sub-skills like stardust:extract, stardust:prototype, stardust:deploy),
-and what artifacts to produce. Read it. Follow it. Do not deviate.
 
 ## Project context
 
@@ -175,203 +96,102 @@ and what artifacts to produce. Read it. Follow it. Do not deviate.
 - Repo: /workspace/of1-demo-orchestrator (owner and repo read from repo-config.json)
 - State dir: /shared/of1-demo-orchestrator
 - repo-config.json: /shared/of1-demo-orchestrator/repo-config.json (read it for all paths)
-- Prior step outputs you need: {list specific files}
-
-## DA Auth
-
-- Get IMS token: DA_TOKEN=$(oauth-token adobe)
-- Upload content: use `-d "$HTML_VAR"` for short HTML or DA API multipart POST for binaries (images). NEVER use /mnt/da/ — writes appear to succeed locally but don't persist on the DA backend.
-- Trigger preview: curl -X POST -H "Authorization: Bearer $DA_TOKEN" -H "x-content-source-authorization: Bearer $DA_TOKEN" https://admin.hlx.page/preview/{owner}/{repo}/{branch}/{page}
-- admin.da.live and admin.hlx.page are allowed for curl
-- DO NOT use npx/da-auth-helper or ~/.aem/da-token.json (don't exist)
-
-## Git rules
-
-- NEVER use `git add .` or `git add -A` — only add specific paths your step produced
-- One commit + one push at the end of your work
 
 ## Output contract
 
-Write status to /shared/of1-demo-orchestrator/step-N-status.json:
-{"step":N,"status":"done","deliverables":[{"url":"...","label":"..."}],"summary":"..."}
+Write status to /shared/of1-demo-orchestrator/step-2-status.json (the skill's own
+Completion section already documents this exact filename/shape):
+{"step":2,"status":"review","deliverables":[{"url":"...","label":"..."}],"summary":"..."}
+Also write /shared/of1-demo-orchestrator/narrative.json per the skill's §4b.
 Do NOT call sprinkle send — only the orchestrator cone does that.
 ```
 
-Substitute the bracketed values per step. The "prior step outputs you need" list comes from the Context Passing section below.
+After Stage 1 returns, read `narrative.json` and build:
 
-**When status is `"review"`, the status JSON MUST include a `deliverable` URL** so the sprinkle renders an open link for the user. The sprinkle renders these as `<a target="_blank">` and the user's browser opens them directly, so the URL must be publicly reachable from a browser tab — typically the EDS preview URL `https://{branch}--{repo}--{owner}.aem.page/...`. Do NOT use `serve --entry` (chrome-extension:// URLs won't open from outside SLICC) — commit the artifact to git and use its hosted URL. Trigger an EDS preview after pushing so the URL returns 200 before the status is sent.
+```bash
+NARRATIVE=$(cat /shared/of1-demo-orchestrator/narrative.json)
+SLUGS=$(jq -r '.keyPages[].slug' <<<"$NARRATIVE" | paste -sd, -)
+DOMAIN=$(jq -r .domain <<<"$NARRATIVE")
+```
 
-Review steps without a deliverable URL will show the summary but no open link — always include one.
+### Stage 2 + Stage 3 dispatch (same orchestrator turn)
 
-**After spawning a step scoop, END YOUR TURN.** You will be automatically notified (via lick) when the scoop finishes. On notification:
+```
+scoop_scoop({
+  name: "of1-s2-replica",
+  model: "claude-opus-4-8",
+  writablePaths: ["/scoops/of1-s2-replica/", "/shared/", "/workspace/{REPO_NAME}/"]
+})
+```
 
-1. Read the scoop's status file (`/shared/of1-demo-orchestrator/step-N-status.json`)
-2. Push the **exact JSON contents** to the sprinkle: `sprinkle send of1-demo-orchestrator "$(cat /shared/of1-demo-orchestrator/step-N-status.json)"`
-3. Proceed to dispatch the next step(s) per the dependency graph
+Stage 2's prompt: invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>` (bounded mode —
+recreate ONLY those pages). Follow it exactly; it extracts, recreates, runs its source-fidelity
+gate, migrates and deploys those pages to the branch on the repo. On success, write the done-file:
 
-⚠️ **Pass the status JSON through AS-IS.** Do NOT rewrite, flatten, or reformat it. Steps emit `"deliverables": [{"url":"...", "label":"..."}]` (array) — if you flatten it to a single `"deliverable": "..."` string, the sprinkle only renders one button instead of multiple. Use `cat` to pass the file content verbatim.
+```bash
+echo '{"stage":2,"status":"done"}' > /shared/of1-demo-orchestrator/replica-done.json
+```
 
-**Push EACH step's status immediately when its notification arrives.** Do NOT batch parallel completions. If Steps 3 and 4 are running in parallel and Step 3 finishes first, push Step 3's status to the sprinkle RIGHT NOW — do not wait for Step 4 to also finish. The sprinkle's timer freezes a step's counter the moment it receives the completion status. If you delay the push, the user sees the timer counting up for a step that already finished.
+End with the same JSON status block shape as other steps (`{"step":2,...}`) — the sprinkle
+renders it under the Replica stage.
 
-⚠️ **Do NOT use `scoop_wait({ scoop_names: ["of1-s3", "of1-s4"] })` to wait for multiple parallel scoops at once.** This batches both completions into one cone turn, which delays pushing the first one's status. Instead, either:
-- Don't use `scoop_wait` at all — just end your turn and handle each notification as it arrives (preferred)
-- If you must use `scoop_wait`, wait for ONE scoop at a time, push its status, then wait for the next
+```
+scoop_scoop({
+  name: "of1-s3-adopt",
+  writablePaths: ["/scoops/of1-s3-adopt/", "/shared/", "/workspace/{REPO_NAME}/"],
+  env: {
+    OF1_PIPELINE_MODE: "1",
+    OF1_CONTENT_SOURCE: "<DOMAIN>",
+    OF1_REPLICA_DONE_FILE: "/shared/of1-demo-orchestrator/replica-done.json"
+  }
+})
+```
 
-**Do NOT use `while/sleep` polling loops.** They block your turn, burn compute, and prevent you from receiving other licks (user input, parallel scoop completions). The platform notifies you — just yield and wait.
+Stage 3's prompt: invoke the `of1-adopt-existing-site` skill and follow it exactly. It owns its
+own internal scoop fan-out for steps 6–12 (content track runs immediately; site-integration
+track gates on `OF1_REPLICA_DONE_FILE` existing). Do NOT pass a `model` — adopt-site assigns
+models per its own table (Opus only for OF1 styling; Sonnet for the rest).
 
-Only the of1-demo-orchestrator cone may call `sprinkle send`. Step scoops write files; the cone reads them and pushes to the sprinkle.
+### Handling scoop completions (event-driven, NOT polling)
+
+When Stage 2 and Stage 3 are running in parallel, you receive a lick/notification each time one
+completes. On each notification:
+
+1. Read the completed scoop's status/deliverable output.
+2. Push it to the sprinkle immediately: `sprinkle send of1-demo-orchestrator '<json>'` — do NOT
+   batch Stage 2 and Stage 3 completions together.
+3. Once BOTH Stage 2 and Stage 3 report done, the pipeline is complete (adopt-site owns the
+   internal join + deploy inside Stage 3).
+
+**Do NOT use `while/sleep` polling loops.** They block your turn, burn compute, and prevent you
+from receiving other licks (user input, parallel scoop completions). The platform notifies you —
+just yield and wait.
+
+Only the of1-demo-orchestrator cone may call `sprinkle send`. Step scoops write files; the cone
+reads them and pushes to the sprinkle.
 
 ## scoop_wait timeout policy
 
-When using `scoop_wait` for long-running steps (prototype, templates, content-metadata), always set a generous timeout:
+When using `scoop_wait` for long-running stages (Stage 2 replica, Stage 3 adopt-site), always set a generous timeout:
 
 ```
-scoop_wait({ scoop_names: ["of1-s5"], timeout_ms: 1800000 })  // 30 minutes
+scoop_wait({ scoop_names: ["of1-s3-adopt"], timeout_ms: 1800000 })  // 30 minutes
 ```
 
 **Critical:** `timeout_ms` does NOT kill the scoop. It only wakes up the cone. When the timeout fires:
 
 1. **Do NOT immediately `drop_scoop`.** The scoop is likely still working.
-2. Check if the expected output files exist (e.g. `ls stardust/prototypes/prototype-*.html`)
+2. Check if the expected output files exist (e.g. `ls stardust/current/` for Stage 2, or `ls of1/config/` for Stage 3's content track).
 3. If files exist but the status file doesn't: the scoop is in its final steps (commit/push/status-write) — wait another minute or let the scoop-notify lick arrive naturally.
 4. Only `drop_scoop` if the scoop has been silent for 5+ minutes AND produced no output files.
 
 **There is no hard scoop execution timeout in SLICC.** Scoops run until they finish (or you drop them). The 30-minute `scoop_wait` is just the cone's patience threshold — set it generously and never drop a working scoop.
 
-## Parallelism — CRITICAL for Speed
-
-The pipeline has TWO parallel tracks that MUST run concurrently. **Do NOT serialize steps that can run in parallel.**
-
-### When to spawn what:
-
-| Trigger | Spawn immediately |
-|---------|-------------------|
-| Step 4 (Prototype) approved | **Track A:** Step 5 (stardust:deploy) AND Step 6-base (Templates) AND **Track B:** Steps 8a, 8b, 10 (five scoops at once) |
-| Step 6-base done | Steps 6a–6e (5 intent scoops in parallel) |
-| Steps 8a + 8b done | Step 9 (Suggestions — needs products.json + brand-voice.json) |
-| Step 5 (stardust:deploy) done | Step 7 (OF1 styling) |
-| Steps 6a–6e ALL complete | Step 6-assemble — run INLINE in orchestrator (no scoop) |
-| Steps 8-10 ALL complete | Step 11 (Config review) — run inline by the cone |
-| Steps 6-assemble + 7 done AND Step 11 approved | Step 12 (Deploy) |
-
-### Dependency graph:
-```
-Step 1 (Setup)
-         ↓
-    ┌────┴────┐
-    ↓         ↓
-  Step 2    Step 3        ← PARALLEL (both need only domain)
-    ↓         ↓
-    └────┬────┘
-         ↓
-       Step 4             ← needs both S2 + S3
-         ↓
-    ┌────┴──────────────────────┐
-    ↓                           ↓
-┌───┴────┐          Track B (S8+S9+S10)
-S5       S6-base               ↓
-↓        ↓                 Step 11
-S7   S6a∥6b∥6c∥6d∥6e
-↓        ↓
-↓    S6-assemble       ← runs ONCE after S6a–6e all done
-↓        ↓             ↓
-└────────┴─────────────┘
-         ↓
-    Step 12 (Deploy)
-```
-
-### Why the non-obvious edges exist (the table above is the source of truth):
-- **Step 7 must run AFTER Step 5, and commit last** — it needs stardust:deploy's shared nav/footer chrome fragments and must not overwrite the `of1.css` that S5 creates. It does NOT wait for Step 6.
-- **Step 9 waits for Step 8** — it needs products.json + brand-voice.json to ground suggestions in real content.
-- **Neither Track B nor Step 6 waits for Step 5** — Step 6 reads step 4's prototype HTML/CSS directly, so it dispatches in parallel with Step 5.
-- **Push each status as it arrives** — don't batch parallel completions before updating the sprinkle.
-
-### Step 6 fan-out detail
-
-Step 6 (template generation) is split into 7 scoops across 3 phases plus a small inline screenshot step. Step 6 dispatches immediately alongside Step 5 — it does not wait for stardust:deploy to finish:
-
-- **Pre-fan-out (inline, orchestrator):** capture visual references of all prototypes directly from the static `deliverables/prototype-*.html` files so the intent scoops see the real design system, without needing an EDS render (see "Pre-fan-out: capture visual reference" below). Dispatch this immediately after Step 4 is approved, in parallel with Step 5.
-- **6-base (sequential, 1 scoop):** named `of1-s6-base`. Runs `of1-build-templates` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype's inline CSS — the shared design tokens all per-template CSS files `@import`. Writes `/shared/of1-demo-orchestrator/step-6-base-status.json`. Must finish before intent scoops start. Dispatches in parallel with Step 5 (stardust:deploy), not after it.
-- **6a–6e (parallel, 5 scoops):** named `of1-s6-comparison`, `of1-s6-recommendation`, `of1-s6-deep-dive`, `of1-s6-budget`, `of1-s6-discovery`. Each runs with `OF1_TG_MODE=intent` and `OF1_TG_INTENT=<intent>`. Each writes only its own `templates/of1-{intent}-*` + `styles/of1-{intent}-*` files. **No git operations.** Each writes `/shared/of1-demo-orchestrator/step-6-intent-<intent>-status.json` on completion.
-- **6-assemble (inline, after 6a–6e):** runs in the orchestrator (NOT a scoop). Purely scripted: runs `assemble-catalog.jsh`, `fill-template.jsh`, installs the gallery, single commit + push. Writes the canonical `/shared/of1-demo-orchestrator/step-6-status.json` that the sprinkle reads.
-
-### Pre-fan-out: capture visual reference (inline)
-
-Right after step 4 is approved, and in parallel with dispatching step 5, the orchestrator screenshots the static prototype file directly (no EDS render needed — `deliverables/prototype-*.html` is served as-is from the code bus) and writes it to a known local path that 6-base and all 5 intent scoops will read.
-
-```bash
-PROTO_URL="${PREVIEW_BASE}/deliverables/prototype-home.html"
-REF_PATH="/workspace/of1-demo-orchestrator/deliverables/eds-prototype-home.png"
-
-playwright-cli open "$PROTO_URL"
-sleep 3
-playwright-cli screenshot --fullPage=true --filename "$REF_PATH"
-playwright-cli tab-close "$(playwright-cli tab-list | grep -oE '[0-9]+' | tail -1)"
-
-[ -s "$REF_PATH" ] && [ "$(stat -c%s "$REF_PATH" 2>/dev/null)" -gt 51200 ] \
-  && echo "Reference saved: $REF_PATH" \
-  || echo "WARN: screenshot looks empty/missing — 6-base and intent scoops will fall back to reading the prototype's inline <style> alone"
-```
-
-Do NOT commit this PNG — it's local reference material for 6-base and the intent scoops only. If the screenshot fails, they fall back to the prototype HTML's inline CSS alone (degraded fidelity but still functional).
-
-Dispatch this pre-fan-out screenshot step, Step 5 (stardust:deploy), and Steps 8a/8b/10 all in the **same orchestrator turn** right after Step 4 is approved. Once the screenshot is ready, dispatch 6-base. Once 6-base finishes, dispatch 6a–6e. Once Step 5 alone finishes (independent of Step 6's progress), dispatch Step 7. After all 5 intent status files exist, run assemble **inline** (no scoop). The sprinkle UI shows a single "Step 6" row; the orchestrator only pushes the step-6 status after the inline assemble writes `step-6-status.json`.
-
-**Writable paths for ALL 6 step-6 scoops** (intent and assemble): the project repo (`/workspace/of1-demo-orchestrator/`) and `/shared/`. Intent scoops do not need DA mount access (no uploads from this step).
-
-If any intent scoop fails, retry only that one. If `of1-s6-assemble` fails, fix and re-run it alone — intent outputs are intact.
-
-### Step 8 split detail
-
-Step 8 runs `of1-extract-brand-voice` and `of1-extract-content` as two parallel scoops alongside Steps 9 and 10. They're independent — both consume Step 3's extraction output and produce different config files.
-
-- **`of1-s8-brand`** — runs `of1-extract-brand-voice`. Produces `of1/config/brand-voice.json`. Writes `/shared/of1-demo-orchestrator/step-8-brand-status.json`. ~1–2 min.
-- **`of1-s8-content`** — runs `of1-extract-content`. Produces `of1/config/{products,personas,use-cases,features,faqs}.json` + uploads all product images. Writes `/shared/of1-demo-orchestrator/step-8-content-status.json`. ~3–5 min.
-
-The content scoop **MUST use `download-images.jsh`** (parallel: 8 workers, content-type sniffing, mount-or-API fallback) — NOT a per-image `curl` loop. The skill documents this in its Step 8 section; no separate injection needed.
-
-Once both `/shared/of1-demo-orchestrator/step-8-brand-status.json` AND `step-8-content-status.json` exist, the orchestrator merges them into a single `/shared/of1-demo-orchestrator/step-8-status.json`:
-
-```bash
-if [ -f /shared/of1-demo-orchestrator/step-8-brand-status.json ] \
-   && [ -f /shared/of1-demo-orchestrator/step-8-content-status.json ] \
-   && [ ! -f /shared/of1-demo-orchestrator/step-8-status.json ]; then
-  BRAND_SUMMARY=$(jq -r .summary /shared/of1-demo-orchestrator/step-8-brand-status.json)
-  CONTENT_SUMMARY=$(jq -r .summary /shared/of1-demo-orchestrator/step-8-content-status.json)
-  jq -n \
-    --arg s1 "$BRAND_SUMMARY" --arg s2 "$CONTENT_SUMMARY" \
-    '{step:8, status:"done", summary:($s1 + " | " + $s2)}' \
-    > /shared/of1-demo-orchestrator/step-8-status.json
-fi
-```
-
-### Handling scoop completions (event-driven, NOT polling)
-
-When parallel scoops are running, you receive a lick/notification each time one completes. On each notification:
-
-1. Read the completed scoop's status file
-2. Push to sprinkle: `sprinkle send of1-demo-orchestrator "$(cat /shared/of1-demo-orchestrator/step-N-status.json)"`
-3. Check if this completion unblocks the next dispatch (per the dependency graph)
-4. If yes, spawn the next scoop(s) and end your turn again
-
-**Step 8 merge logic:** when both `step-8-brand-status.json` and `step-8-content-status.json` exist, merge them into `step-8-status.json` and push — see the jq block in "Step 8 split detail" above.
-
-**Step 6 fan-out logic:** when all 5 `step-6-intent-<intent>-status.json` files exist, run assemble (inline or spawn — see Phase 3 above). Only push step 6 status after assemble writes `step-6-status.json`.
-
-### Handling scoop completion without status file:
-
-Sometimes a scoop completes its work but forgets to write the status file (it shows "ready" in list_scoops but no `/shared/of1-demo-orchestrator/step-N-status.json` exists). When this happens:
-1. Check if the scoop's output files exist (e.g., `ls /workspace/of1-demo-orchestrator/of1/config/`)
-2. If the work IS done, write the status file manually
-3. Push to sprinkle
-
-For step 8 see "Step 8 split detail" above — the merge logic combines the two sub-status files into a single `step-8-status.json` before pushing to the sprinkle.
-
 ### `approve:<step>:<domain>`
-User approved step N. The sprinkle auto-marks it done. No action needed unless the next step should auto-start.
+User approved a review-gated sub-step surfaced by Stage 3. The sprinkle auto-marks it done. No action needed unless the next sub-step should auto-start (adopt-site owns that dependency logic internally).
 
 ### `revise:<step>:<domain>`
-User wants changes. Ask in chat what they want different, then re-run the step skill with their feedback appended to the prompt.
+User wants changes to a Stage 3 sub-step. Ask in chat what they want different, then re-dispatch Stage 3 (or, if adopt-site exposes per-sub-step re-run, target just that sub-step) with their feedback appended to the prompt.
 
 ### `reset`
 User reset the pipeline. Clean up any running scoops.
@@ -380,11 +200,10 @@ User reset the pipeline. Clean up any running scoops.
 
 When the user says **"one shot"** (or "one-shot", "oneshot"), run the ENTIRE pipeline end-to-end without any user interaction. This means:
 
-1. **Zero approval gates** — every review step is auto-approved instantly
-2. **All deliverables still generated** — discovery.html, brand-review.html, prototypes, config-review.html, gallery, demo hub — everything gets built and committed
-3. **Pre-launch checklist still runs** — Step 12 must pass all 5 checks before marking done
-4. **Sprinkle still updated** — push all statuses with deliverable URLs so the user can review anything after the fact
-5. **Parallel execution maximized** — spawn all possible scoops simultaneously per the dependency graph
+1. **Zero approval gates** — every review step (including Stage 3's internal sub-steps) is auto-approved instantly
+2. **All deliverables still generated** — discovery.html, the EDS replica, config-review.html, gallery, demo hub — everything gets built and committed (Stage 3 owns its own pre-launch checklist internally)
+3. **Sprinkle still updated** — push Stage 1/2/3 statuses with deliverable URLs so the user can review anything after the fact
+4. **Stages 2 + 3 dispatch concurrently** — no serializing what the 3-stage model says is parallel
 
 The pipeline should complete in one uninterrupted flow. The user will review the finished demo, not intermediate steps.
 
@@ -405,46 +224,35 @@ This means the full pipeline runs end-to-end without stopping. The user can alwa
 
 ## Deliverable URLs — ALWAYS Include Them
 
-When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), ALWAYS include a `deliverable` URL. The sprinkle's Quick Links section uses these URLs. Steps pushed without a `deliverable` field result in greyed-out quick links.
+When pushing ANY stage status to the sprinkle (whether `"done"` or `"review"`), ALWAYS include a `deliverable` URL. The sprinkle's Quick Links section uses these URLs. Statuses pushed without a `deliverable` field result in greyed-out quick links.
 
-**Required deliverable URLs by step:**
+**Required deliverable URLs by stage:**
 
-| Step | Deliverable URL |
+| Stage | Deliverable URL |
 |------|----------------|
-| 1 | `https://github.com/{owner}/{repo}/tree/{branch}` |
-| 2 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/discovery.html` |
-| 3 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/brand-review.html` |
-| 4 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/prototype-home.html` |
-| 5 | `https://{branch}--{repo}--{owner}.aem.page/home` |
-| 6 | `https://{branch}--{repo}--{owner}.aem.page/gallery/index.html` |
-| 7 | `https://{branch}--{repo}--{owner}.aem.page/of1` |
-| 11 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/config-review.html` |
-| 12 | `https://{branch}--{repo}--{owner}.aem.page/deliverables/index.html` |
+| 1 — Collect | `https://{branch}--{repo}--{owner}.aem.page/deliverables/discovery.html` |
+| 2 — Replica | `https://{branch}--{repo}--{owner}.aem.page/home` |
+| 3 — OF1 integration | adopt-site emits its own deliverable URLs per sub-step (gallery, `/of1`, config-review.html, final deploy index) — pass those through as-is; do not invent a single URL for the whole stage. |
 
-## Step → Skill Mapping
+## Stage → Skill Mapping
 
-| Step | Name | Skill(s) | Review | Track | Depends on |
-|------|------|-----------|--------|-------|------------|
-| 1 | Setup | `of1-check-dependencies` | No | — | nothing |
-| 2 | Discovery | `of1-discover-narrative` | Yes | — | step 1 |
-| 3 | Extraction | `of1-extract-design-tokens` | Yes | — | step 1 (runs parallel with step 2) |
-| 4 | Prototype | `of1-build-prototypes` | Yes | — | steps 2 + 3 (needs both) |
-| 5 | stardust:deploy | `of1-convert-to-eds` | Yes | A | step 4 |
-| 6 | Templates (fan-out) | `of1-build-templates` (×5 intent scoops + 1 assemble scoop) | Yes | A | step 4 |
-| 7 | OF1 styling | `of1-style-generative-block` | Yes | A | step 5 (must run AFTER S5 to avoid overwriting of1.css) |
-| 8 | Brand & content (split) | `of1-extract-brand-voice` (scoop `of1-s8-brand`) + `of1-extract-content` (scoop `of1-s8-content`) — 2 parallel scoops | No | B | step 4 |
-| 9 | Suggestions | `of1-build-quick-suggestions` | No | B | step 4 |
-| 10 | CTA template | `of1-build-cta-template` | No | B | step 4 |
-| 11 | Config review | (orchestrator-inline) | Yes | B | steps 8+9+10 |
-| 12 | Deploy | `of1-publish` | Yes | — | steps 6+7+11 |
+| Stage | Name | Skill | Depends on |
+|------|------|-------|------------|
+| 1 | Collect | `of1-discover-narrative` | setup |
+| 2 | Replica | `stardust:replica --pages` | stage 1 (keyPages) |
+| 3 | OF1 integration | `of1-adopt-existing-site` (pipeline mode) | stage 1; site-track also on replica-done |
 
-Two tracks run concurrently after Step 4 — **Track A** (S5, S6, S7 — the EDS site) and **Track B** (S8–S11 — config). See the dependency graph and "When to spawn what" table above for the full ordering. **Step 12 (Deploy)** is the join: it requires Track A (step 6-assemble done AND step 7 done) AND Track B (step 11 approved).
+Stages 2 and 3 dispatch concurrently once Stage 1 returns `narrative.json`. Stage 3's content
+track (brand voice, content metadata, suggestions) starts immediately; its site-integration
+track (templates, styling, config review, deploy) gates on Stage 2's `replica-done.json`. Both
+gating decisions and the internal step graph for steps 6–12 live inside `of1-adopt-existing-site`
+— this orchestrator does not reimplement them.
 
-## Step 1 — Setup
+## Repo Setup — Verify dependencies + repo state
 
 Setup verifies prerequisites AND repo state (see the `of1-check-dependencies` skill). It does NOT create a branch — it uses whatever branch is currently checked out at `OF1_DEMO_REPO`.
 
-The step outputs `/shared/of1-demo-orchestrator/repo-config.json` which all subsequent steps use:
+This runs inline in the orchestrator's own context before Stage 1 dispatches, and outputs `/shared/of1-demo-orchestrator/repo-config.json` which all subsequent stage scoops use:
 ```json
 {
   "owner": "<org>",
@@ -467,285 +275,67 @@ The step outputs `/shared/of1-demo-orchestrator/repo-config.json` which all subs
 - The preview/live URL patterns (`previewUrl`)
 - The GitHub owner and repo name for branch URLs
 
-## Screenshot Diff Loop (Steps 4 & 5)
+## Pixel Fidelity — Owned by Stage 2 (stardust:replica)
 
-Both the Prototype step (4) and the stardust:deploy step (5) MUST run a screenshot-based comparison loop before marking the step as review. This ensures visual fidelity.
-
-### How it works
-
-For each page, iterate up to **3 times**:
-
-1. **Screenshot the reference** — the live site (Step 4) or the prototype (Step 5)
-2. **Screenshot the output** — the prototype HTML (Step 4) or the EDS preview URL (Step 5)
-3. **Compare using LLM vision** — open both screenshots and analyze differences
-4. **If significant differences found:**
-   - Identify which specific section/block is wrong
-   - Fix only that section (targeted CSS/HTML fix, not full regeneration)
-   - Re-screenshot and compare again
-5. **If no significant differences** → PASS, move to next page
-6. **After 3 iterations** → accept result, note remaining gaps as "known differences"
-
-### What counts as "significant"
-
-Fix these:
-- Missing or broken images
-- Layout differences (grid vs stack, wrong column count, missing columns)
-- Missing entire sections or blocks
-- Wrong colors or backgrounds
-- Nav/footer not rendering or visually broken
-- Obvious spacing issues (doubled padding, collapsed margins)
-
-Ignore these:
-- Minor font rendering differences (web font vs fallback anti-aliasing)
-- Sub-pixel spacing (1-2px differences)
-- Hover/animation states
-- Cookie banners or overlays on the live page
-- Dynamic content that changes between loads (carousel position, time-based promos)
-
-### Step 4 specifics
-- Reference = live site screenshot
-- Output = prototype HTML served locally (`file://...`)
-- Fix = edit the prototype HTML/CSS directly
-
-### Step 5 specifics
-- Reference = prototype screenshot (from Step 4 output)
-- Output = EDS preview URL screenshot
-- Fix = edit block CSS/JS, content HTML, re-push + re-preview
-
-## CRITICAL: Pixel-Perfect Copy — No Redesign, No Placeholders
-
-The OF1 demo pipeline produces a **pixel-perfect reproduction** of the existing site — NOT a redesign. The goal is to faithfully replicate the site's visual appearance so the OF1 personalization engine can run on top of it.
-
-### What this means in practice:
-
-**Do NOT:**
-- Run `stardust direct`, author new `DESIGN.md`/`PRODUCT.md` target specs, or change the visual direction
-- Use placeholder images, colored boxes, gradient divs, or CSS-drawn shapes in place of real images
-- Use emoji, system icons, or generic SVGs in place of the site's real icons
-- Invent, simplify, or redesign any visual element
-
-**Do:**
-- Use real images sourced directly from the live site via `playwright-cli eval` to extract actual `<img src>` URLs
-- Use the site's real SVG icons — extract them from the live DOM (`document.querySelectorAll('img[src*=".svg"]')`, inline SVGs, or icon font codepoints)
-- Match typography, colors, spacing, and layout exactly as they appear on the live site
-- Use `format=png` or `format=jpg` (not `format=webply`) when constructing image URLs to ensure browser compatibility
-- When the site uses private fonts (e.g. Sentinel, Gotham Narrow), use the closest system-font fallback AND note the substitution — do not invent a different typeface
-
-**Image extraction pattern:**
-```javascript
-// Run in playwright-cli eval against the live page tab
-Array.from(document.querySelectorAll('img'))
-  .filter(i => i.naturalWidth > 200 && i.src.includes('sitedomain'))
-  .map(i => ({ src: i.src, alt: i.alt, w: i.naturalWidth, h: i.naturalHeight }))
-```
-
-**Icon extraction pattern:**
-```javascript
-// Get all SVG icon URLs
-Array.from(document.querySelectorAll('img')).filter(i => i.src.includes('.svg'))
-  .map(i => i.src)
-// Get inline SVGs near feature/icon areas
-Array.from(document.querySelectorAll('[class*=icon] svg, [class*=feature] svg'))
-  .map(s => s.outerHTML)
-```
-
-The prototype is considered acceptable only when a side-by-side comparison with a screenshot of the live page shows no obvious visual differences in layout, imagery, iconography, or brand identity.
+The orchestrator no longer runs its own screenshot-diff loop or pixel-perfect-copy rules. Stage 2
+(`stardust:replica`) owns source-fidelity validation for the recreated pages internally (its own
+comparison/fix loop against the live site). The orchestrator's job is only to invoke it correctly
+and wait for its result — do not reimplement its visual-fidelity checks here.
 
 ## Scoop Naming
 
-Name step scoops: `of1-s1`, `of1-s2`, ..., `of1-s12`. This keeps them short and identifiable.
+Name stage scoops: `of1-s1-discovery`, `of1-s2-replica`, `of1-s3-adopt`. This keeps them short and
+identifiable. Stage 3 (`of1-adopt-existing-site`) names its own internal sub-step scoops.
 
-## Context Passing Between Steps
+## Context Passing Between Stages
 
-Each step scoop needs context from prior steps. Key dependencies:
+- **Setup** needs: an EDS repo checked out at `OF1_DEMO_REPO` on the branch to use. Verifies prerequisites + repo state and outputs `repo-config.json`. Does NOT create a branch.
+- **Stage 1 (Collect)** needs: domain. Produces `narrative.json` (`keyPages[]`, `focus`, `persona`) and `discovery.html`.
+- **Stage 2 (Replica)** needs: domain + the comma-separated slug list built from Stage 1's `keyPages[].slug`. Produces the EDS replica (pages, blocks, DESIGN.json) and, on success, `replica-done.json`.
+- **Stage 3 (OF1 integration)** needs: domain, `repo-config.json`, `OF1_CONTENT_SOURCE=<domain>` (for its content track), and `OF1_REPLICA_DONE_FILE` (to gate its site-integration track on Stage 2). It reads `DESIGN.json` from Stage 2's output once the done-file exists. Everything downstream of that — templates, OF1 styling, brand voice, content metadata, suggestions, CTA template, config review, and deploy — is internal to adopt-site; this orchestrator does not pass it any other per-sub-step context.
 
-- **Step 1 (Setup)** needs: an EDS repo checked out at `OF1_DEMO_REPO` on the branch to use. Verifies prerequisites + repo state and outputs `repo-config.json`. Does NOT create a branch.
-- **Step 2 (Discovery)** needs: domain — runs in PARALLEL with step 3
-- **Step 3 (Extraction)** needs: domain only (does NOT need discovery output). Extracts design tokens, colors, typography, logo, and screenshots from the live site. Produces PRODUCT.md, DESIGN.json, screenshots, logo, and brand-review.html under `stardust/current/`. Runs in PARALLEL with step 2.
-- **Step 4 (Prototype)** needs: domain + extraction outputs from step 3 (`stardust/current/`) + discovery output from step 2 (key pages and narrative). Waits for BOTH S2 and S3 to complete. When composing the step-4 prompt, list ALL key pages from discovery and require prototypes for each. Never say "focus on homepage" or "if time permits" — all pages are equally mandatory. The scoop must produce one prototype per key page.
-- **Step 5 (stardust:deploy)** needs: domain, prototypes from step 4, repo-config.json
-- **Step 6 (Templates)** is fanned out into 1 `base` + 5 parallel `intent` + 1 `assemble` scoop (see "Step 6 fan-out detail"):
-  - The base scoop needs: domain, `DESIGN.json` from step 3, the prototype's inline CSS directly from step 4's output (`deliverables/prototype-*.html`). No dependency on step 5 — it generates `styles/of1-template-base.css`.
-  - Each intent scoop needs: domain, `styles/of1-template-base.css` (from base), demo narrative from step 2, the prototype's inline CSS directly from step 4's output (`deliverables/prototype-*.html`), plus its assigned `OF1_TG_INTENT`. No dependency on step 5 — each intent scoop authors its own `data-slot` markers when generating its 3 templates.
-  - The assemble scoop needs: all 15 per-intent template + CSS files (from the 5 intent scoops), repo-config.json. It owns the single commit + push.
-- **Step 7 (OF1 styling)** needs: domain, block names from step 5, `stardust/` data
-- **Steps 8–11 (Track B)** need: domain, `stardust/` data from step 3. They do NOT depend on stardust:deploy — they can start immediately after step 4.
-- **Step 11 (Config review)** needs: all `of1/config/` files from steps 8-10 — orchestrator generates review page inline
-- **Step 12 (Deploy)** needs: step 6-assemble done AND step 7 done (Track A) AND step 11 approved (Track B), plus domain, all config files, repo-config.json
-
-When spawning a step scoop, read the relevant prior outputs and include key info in the prompt (or instruct the scoop to read specific files).
-
-## Step 11 — Config Review (ALWAYS inline, NEVER a scoop)
-
-⚠️ **DO NOT spawn a scoop for step 11.** It is purely scripted (run `fill-config-review.jsh` + git push) — no LLM reasoning needed. Spawning a scoop wastes 12+ min of scheduling overhead for a 30-second task. Run it inline in the orchestrator.
-
-Once all parallel steps (8–10) are done, the orchestrator runs step 11 **inline**. This is a review gate where the user validates all the config that will be deployed.
-
-### What it shows
-
-The config-review.html page displays:
-
-1. **Products** — expandable cards with thumbnail images, names, categories, prices, image gallery, features, keywords
-2. **Brand Voice** — personality, tone, vocabulary, avoid words
-3. **Personas** — cards for each persona with keywords
-4. **Use Cases** — list with descriptions and keywords
-5. **Features** — chip list of all features
-6. **Suggestions** — title/subtitle/placeholder + all suggestion chips with query text
-7. **CTA Template** — JSON preview of the template
-
-### How to run
-
-Uses a **pre-built HTML template** + Python fill script. No LLM generation needed — just run the script:
-
-```bash
-# Read repo-config.json to get owner/repo
-REPO_CONFIG=$(cat /shared/of1-demo-orchestrator/repo-config.json)
-OWNER=$(echo "$REPO_CONFIG" | jq -r '.owner')
-REPO=$(echo "$REPO_CONFIG" | jq -r '.repo')
-BRANCH=$(echo "$REPO_CONFIG" | jq -r '.branch')
-REPO_DIR=$(echo "$REPO_CONFIG" | jq -r '.repoDir')
-DOMAIN=$(echo "$REPO_CONFIG" | jq -r '.domain')
-
-# IMPORTANT: Must cd into repo dir first (VFS constraint)
-cd "$REPO_DIR"
-
-# Run the fill script — reads of1/config/*.json, writes deliverables/config-review.html
-run_jsh /workspace/skills/of1-generate-config-review/assets/fill-config-review.jsh . "$DOMAIN"
-
-# Commit and push
-git add deliverables/config-review.html
-git commit -m "docs: config review page for ${DOMAIN}"
-git push origin "$BRANCH"
-```
-
-Then push to sprinkle:
-```bash
-sprinkle send of1-demo-orchestrator '{"step":11,"status":"review","deliverable":"https://'${BRANCH}'--'${REPO}'--'${OWNER}'.aem.page/deliverables/config-review.html","summary":"Review all config before deploy: products, brand voice, personas, CTA, suggestions."}'
-```
-
-### What the user reviews
-
-- Are the right blocks selected? (compare against block catalog — the guide should be a subset)
-- Do all products have images? Are descriptions rich enough?
-- Is the brand voice accurate? Any wrong vocabulary or missing avoid-words?
-- Do suggestion chips cover enough intents?
-- Are persona keywords realistic search terms?
-
-The user approves or requests revisions. On revise, ask what needs changing and re-run the relevant parallel step.
+When dispatching a stage scoop, read the relevant prior outputs and include key info in the prompt (or instruct the scoop to read specific files).
 
 ## Iteration
 
-If a step fails or the user requests revisions:
+If a stage fails or the user requests revisions:
 1. The sprinkle shows Retry/Revise button
-2. User clicks it → lick with `run:<step>:<skill>:<domain>` (retry) or `revise:<step>:<domain>` (needs feedback)
-3. Re-spawn the step scoop with the same prompt + any user feedback
+2. User clicks it → lick with `run:<domain>` (retry Stage 1) or `revise:<step>:<domain>` (needs feedback, targets a Stage 3 sub-step)
+3. Re-spawn the stage scoop with the same prompt + any user feedback
 4. The scoop can read prior outputs and iterate on them
-
-## Step 12 — MANDATORY Pre-Launch Checklist
-
-**DO NOT mark Step 12 as `"done"` without running these 5 checks.** This applies in ALL modes — one-shot, auto-approve, or manual. The cone must run these checks INLINE (not delegated to a scoop) after the sync succeeds:
-
-### Check 1: OF1 page loads with styled search UI
-```bash
-playwright-cli open "${PREVIEW_BASE}/of1"
-sleep 8
-playwright-cli screenshot --tab <tab_id> --output /tmp/check-of1.png
-open --view /tmp/check-of1.png
-```
-Pass: branded header, search input, suggestion chips visible, no raw unstyled content.
-
-### Check 2: OF1 nav/footer matches /home
-```bash
-playwright-cli open "${PREVIEW_BASE}/home"
-sleep 8
-playwright-cli screenshot --tab <tab_id> --output /tmp/check-home.png
-open --view /tmp/check-home.png
-```
-Pass: nav bar and footer are visually identical between OF1 page and /home.
-
-### Check 3: All products have ≥2 images
-```bash
-python3 << 'EOF'
-import json
-with open('of1/config/products.json') as f:
-    products = json.load(f)
-all_good = True
-for p in products:
-    if len(p.get('images', [])) < 2:
-        print(f"  ✗ {p['name']}: {len(p.get('images', []))} images")
-        all_good = False
-if not all_good:
-    raise SystemExit("FAIL: products with <2 images")
-print("✓ All products have ≥2 images")
-EOF
-```
-If this fails: download additional images from the site, upload to DA, update products.json, re-sync.
-
-### Check 4: Template catalog has 15 entries
-```bash
-python3 << 'EOF'
-import json, sys
-from pathlib import Path
-p = Path('templates/templates-catalog.json')
-if not p.exists():
-    print("✗ templates-catalog.json missing"); sys.exit(1)
-catalog = json.loads(p.read_text())
-of1_entries = [t for t in catalog.get('templates', []) if t.get('name', '').startswith('of1-')]
-if len(of1_entries) < 15:
-    print(f"✗ Only {len(of1_entries)} of1-* templates (need 15)"); sys.exit(1)
-intents = {t.get('intent') for t in of1_entries}
-missing = {'comparison', 'recommendation', 'deep-dive', 'budget', 'discovery'} - intents
-if missing:
-    print(f"✗ Missing intents: {missing}"); sys.exit(1)
-print(f"✓ Catalog has {len(of1_entries)} of1-* templates across all 5 intents")
-EOF
-```
-Pass: 15+ of1-* templates across all 5 intents.
-
-### Check 5: All quick link URLs return 200
-```bash
-for URL in discovery.html brand-review.html config-review.html index.html; do
-  curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/deliverables/${URL}"
-done
-curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/home"
-curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/of1"
-curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/gallery/index.html"
-```
-Pass: All return 200.
-
-### On failure:
-Fix the issue (commit + push + re-preview + re-sync if needed), then re-run the failing check. Only push `"step":12,"status":"done"` to the sprinkle after ALL 5 pass.
 
 ## Pipeline audit
 
 After the pipeline finishes (or aborts), write a structured audit to `/shared/of1-demo-orchestrator/pipeline-audit.json`. This gives cost/time visibility per run and a feedback loop for iterating on skill quality.
 
-### What to record per step
+Only the 3 top-level scoops the orchestrator itself dispatches are recorded here (Stage 1, Stage 2, Stage 3). Stage 3 (`of1-adopt-existing-site`) is a single black-box dispatch from the orchestrator's point of view — its internal sub-steps (templates, styling, brand voice, content, suggestions, CTA, config review, deploy) are owned and audited by adopt-site itself, not by this file.
 
-For each step scoop, record timing and status when the status file appears:
+### What to record per stage
+
+For each stage scoop, record timing and status when the status file appears:
 
 ```bash
-# When dispatching a step:
-STEP_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+# When dispatching a stage:
+STAGE_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # When the scoop's completion notification arrives:
-STEP_END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-STEP_DURATION_MS=$(( $(date +%s -d "$STEP_END") - $(date +%s -d "$STEP_START") ))
+STAGE_END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+STAGE_DURATION_MS=$(( $(date +%s -d "$STAGE_END") - $(date +%s -d "$STAGE_START") ))
 ```
 
 If `list_scoops` output includes token counts for the scoop, capture those too. Otherwise record `null` — duration alone is valuable.
 
 | Field | Source |
 |---|---|
-| `step` | Step number |
-| `name` | Step name |
-| `model` | Model assigned (from the model table) |
+| `stage` | Stage number (1, 2, or 3) |
+| `name` | Stage name (`discovery`, `replica`, `adopt-site`) |
+| `model` | Model assigned to this dispatch |
 | `startedAt` | Timestamp when `scoop_scoop()` was called |
 | `completedAt` | Timestamp when the status file appeared |
 | `durationMs` | Wall-clock between dispatch and status-file arrival |
 | `totalTokens` | From `list_scoops` if available; otherwise `null` |
-| `status` | From the step's status JSON (`done` / `review` / `failed`) |
-| `summary` | From the step's status JSON |
+| `status` | From the stage's status JSON (`done` / `review` / `failed`) |
+| `summary` | From the stage's status JSON |
 | `retries` | Number of retries (0 if first-pass success) |
 | `error` | If failed: the failure message. Otherwise `null` |
 
@@ -772,37 +362,38 @@ Write `/shared/of1-demo-orchestrator/pipeline-audit.json`:
   "completedAt": "<ISO>",
   "totalDurationMs": <wall-clock>,
   "totalTokens": <sum or null if unavailable>,
-  "stepCount": <dispatches including retries>,
-  "steps": [ ... ],
+  "stageCount": <dispatches including retries>,
+  "stages": [ ... ],
   "improvements": [ ... ]
 }
 ```
 
 ### Improvements section
 
-After writing the step data, analyze the run and append an `improvements` array. For each step that had issues — retries, unexpectedly long duration (>3× expected from the model table), or a `failed` status that was recovered — write a brief, actionable observation:
+After writing the stage data, analyze the run and append an `improvements` array. For each stage that had issues — retries, unexpectedly long duration (>3× expected), or a `failed`/`review` status that was recovered — write a brief, actionable observation. Since Stage 3 is a black box, its "issue" can only describe what was observable from the outside (timing, retries, the returned status/summary) — not its internal sub-step behavior:
 
 ```json
 {
   "improvements": [
     {
-      "step": 4,
-      "issue": "Prototype took 22 min (2× expected) — scoop regenerated the full page 4 times instead of iterating on specific sections",
-      "suggestion": "Add 'targeted fix only — do not regenerate the full page' instruction to stardust:prototype invocation"
+      "stage": 2,
+      "issue": "Replica took 22 min (2× expected) for 5 pages — stardust:replica's source-fidelity gate rejected the first render on 2 of 5 pages, forcing a re-render pass",
+      "suggestion": "Pass tighter page-selection guidance from Stage 1 (avoid pages with heavy client-side interactivity) so stardust:replica's first render is more likely to pass its fidelity gate"
     }
   ]
 }
 ```
 
 Rules:
-- Only include steps with actual problems (retries, failures, duration >3× expected)
-- Be specific: name the exact behavior that went wrong
+- Only include stages with actual problems (retries, failures, duration >3× expected)
+- Be specific: name the exact behavior that went wrong (to the extent observable — Stage 3's internals are opaque)
 - Each `suggestion` should be a concrete change to a skill or dispatch prompt
 - If the run was clean: `"improvements": []` — don't invent issues
+- This section is for pipeline-level learning; skill-level bugs (including those inside adopt-site's internal steps) should be filed as skill edits, not left as audit notes
 
 ### When to write
 
-1. After step 12 completes (success)
+1. After Stage 3's scoop returns `done` (success path)
 2. If the pipeline aborts (partial audit is still useful)
 
 Push the audit file to the sprinkle as a final event so the user can access it:
@@ -812,23 +403,21 @@ sprinkle send of1-demo-orchestrator '{"type":"audit","file":"/shared/of1-demo-or
 
 ## Completion
 
-After step 12 succeeds, all steps show green. The sprinkle stays open as a reference with all URLs and status.
+After Stage 3's scoop returns `done`, all three stages show green. The sprinkle stays open as a reference with all URLs and status. Stage 3's internal deploy + pre-launch checklist (owned by `of1-adopt-existing-site`) is what actually gates its own `done` status — the orchestrator does not run any pre-launch checks itself.
 
 ## Reference — pitfalls & schemas
 
-The cross-cutting DA/EDS/git/image/logo rules are NOT restated here. Each step scoop reads its own step skill (which owns those rules), and the durable versions live in:
+The cross-cutting DA/EDS/git/image/logo rules are NOT restated here. Each stage scoop reads its own skill (which owns those rules), and the durable versions live in:
 
 - **`knowledge/common-pitfalls.md`** — DA content authoring, image handling, brand logo, URL patterns, curl traps, git workflow, runtime-specific traps (`[SLICC]`/`[CC]` tagged), DA+EDS preview auth, and the allowed-domain table. Consult it whenever you (or a scoop) hit a DA/EDS/upload issue.
-- **`knowledge/worker-config-schemas.md`** — the JSON schemas for every `of1/config/*.json` file (brand-voice, products, personas, use-cases, features, faqs, suggestions, cta-template, templates catalog). Useful when validating config inline at Step 11.
+- **`knowledge/worker-config-schemas.md`** — the JSON schemas for every `of1/config/*.json` file (brand-voice, products, personas, use-cases, features, faqs, suggestions, cta-template, templates catalog). Useful for context when a Stage 3 sub-step's output needs review; adopt-site validates these itself at its own config-review step.
 
 ## Orchestrator inline-execution notes (SLICC-specific)
 
-These apply to the work the **cone runs inline** (pre-fan-out screenshots, Step 11 config review, Step 12 deploy + pre-launch checks) — the parts that do NOT go through a step skill:
+This orchestrator itself no longer runs step-level inline work (config review, pre-launch checklist, screenshot diff loops) — those moved into `of1-adopt-existing-site` (Stage 3) and `stardust:replica` (Stage 2). The notes below apply only to what the cone itself still does inline: reading `narrative.json`, building the slug list, and pushing sprinkle status.
 
-1. **`set -o pipefail` is not supported** — don't run scripts that use it. Execute commands manually or use the shell loop in the deploy skill.
-2. **No python3 in SLICC** — for inline validation (e.g. JSON checks), use `run_jsh`, `node -e`, or `jq`, not `python3 << 'EOF'` heredocs.
-3. **Config sync** — Step 12 is `git push` + one `POST /api/tenants/{id}/sync` (tenant ID = `{branch}--{repo}--{owner}`). Done inline by the cone; no scoop needed.
-4. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else (e.g. "approved", "running", "complete") corrupts the UI state.
-5. **Always close Playwright tabs after use** — open tabs accumulate across steps and consume memory. After every `playwright-cli open` + screenshot/eval, close the tab (`playwright-cli tab-close "$TAB_ID"`), or close all at the end of the step.
+1. **`set -o pipefail` is not supported** — don't run scripts that use it. Execute commands manually.
+2. **No python3 in SLICC** — for any inline JSON handling, use `run_jsh`, `node -e`, or `jq`, not `python3 << 'EOF'` heredocs.
+3. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else (e.g. "approved", "running", "complete") corrupts the UI state.
 
-For the IMS token, DA upload commands, and preview-trigger curls used inline, follow `knowledge/common-pitfalls.md` §5, §7, §8 (they carry both the `[SLICC]` and `[CC]` variants).
+For the IMS token, DA upload commands, and preview-trigger curls used by the stage skills, follow `knowledge/common-pitfalls.md` §5, §7, §8 (they carry both the `[SLICC]` and `[CC]` variants).
