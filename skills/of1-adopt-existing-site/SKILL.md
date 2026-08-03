@@ -108,7 +108,7 @@ fi
 ```
 
 In standalone mode there is no replica and no gate — all five siblings (6-base, 7, 8a, 8b, 10)
-dispatch together exactly as the table below already says.
+dispatch together exactly as the Trigger table above already says.
 
 **Common mistakes to avoid** (same class of mistake `of1-demo-orchestrator-cc` already warns about):
 - Do NOT run Step 11 before ALL of 8a, 8b, 9, 10 return `done`.
