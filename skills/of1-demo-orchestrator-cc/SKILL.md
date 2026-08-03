@@ -1,6 +1,6 @@
 ---
 name: of1-demo-orchestrator-cc
-description: "Claude Code ONLY orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services — crawls the site, extracts design tokens, generates branded templates, converts to EDS, and deploys. Use when the user asks to build or one-shot an OF1 demo for a domain while running in Claude Code. DO NOT USE IN SLICC — use of1-demo-orchestrator instead."
+description: "Claude Code ONLY orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, run as 3 stages: discover a narrative and focus pages, recreate those pages as a branded EDS replica via stardust:replica, then delegate OF1 integration (content, styling, config review, deploy) to of1-adopt-existing-site. Use when the user asks to build or one-shot an OF1 demo for a domain while running in Claude Code. DO NOT USE IN SLICC — use of1-demo-orchestrator instead."
 user-invocable: false
 ---
 
@@ -158,10 +158,10 @@ The orchestrator writes/reads under `<stateDir>/`:
 |------|-------|---------|
 | `setup.json` | of1-check-dependencies | Verified paths + owner/repo/branch + token source |
 | `repo-config.json` | Step 1 (Setup) | owner, repo, branch, contentPrefix, repoDir, domain |
-| `step-<N>-summary.json` | Orchestrator (parsed from Agent return) | Step result, for resuming/debug |
+| `stage-<N>-summary.json` | Orchestrator (parsed from Agent return) | Stage result, for resuming/debug |
 | `pipeline.log` | Orchestrator | Append-only dispatch/return log |
 
-You parse each Agent's final JSON block and write it to `step-<N>-summary.json` yourself.
+You parse each Agent's final JSON block and write it to `stage-<N>-summary.json` yourself.
 
 ## Failure recovery
 
@@ -174,14 +174,16 @@ If a step returns `failed`:
 
 ## Pipeline audit
 
-After every Agent dispatch returns, record the step's telemetry from the `<usage>` block in the Agent result. The orchestrator tracks this in memory and writes the full audit to `$OF1_STATE_DIR/pipeline-audit.json` after the pipeline finishes (or fails).
+After every top-level Agent dispatch returns (Stage 1, Stage 2, Stage 3), record that stage's telemetry from the `<usage>` block in the Agent result. The orchestrator tracks this in memory and writes the full audit to `$OF1_STATE_DIR/pipeline-audit.json` after the pipeline finishes (or fails).
 
-### What to record per step
+Only the 3 stages the orchestrator itself dispatches are recorded here. Stage 3 (`of1-adopt-existing-site`) is a single black-box dispatch from the orchestrator's point of view — its internal sub-steps (content, styling, config review, deploy) are owned and audited by adopt-site itself, not by this file.
+
+### What to record per stage
 
 | Field | Source |
 |---|---|
-| `step` | Step number |
-| `name` | Step name (e.g. "discovery") |
+| `stage` | Stage number (1, 2, or 3) |
+| `name` | Stage name (`discovery`, `replica`, `adopt-site`) |
 | `model` | Model used for this dispatch |
 | `startedAt` | ISO timestamp when the Agent was dispatched |
 | `durationMs` | From the `<usage>` block: `duration_ms` |
@@ -189,13 +191,13 @@ After every Agent dispatch returns, record the step's telemetry from the `<usage
 | `toolUses` | From the `<usage>` block: `tool_uses` |
 | `status` | From the agent's return JSON (`done` / `review` / `failed`) |
 | `summary` | From the agent's return JSON |
-| `retries` | Number of retries for this step (0 if first-pass success) |
+| `retries` | Number of retries for this stage (0 if first-pass success) |
 | `error` | If failed: the failure message. Otherwise `null`. |
 
 ### When to write the audit file
 
 Write `$OF1_STATE_DIR/pipeline-audit.json` at **two points**:
-1. After step 12 completes (success path)
+1. After Stage 3's Agent returns `done` (success path)
 2. If the pipeline aborts (failure path — partial audit is still useful)
 
 ### Capture skill version at pipeline start
@@ -219,20 +221,20 @@ Include both in the audit file's top-level fields.
   "skillBranch": "<branch name of the skill plugin>",
   "startedAt": "<ISO timestamp of first dispatch>",
   "completedAt": "<ISO timestamp of last step return>",
-  "totalTokens": <sum across all steps>,
+  "totalTokens": <sum across all stages>,
   "totalDurationMs": <wall-clock from start to finish>,
-  "stepCount": <number of dispatches including retries>,
-  "steps": [
+  "stageCount": <number of dispatches including retries>,
+  "stages": [
     {
-      "step": 1,
-      "name": "setup",
-      "model": "sonnet",
+      "stage": 1,
+      "name": "discovery",
+      "model": "opus",
       "startedAt": "...",
-      "durationMs": 12400,
-      "totalTokens": 3200,
-      "toolUses": 8,
+      "durationMs": 41200,
+      "totalTokens": 18400,
+      "toolUses": 22,
       "status": "done",
-      "summary": "prerequisites verified, repo-config ready",
+      "summary": "narrative + 5 key pages identified",
       "retries": 0,
       "error": null
     }
@@ -242,33 +244,33 @@ Include both in the audit file's top-level fields.
 
 ### Improvements section (append after completion)
 
-After writing the audit, analyze the run and append an `improvements` array to `pipeline-audit.json`. For each step that had issues — retries, high token usage relative to its task complexity, unexpectedly long duration, or a `failed` status that was recovered — write a brief, actionable observation:
+After writing the audit, analyze the run and append an `improvements` array to `pipeline-audit.json`. For each stage that had issues — retries, high token usage relative to its task complexity, unexpectedly long duration, or a `failed`/`review` status that was recovered — write a brief, actionable observation. Since Stage 3 is a black box, its "issue" can only describe what was observable from the outside (timing, retries, the returned status/summary) — not its internal sub-step behavior:
 
 ```json
 {
   "improvements": [
     {
-      "step": 4,
-      "issue": "Prototype generation took 14 min (3× expected) — agent re-generated the full page 4 times instead of iterating on specific sections",
-      "suggestion": "Add a 'targeted fix only — do not regenerate the full page' instruction to the stardust:prototype invocation"
+      "stage": 2,
+      "issue": "Replica took 22 min (2× expected) for 5 pages — stardust:replica's source-fidelity gate rejected the first render on 2 of 5 pages, forcing a re-render pass",
+      "suggestion": "Pass tighter page-selection guidance from Stage 1 (avoid pages with heavy client-side interactivity) so stardust:replica's first render is more likely to pass its fidelity gate"
     },
     {
-      "step": 8,
-      "issue": "Content-metadata retried 2× — download-images.py failed on first run because products.json had 3 products with only external CDN URLs (no source images found on detail pages)",
-      "suggestion": "Have the extraction step (3) capture more image URLs per product page upfront, or fall back to listing-page carousel images when detail pages have <2"
+      "stage": 3,
+      "issue": "of1-adopt-existing-site returned status 'review' with concerns about generated CTA copy tone — required one round of user revision before deploy",
+      "suggestion": "Have Stage 1's narrative.json carry an explicit tone/voice guideline that adopt-site's content track can consume directly, reducing review round-trips"
     }
   ]
 }
 ```
 
 Rules for the improvements section:
-- Only include steps that had actual problems (retries, failures, token spend >2× the expected range from the model table, duration >3× expected)
-- Be specific: name the exact behavior that went wrong, not generic "could be better"
+- Only include stages that had actual problems (retries, failures, token spend >2× the expected range from the model table, duration >3× expected)
+- Be specific: name the exact behavior that went wrong (to the extent observable — Stage 3's internals are opaque), not generic "could be better"
 - Each `suggestion` should be a concrete change to a skill or dispatch prompt — something actionable for the next pipeline run
-- If the run was clean (no retries, all steps within expected bounds), write `"improvements": []` — don't invent issues
-- This section is for pipeline-level learning; skill-level bugs should be filed as skill edits, not left as audit notes
+- If the run was clean (no retries, all stages within expected bounds), write `"improvements": []` — don't invent issues
+- This section is for pipeline-level learning; skill-level bugs (including those inside adopt-site's internal steps) should be filed as skill edits, not left as audit notes
 
 ## Notes
 
-- Resuming across sessions is not yet implemented (state files exist but resume logic would need to read `step-<N>-summary.json` and rebuild the task list).
+- Resuming across sessions is not yet implemented (state files exist but resume logic would need to read `stage-<N>-summary.json` and rebuild the task list).
 - One domain at a time. No multi-tenant parallel pipelines.
