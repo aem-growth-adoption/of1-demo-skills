@@ -43,7 +43,7 @@ HAS_DESIGN_JSON=false
 echo "DESIGN.json present: $HAS_DESIGN_JSON"
 ```
 
-If `HAS_DESIGN_JSON=false`, Step 3 (extraction) runs in own-site mode (`OF1_EXTRACT_OWN_SITE=1`). If `true`, Step 3 is skipped entirely — `of1-extract-design-tokens` itself detects this (see its own § "0. Detect existing extraction") and writes `step-3-status.json` with `"status":"done"` either way, so downstream dependency checks don't need to special-case the skip.
+If `HAS_DESIGN_JSON=false`, Step 3 (extraction) invokes `stardust:extract` directly against the site's own EDS preview URL (`https://<branch>--<repo>--<owner>.aem.page`) to produce `stardust/current/DESIGN.json` (plus `PRODUCT.md`, `DESIGN.md`, and screenshots). If `true`, Step 3 is skipped entirely — the artifact-detection check above already confirmed a spec exists, so there is nothing for `stardust:extract` to do; adopt-site reuses the existing spec and writes `step-3-status.json` with `"status":"done"` either way, so downstream dependency checks don't need to special-case the skip.
 
 `DESIGN.json` may carry `_provenance.mode: bounded-single` when produced by `stardust:replica`
 in bounded (`--pages`) mode — this is fully valid input. Adopt-site consumes the tokens the same
@@ -55,8 +55,8 @@ way regardless of provenance; do NOT reject or re-extract on a bounded-single sp
 1 (setup) → artifact detection (inline)
               │
        [DESIGN.json exists?]
-         no → 3 (extraction, own-site mode)
-         yes → skip (of1-extract-design-tokens itself no-ops and reports done)
+         no → 3 (extraction — invoke `stardust:extract` against the site's own preview URL)
+         yes → skip (adopt-site reuses the existing spec and reports done)
               │
    ┌──────────┼───────────┬────────────┬────────────┐
    ↓          ↓           ↓            ↓            ↓
@@ -123,7 +123,7 @@ Same step-graph, same dependency rules on both runtimes. Only the invocation mec
 
 - Use **TaskCreate** with one task per step (1, 3, 6-base, 6a–6e, 6-assemble, 7, 8a, 8b, 9, 10, 11, 12). Mark task 1 completed immediately; mark each task `in_progress`/`completed`/`failed` around its dispatch.
 - Each step (except artifact detection and 11, which are inline) is a single `Agent` dispatch. Sub-agents see none of this conversation — the prompt must be self-contained: read the target step skill's `SKILL.md`, export the same env vars `of1-demo-orchestrator-cc` exports (`OF1_STATE_DIR`, `OF1_DEMO_REPO`, `ADOBE_IMS_TOKEN`/`OF1_TOKEN_FILE`, `SKILL_DIR`), state the branch/owner/repo, list which prior-step output files it needs, and require the same JSON status block: `{"step":N,"status":"done"|"review"|"failed","summary":"...","deliverables":[...]}`.
-- **Step 3's dispatch additionally exports `OF1_EXTRACT_OWN_SITE=1`.** This is the ONLY step-specific env var in this pipeline — do not forget it, or extraction silently crawls the wrong target (an external domain instead of the site's own preview URL).
+- **Step 3's dispatch is a direct `stardust:extract` invocation targeting the site's own EDS preview URL (`https://<branch>--<repo>--<owner>.aem.page`)** — do not point it at any external domain, and do not run it at all if `HAS_DESIGN_JSON=true` from Phase 1.
 - In pipeline mode also export `OF1_CONTENT_SOURCE` (to 8a/8b/9 dispatches) and pass
   `OF1_REPLICA_DONE_FILE` to the orchestrator's own site-track gate (not to the step agents).
 - **Parallelism is mandatory** at each fan-out point — dispatch all eligible Agents in a single message with multiple Agent tool-use blocks.
@@ -132,7 +132,7 @@ Same step-graph, same dependency rules on both runtimes. Only the invocation mec
 
 ### SLICC
 
-- Dispatch each step as a `scoop_scoop()` call with `writablePaths` covering `/scoops/<name>/`, `/shared/`, and the project repo path — same pattern `of1-demo-orchestrator` already uses per step. **Step 3's scoop additionally needs `env: { OF1_EXTRACT_OWN_SITE: "1" }`** — same reason as the Claude Code column: without it, extraction crawls the wrong target.
+- Dispatch each step as a `scoop_scoop()` call with `writablePaths` covering `/scoops/<name>/`, `/shared/`, and the project repo path — same pattern `of1-demo-orchestrator` already uses per step. **Step 3's scoop invokes `stardust:extract` directly against the site's own EDS preview URL** — same reason as the Claude Code column: point it at the wrong target and extraction crawls an external domain instead of the site itself.
 - In pipeline mode also export `OF1_CONTENT_SOURCE` (to 8a/8b/9 dispatches) and pass
   `OF1_REPLICA_DONE_FILE` to the orchestrator's own site-track gate (not to the step agents).
 - Each scoop writes its own `/shared/of1-demo-orchestrator/step-N-status.json` on completion, exactly like every step skill already documents in its own "Completion" section — **do not** additionally push to a sprinkle. There is nothing listening for `sprinkle_send` on this skill.

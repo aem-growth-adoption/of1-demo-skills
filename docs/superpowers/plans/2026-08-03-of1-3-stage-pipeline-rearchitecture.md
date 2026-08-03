@@ -16,6 +16,7 @@
 - **Standalone `of1-adopt-existing-site` behavior must not change** — new behavior is gated behind an explicit pipeline-mode signal; absent that signal it behaves exactly as today (content sourced from the replica preview URL).
 - Model version strings stay exact: `claude-opus-4-8` (Opus 4.8), `claude-sonnet-5` (Sonnet 5). CC agent model params: `opus` / `sonnet`.
 - Retired skills: `of1-extract-design-tokens`, `of1-build-prototypes`, `of1-convert-to-eds`. Disposition = **delete** the skill directories and remove every reference (decided here; the spec left it open).
+  - **Amendment (during execution):** the guard in Task 9 found `of1-extract-design-tokens` was still a live dependency of **standalone** `of1-adopt-existing-site` (its `HAS_DESIGN_JSON=false` / own-site branch). Decision: still delete all three, but rewire standalone adopt-site's no-`DESIGN.json` branch to invoke **`stardust:extract`** directly against the site's own preview URL (which is all `of1-extract-design-tokens` did — it was a thin wrapper around `stardust:extract`). Documented: adopt-site runs extract when a design spec doesn't exist yet. Four additional cosmetic references (in `of1-publish`, `of1-style-generative-block` ×2, `of1-demo-orchestrator/knowledge/common-pitfalls.md`) that named the retired skills as "the step that produced the chrome" are repointed to `stardust:replica`/`stardust:deploy`.
 - Commit after every task with a `feat:`/`refactor:`/`docs:`/`chore:` message ending in the Co-Authored-By trailer.
 
 ---
