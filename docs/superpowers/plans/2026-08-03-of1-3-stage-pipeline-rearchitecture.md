@@ -782,7 +782,7 @@ git commit -m "$(printf 'chore: delete retired extract/prototype/convert skills;
 - D7 (templates/styling/CTA after join) → Task 3 Step 2 site-integration gate. ✓
 - D8 (adopt-site owns parallelism; replica-done gate) → Task 3 + Tasks 4/5 done-file. ✓
 - D9 (keep two orchestrators) → Tasks 4 & 5 separately. ✓
-- D10 (3-stage UI + sub-progress) → Task 6. ✓
+- D10 (3-stage UI + sub-progress) → Task 6 (sprinkle consumer) + **Task 10 (producer — added post-final-review)**. ✓
 - D11 (branch) → Global Constraints. ✓
 - Seams 1–4 → Tasks 1, 3, 2, (3+4+5) respectively. ✓
 - Retired skills → Tasks 7 (deps), 9 (delete + README). Workflow dropped → Task 8. ✓
@@ -792,4 +792,105 @@ git commit -m "$(printf 'chore: delete retired extract/prototype/convert skills;
 **Type/name consistency:** `narrative.json` keys (`keyPages`, `slug`, `focus`, `persona`), env vars (`OF1_PIPELINE_MODE`, `OF1_CONTENT_SOURCE`, `OF1_REPLICA_DONE_FILE`, `OF1_CONTENT_SOURCE`), and the done-file path (`<stateDir>/replica-done.json` CC, `/shared/of1-demo-orchestrator/replica-done.json` SLICC) are used consistently across Tasks 1–8. ✓
 
 **Note for the implementer:** several tasks edit prose-heavy `SKILL.md` files whose exact line numbers may have drifted; the verification `grep`s are the source of truth for "done," not the cited line numbers. Read the target section before editing.
+```
+
+---
+
+## Task 10: Wire the Stage-3 sub-progress producer (SLICC)
+
+**Added after the final whole-branch review**, which found the sprinkle's Stage-3 sub-step rows (consumer, built in Task 6) had no producer: nothing emits `{stage:3, subStep:...}` messages, so the 8 rows would sit permanently "pending" during a real SLICC run. Fulfills D10's producer half.
+
+**Files:**
+- Modify: `skills/of1-demo-orchestrator/SKILL.md` (SLICC orchestrator / cone)
+
+**Interfaces:**
+- Consumes: adopt-site's per-step status files at `/shared/of1-demo-orchestrator/step-<N>-status.json` (already written by each Stage-3 sub-step scoop) and the scoop-completion notifications the cone already receives.
+- Produces: `sprinkle send of1-demo-orchestrator '{"stage":3,"subStep":"<key>","status":"<status>"}'` for each Stage-3 sub-step, using the exact subStep keys the sprinkle renders: `brand, content, suggest, templates, styling, cta, config, deploy`.
+
+**Design:** adopt-site stays sprinkle-free. The chain is: a Stage-3 sub-step scoop finishes → the **cone** is notified (the standard SLICC scoop-completion lick) → the cone reads that sub-step's `step-<N>-status.json`, maps its step number to the sprinkle subStep key, and pushes a `{stage:3, subStep, status}` message. Only the cone calls `sprinkle send`.
+
+The step-number → subStep-key mapping:
+
+| adopt-site step | subStep key |
+|---|---|
+| 6 / 6-base / 6a–6e / 6-assemble | `templates` |
+| 7 | `styling` |
+| 8a | `brand` |
+| 8b | `content` |
+| 9 | `suggest` |
+| 10 | `cta` |
+| 11 | `config` |
+| 12 | `deploy` |
+
+- [ ] **Step 1: Read the SLICC orchestrator's completion-handling + Stage-3 sections**
+
+Run:
+```bash
+cd /Users/quentinvecchio/workspace/labs/of1-demo-skills
+grep -nE 'scoop-completion|notification|sprinkle send|stage.?3|of1-s3-adopt|black box|opaque|sub-step|subStep' skills/of1-demo-orchestrator/SKILL.md
+```
+Expected: the Dispatch/completion-handling sections + the current "Stage 3 is a black box" framing.
+
+- [ ] **Step 2: Add the sub-progress relay to the Stage-3 handling**
+
+In `skills/of1-demo-orchestrator/SKILL.md`, in the section that describes launching/awaiting the `of1-s3-adopt` scoop, replace the "Stage 3 is a single black-box dispatch; its internal sub-steps are opaque" framing with a relay contract. Add:
+
+```markdown
+### Stage 3 sub-progress relay (cone → sprinkle)
+
+Stage 3 delegates to `of1-adopt-existing-site`, which internally dispatches its own sub-step
+scoops (steps 6–12) and writes each one's `/shared/of1-demo-orchestrator/step-<N>-status.json`.
+Adopt-site never calls `sprinkle send` — only THIS cone does. To drive the sprinkle's Stage-3
+sub-step rows, the cone relays each sub-step completion:
+
+- adopt-site's sub-step scoop notifies the cone on completion (standard scoop-completion lick).
+  The cone reads that `step-<N>-status.json`, maps N to the sprinkle subStep key (table below),
+  and pushes it:
+
+​```bash
+# On a Stage-3 sub-step completion notification (step N, status S):
+case "$N" in
+  6|6-base|6a|6b|6c|6d|6e|6-assemble) KEY=templates ;;
+  7)  KEY=styling ;;
+  8a) KEY=brand ;;
+  8b) KEY=content ;;
+  9)  KEY=suggest ;;
+  10) KEY=cta ;;
+  11) KEY=config ;;
+  12) KEY=deploy ;;
+  *)  KEY="" ;;
+esac
+[ -n "$KEY" ] && sprinkle send of1-demo-orchestrator "{\"stage\":3,\"subStep\":\"$KEY\",\"status\":\"$S\"}"
+​```
+
+- When a sub-step goes `active` (dispatched) the cone MAY push `{"stage":3,"subStep":"$KEY","status":"active"}`
+  so the row animates; at minimum push the terminal `done`/`review`/`failed` status.
+- Keep pushing the top-level `{"stage":3,"status":...}` for the OF1-integration stage itself
+  (active when the first sub-step starts, done when Stage 3's scoop returns).
+
+**subStep keys are EXACTLY** `brand, content, suggest, templates, styling, cta, config, deploy`
+— they must match the sprinkle's `subSteps[]` keys or the row won't update.
+```
+
+(Replace `​` guards with real backticks.)
+
+- [ ] **Step 3: Verify the mapping + valid statuses**
+
+Run:
+```bash
+cd /Users/quentinvecchio/workspace/labs/of1-demo-skills
+for K in brand content suggest templates styling cta config deploy; do
+  grep -q "subStep.*$K\|KEY=$K" skills/of1-demo-orchestrator/SKILL.md && echo "OK: $K mapped" || echo "MISSING: $K"
+done
+# All 8 sprinkle subStep keys must be produced. Cross-check against the sprinkle's own keys:
+grep -oE "key: *'(brand|content|suggest|templates|styling|cta|config|deploy)'" skills/of1-demo-orchestrator/of1-demo-orchestrator.shtml | sort -u
+```
+Expected: eight `OK: <key> mapped` lines, and the sprinkle grep lists the same 8 keys.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add skills/of1-demo-orchestrator/SKILL.md
+git commit -m "$(printf 'feat(orchestrator-slicc): relay Stage-3 sub-step status to sprinkle (cone→sprinkle producer)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
+```
 ```
