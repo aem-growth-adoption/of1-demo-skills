@@ -68,7 +68,7 @@ For each page, note:
 
 - **Demo focus**: which product line or category to feature (pick the richest/most visual one)
 - **Demo narrative**: a user persona and their journey (e.g. "a coffee enthusiast researching their next espresso machine")
-- **Key pages to reproduce**: 2–3 pages that best represent the site, with full URLs
+- **Key pages to reproduce**: 2–3 pages that best represent the site, with full URLs. These are mirrored into `narrative.json` (§4b) as `keyPages[]` — Stage 2 recreates exactly these.
 - **Rationale**: why this focus works for a compelling demo
 
 ## Deliverables
@@ -106,6 +106,30 @@ Write `$OF1_STATE_DIR/step-2-output.md` — consumed by steps 3, 4, and 6:
 ### {Page 2}
 - ...
 ```
+
+### 4b. Machine-readable narrative for the orchestrator
+
+Also write `$OF1_STATE_DIR/narrative.json` — the orchestrator reads `keyPages[].slug`
+to build Stage 2's `stardust:replica --pages` argument, and `focus`/`persona` to steer
+Stage 3's product focus:
+
+```bash
+cat > "$OF1_STATE_DIR/narrative.json" <<EOF
+{
+  "domain": "${DOMAIN}",
+  "focus": "<the demo focus you proposed above>",
+  "persona": "<persona + one-line journey>",
+  "keyPages": [
+    { "slug": "home", "url": "https://${DOMAIN}/", "description": "homepage" }
+    <, one object per additional key page — slug is the URL path segment, no leading slash>
+  ]
+}
+EOF
+```
+
+**Slug rules:** the homepage is always `slug: "home"`. For other pages, the slug is the
+last non-empty path segment (e.g. `https://${DOMAIN}/shop/coffee` → `coffee`). Keep 2–3
+key pages total — these become the ONLY pages Stage 2 recreates.
 
 ### 5. Discovery report HTML
 
