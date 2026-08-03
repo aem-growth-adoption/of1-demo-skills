@@ -6,7 +6,7 @@ user-invocable: false
 
 # OF1 Demo — Claude Code Orchestrator
 
-Turns any website into a branded OF1 generative-search demo on Adobe Edge Delivery Services. 12 steps. Auto-approves by default; user can interrupt to revise any step.
+Turns any website into a branded OF1 generative-search demo on Adobe Edge Delivery Services. 3 stages: discovery, replica, and OF1 integration (delegated to `of1-adopt-existing-site`). Auto-approves by default; user can interrupt to revise any step.
 
 **🚫 SLICC HARD GATE: This skill is ONLY for Claude Code. If you are running in SLICC, STOP IMMEDIATELY and use the `of1-demo-orchestrator` skill instead.** This skill uses Claude Code-specific primitives (Agent dispatch, TaskCreate) that do not exist in SLICC. Using it in SLICC will produce broken orchestration with no progress tracking and no scoop dispatch. There is zero reason to use this skill in SLICC.
 
@@ -27,129 +27,75 @@ After it succeeds, read `<STATE_DIR>/setup.json` for `stateDir`/`of1Repo` and `<
 
 ## Phase 1 — Initialize task list
 
-Use **TaskCreate** with one task per pipeline step:
+Use **TaskCreate** with one task per stage + the concurrent tracks:
 
 ```
-1.  Setup           (already done if you got here — verifies deps + repo state, outputs repo-config.json)
-2.  Discovery       — crawl site, propose narrative
-3.  Extraction      — design tokens, logo, screenshots (parallel with 2)
-4.  Prototype       — pixel-perfect HTML (needs 2 + 3)
-5.  Stardust deploy — convert prototypes to EDS blocks + pages
-6.  Templates       — 15 branded templates (base + fan-out: 5 intents + assemble; needs 4, NOT 5)
-7.  OF1 styling     — generative-block CSS + /of1 page setup (needs 5)
-8a. Brand voice     — voice extraction (parallel)
-8b. Content meta    — products, personas, FAQs + image upload (parallel)
-9.  Suggestions     — search chips + UI copy (parallel)
-10. CTA template    — branded CTA JSON (parallel)
-11. Config review   — generate review page (inline; needs 8a + 8b + 9 + 10)
-12. Deploy          — push, sync, pre-launch checklist
+0. Setup            (done if you got here — deps + repo-config.json)
+1. Collect          — of1-discover-narrative → narrative.json + demo story
+2. Replica          — stardust:replica <URL> --pages <slugs> → EDS site + DESIGN.json
+3. OF1 integration  — delegate to of1-adopt-existing-site (pipeline mode)
 ```
 
-Mark task 1 completed immediately. Mark each task `in_progress` when its dispatch begins and `completed`/`failed` when the Agent returns.
+Stages 2 and 3 launch CONCURRENTLY (see Phase 2). Mark task 0 completed immediately.
 
-## Phase 2 — Run the pipeline
-
-**Completion tracking:** Maintain a mental ledger of which steps have returned `"status": "done"`. Before dispatching ANY step, verify its prerequisites are ALL in the "done" set. If you're unsure, do NOT dispatch — wait for the pending Agent results first.
-
-The dependency graph and parallelism rules:
+## Phase 2 — Run the pipeline (3 stages)
 
 ```
-1  →  2 ∥ 3  →  4  →  ┬─ 5  →  7  ──────────────────────────────────────────────────┐
-                      ├─ 6-base → 6a ∥ 6b ∥ 6c ∥ 6d ∥ 6e  →  6-assemble  ────────────┤
-                      └─ 8a ∥ 8b ∥ 10  →  9  →  11  ───────────────────────────────┴─→  12
+Stage 1: of1-discover-narrative ──┐ (narrative.json: keyPages, focus, persona)
+        ┌─────────────────────────┴─────────────────────────┐
+        ↓                                                    ↓
+Stage 2: stardust:replica <URL>            Stage 3: of1-adopt-existing-site
+  --pages <slugs>  (Agent, opus)             (pipeline mode) — owns steps 6–12,
+  → EDS site + DESIGN.json                    runs its content track NOW, gates
+  → write replica-done.json                   site-integration on replica-done.json
+        └─────────────────────────┬─────────────────────────┘
+                                  ↓  join handled INSIDE adopt-site
+                             (deploy)
 ```
 
-**Parallelism is mandatory** — at each fan-out point, dispatch all eligible step Agents **in a single message with multiple Agent tool-use blocks**. Do NOT serialize what the graph says is parallel.
+**Dispatch sequence:**
 
-**HARD RULE — dependency enforcement:** You MUST NOT dispatch a step until ALL of its listed prerequisites have returned `done`. No exceptions. No "it's probably fine." Wait for the Agent result, confirm `"status": "done"`, THEN dispatch the next step. Violating this corrupts the pipeline output.
+1. **Stage 1:** dispatch `of1-discover-narrative` (model `opus`). Await `done`. Read
+   `narrative.json`; build `SLUGS=$(jq -r '.keyPages[].slug' <<<"$NARRATIVE" | paste -sd, -)`.
+2. **Stages 2 + 3 in ONE message (two Agent blocks):**
+   - **Stage 2 Agent** (model `opus`): instruct it to invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>`
+     and, on success, write `<stateDir>/replica-done.json`. See the Stage 2 dispatch template below.
+   - **Stage 3 Agent**: invoke `of1-adopt-existing-site` with `OF1_PIPELINE_MODE=1`,
+     `OF1_CONTENT_SOURCE=<DOMAIN>`, `OF1_REPLICA_DONE_FILE=<stateDir>/replica-done.json`.
+     Adopt-site runs its content track immediately and gates the rest on the done-file.
+3. When both Agents return `done`, the pipeline is complete (adopt-site owns the join + deploy).
 
-| Trigger (ALL must be done) | Dispatch in one message |
-|---------|-------------------------|
-| Step 1 done | Step 2 AND Step 3 |
-| Steps 2 + 3 done | Step 4 |
-| Step 4 done | Step 5 AND Step 6-base AND Steps 8a, 8b, 10 (5 agents in one message) |
-| Step 5 done | Step 7 (independent of Step 6's progress) |
-| Step 6-base done | Steps 6a–6e (5 intent agents in one message) |
-| Steps 8a + 8b done | Step 9 (needs products.json + brand-voice.json) |
-| Steps 6a–6e all done | Step 6-assemble (1 agent, sequential) |
-| Steps 8a + 8b + 9 + 10 ALL done | Step 11 (inline — do NOT run until all four are confirmed done) |
-| Steps 6-assemble + 7 + 11 ALL done | Step 12 |
+**HARD RULE:** do NOT re-implement steps 6–12 here. Stage 3 is a single delegation to
+`of1-adopt-existing-site`. The only step logic the orchestrator owns is Stage 1 dispatch and
+the Stage 2 replica invocation.
 
-**Why the non-obvious edges exist (the table above is the source of truth):**
-- **Step 6 does not wait for Step 5** — it reads step 4's prototype output directly, so dispatch 6-base together with Step 5 right after Step 4.
-- **Step 7 waits for Step 5, not Step 6** — it needs stardust:deploy's shared nav/footer chrome fragments.
-- **Step 9 waits for BOTH 8a and 8b** — it needs brand-voice.json AND products.json.
-- **Step 11 waits for all four of 8a + 8b + 9 + 10** — not just 8a.
+### Stage 2 dispatch template (replica)
 
-### Step 6 fan-out detail
+```
+You are executing Stage 2 (Replica) of the OF1 demo pipeline for `<DOMAIN>`.
 
-Step 6 (template generation) is split into 7 dispatches across 3 phases:
+Invoke the stardust replica skill:
+  Skill: stardust:replica
+Arguments: https://<DOMAIN> --pages <SLUGS>
+(bounded mode — recreate ONLY those pages; no site-wide rollout)
 
-- **6-base (sequential, 1 agent):** runs `of1-build-templates` with `OF1_TG_MODE=base`. Generates `styles/of1-template-base.css` from the prototype CSS — the shared design tokens all 15 per-template CSS files `@import`. Must finish before intent agents start so they can read the tokens.
-- **6a–6e (parallel, 5 agents):** each runs the same skill with `OF1_TG_MODE=intent` and `OF1_TG_INTENT` set to one of `comparison`, `recommendation`, `deep-dive`, `budget`, `discovery`. Each writes only its own `templates/of1-{intent}-*` + `styles/of1-{intent}-*` files. No git operations.
-- **6-assemble (sequential, 1 agent):** same skill with `OF1_TG_MODE=assemble`. Verifies base CSS exists, assembles the fully-inlined catalog, runs `fill-template.py`, installs the gallery, and commits everything in one push.
+Follow stardust:replica exactly. It extracts, recreates, runs its source-fidelity gate,
+migrates and deploys those pages to the branch <BRANCH> on repo <OWNER>/<REPO>.
 
-### Pre-fan-out: capture visual references (inline, orchestrator turn)
+On success, write the done-file so Stage 3's site-integration track can proceed:
+  echo '{"stage":2,"status":"done"}' > <stateDir>/replica-done.json
 
-Right after Step 4 returns `done` — in parallel with dispatching Step 5 — screenshot every static prototype page directly (no EDS render needed; `deliverables/prototype-*.html` is served as-is from the code bus). The intent agents read these from disk to match their templates to the design system.
-
-```bash
-PROTOTYPE_PAGES=$(ls "${OF1_REPO}/deliverables/"prototype-*.html 2>/dev/null \
-  | xargs -n1 basename | sed 's/\.html$//')
-
-OWNER=$(jq -r .owner "$OF1_STATE_DIR/repo-config.json")
-REPO=$(jq -r .repo "$OF1_STATE_DIR/repo-config.json")
-
-for PAGE in $PROTOTYPE_PAGES; do
-  URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/${PAGE}.html"
-  REF="${OF1_REPO}/deliverables/eds-${PAGE}.png"
-  playwright-cli open "$URL"
-  sleep 3
-  playwright-cli screenshot --fullPage=true --filename "$REF"
-
-  if [ -s "$REF" ] && [ "$(stat -f%z "$REF" 2>/dev/null || stat -c%s "$REF")" -gt 51200 ]; then
-    echo "Reference saved: $REF"
-  else
-    echo "WARN: screenshot for ${PAGE} empty/missing — intent agents fall back to the prototype's inline <style> alone"
-  fi
-done
+End with the JSON status block:
+```json
+{"step": 2, "status": "done"|"failed", "summary": "...", "deliverables": [{"url":"...","label":"..."}]}
+```
 ```
 
-Do NOT commit these PNGs. They're local reference material. If screenshots fail, intent agents fall back to the prototype's inline CSS alone — degraded fidelity but functional. This step does not depend on Step 5 — dispatch it immediately after Step 4, alongside Step 5 and Steps 8a/8b/10.
+## Model assignment
 
-If any 6a–6e fails, retry just that one; don't re-run the others. If `6-assemble` fails, re-run it alone — intent outputs are intact.
-
-### Step 8 split
-
-Steps 8a and 8b are independent — both consume Step 3's extraction output and produce different files. Dispatch both in the same message as Step 10 (5 agents total after Step 4: Step 5, Step 6-base, 8a, 8b, 10).
-
-## Model assignment per step
-
-Each `Agent` dispatch MUST pass an explicit `model` parameter. Default inheritance puts every sub-agent on Opus, which is wasteful.
-
-**Required model versions:**
-- `opus` → Claude Opus 4.8 (`us.anthropic.claude-opus-4-8`)
-- `sonnet` → Claude Sonnet 5 (`us.anthropic.claude-sonnet-5`)
-
-⚠️ Do NOT use `haiku` — it resolves to a smaller model insufficient for this pipeline.
-
-| Step | Model | Why |
-|------|-------|-----|
-| 2 — discovery | `opus` | Brand/narrative synthesis from crawled pages. Drives demo story. |
-| 3 — extraction | `opus` | Design-token extraction. Wrong tokens cascade everywhere. |
-| 4 — prototype | `opus` | Pixel-perfect HTML requiring visual judgment. |
-| 5 — stardust deploy | `opus` | Runs `of1-convert-to-eds`, a thin wrapper that invokes the adobe stardust:deploy skill. Complex multi-phase conversion (naming lock, block extraction, fonts, DA upload, verification gates) requiring precise instruction-following. |
-| 6-base | `sonnet` | Reads prototype CSS → writes `:root` tokens. Structured extraction. |
-| 6a–6e — template intents | `sonnet` | Structured generation from a clear pattern. 5 parallel = biggest cost block. |
-| 6-assemble | `sonnet` | Runs scripts + one commit. Bump to `opus` if quality dips. |
-| 7 — OF1 styling | `opus` | CSS generation + /of1 page setup. Must follow multi-step instructions precisely (copy base CSS, patch scripts.js, copy fragments, upload DA content). Sonnet deviates from the procedure. |
-| 8a — brand voice | `sonnet` | Synthesis from existing extraction JSON. |
-| 8b — content metadata | `sonnet` | Scrape product pages + run download-images.py. Structured. |
-| 9 — quick suggestions | `sonnet` | Generate 12 chips from discovery narrative. |
-| 10 — CTA template | `sonnet` | Generate one JSON file from DESIGN.json tokens. |
-| 12 — deploy + verify | `sonnet` | Scripted sync + verification curls + screenshots. |
-
-**Rule of thumb:** Opus only for steps that author content the downstream pipeline depends on for quality (discovery narrative, extraction tokens, prototype HTML). Everything else should be Sonnet 5.
+- Stage 1 (discovery): `opus` — narrative synthesis drives both later stages.
+- Stage 2 (replica): `opus` — the replica invocation must follow a complex multi-phase skill precisely.
+- Stage 3 (adopt-site): adopt-site assigns models per its OWN model table (Opus only for OF1 styling; Sonnet for the rest). The orchestrator passes no per-step model here.
 
 ## Step dispatch template
 
@@ -188,31 +134,6 @@ End your last message with EXACTLY this fenced block (the orchestrator parses it
 If status is `failed`, also write what specifically broke and what to retry.
 ```
 
-### Per-dispatch prompt additions for Step 6
-
-For the base agent:
-```
-## Mode (Step 6)
-- `export OF1_TG_MODE=base`
-- Follow the skill's "Mode: base" section.
-```
-
-For each intent agent (6a–6e):
-```
-## Mode (Step 6 fan-out)
-- `export OF1_TG_MODE=intent`
-- `export OF1_TG_INTENT=<comparison|recommendation|deep-dive|budget|discovery>`
-- Follow the skill's "Mode: intent" section. Do NOT generate styles/of1-template-base.css, the catalog, the gallery, or commit anything.
-```
-
-For the assemble agent:
-```
-## Mode (Step 6 fan-out)
-- `export OF1_TG_MODE=assemble`
-- Follow the skill's "Mode: assemble" section.
-- Precondition: all 15 templates/of1-*.html, .metadata.json, .sample.json + styles/of1-*.css exist. Fail fast if missing.
-```
-
 ## Auto-approve vs review mode
 
 After each step's Agent returns:
@@ -224,35 +145,10 @@ After each step's Agent returns:
 
 The user can interrupt at any time ("revise step N") — re-dispatch with their feedback.
 
-## Step 11 — Config review (inline, no Agent)
+## Stages 11–12 (config review + deploy)
 
-**PREREQUISITE GATE:** Do NOT execute this step until you have confirmed ALL FOUR of these steps returned `"status": "done"`: 8a (brand voice), 8b (content metadata), 9 (suggestions), 10 (CTA template). If ANY of these is still running or has not been dispatched yet, WAIT.
-
-Once all four are confirmed done, run inline:
-
-```bash
-cd "$OF1_REPO"
-python3 "$SKILL_DIR_CONFIG_REVIEW/assets/fill-config-review.py" . "$DOMAIN"
-git add deliverables/config-review.html
-git commit -m "docs: config review page for $DOMAIN"
-git push origin "$BRANCH"
-```
-
-(`$SKILL_DIR_CONFIG_REVIEW` = absolute path to `.claude/skills/of1-generate-config-review`.)
-
-Deliverable: `https://<branch>--<repo>--<owner>.aem.page/deliverables/config-review.html`
-
-## Step 12 — Deploy (inline)
-
-After step 11 approved AND steps 6-assemble + 7 done, run step 12 inline (read the `of1-publish` skill and follow it). The pre-launch checklist has **5 checks** — all must pass:
-
-1. OF1 page loads with styled search UI
-2. OF1 nav/footer matches /home
-3. All products have ≥2 images
-4. Template catalog has 15 of1-* entries across all 5 intents
-5. All deliverable URLs return 200
-
-Mark task 12 `completed` only after all 5 pass.
+Owned by `of1-adopt-existing-site` (its Step 11 inline + Step 12 deploy). The CC orchestrator
+does not run them directly.
 
 ## State files
 
