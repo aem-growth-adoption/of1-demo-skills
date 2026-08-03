@@ -30,11 +30,11 @@
 - `skills/of1-demo-orchestrator-cc/SKILL.md` (CC) — collapse to 3 stages + delegate.
 - `skills/of1-demo-orchestrator/of1-demo-orchestrator.shtml` — 3-stage top-level UI + delegated sub-progress.
 - `skills/of1-check-dependencies/scripts/verify.sh` + `SKILL.md` — drop 3 retired skills, add `stardust:replica` presence check.
-- `workflows/of1-demo-slicc.js` — 3-stage phases + dependency graph.
 - `README.md` — pipeline diagram + skills table.
 
 **Deleted:**
 - `skills/of1-extract-design-tokens/`, `skills/of1-build-prototypes/`, `skills/of1-convert-to-eds/`.
+- `workflows/of1-demo-slicc.js` — SLICC workflow, superseded by the 3-stage orchestrators.
 
 **Order rationale:** Seams first (Tasks 1–3: narrative output, content-source override, adopt-site pipeline mode) so the orchestrators (Tasks 4–6) have concrete contracts to call. Cleanup last (Tasks 7–9) once nothing references the retired skills.
 
@@ -653,56 +653,47 @@ git commit -m "$(printf 'chore(check-deps): drop 3 retired skills, require stard
 
 ---
 
-## Task 8: Update the SLICC workflow file
+## Task 8: Delete the SLICC workflow file
 
 **Files:**
-- Modify: `workflows/of1-demo-slicc.js`
+- Delete: `workflows/of1-demo-slicc.js`
 
 **Interfaces:**
-- Consumes: `args.domain`. Produces a 3-phase workflow matching the new orchestrator.
+- Removes the SLICC workflow file entirely — the 12-step logic it encoded is superseded by the 3-stage orchestrators (Tasks 4/5). Dropping it now (rather than rewriting) avoids maintaining a third copy of the pipeline while the orchestrators are the source of truth. Can be re-added later against the new 3-stage model if a headless/cron workflow is needed.
 
-- [ ] **Step 1: Read the full workflow to map its phases + agent dispatches**
-
-Run:
-```bash
-cd /Users/quentinvecchio/workspace/labs/of1-demo-skills
-grep -n "phase(\|agent(\|parallel(\|pipeline(\|meta\|phases:" workflows/of1-demo-slicc.js | head -40
-```
-Expected: the phase list and each `agent()`/`parallel()` dispatch.
-
-- [ ] **Step 2: Rewrite `meta.phases` and the script body to 3 stages**
-
-Replace `meta.phases` with three entries (Collect / Replica / OF1 integration) and rewrite the body so it: (1) runs discovery, reads `narrative.json` for slugs; (2) launches replica + adopt-site concurrently via `parallel([...])`, with replica writing the done-file and adopt-site receiving the pipeline env; (3) returns when both finish. Remove all the old step-4/5/6 fan-out and Track A/B logic — Stage 3's fan-out is now owned by the adopt-site dispatch. Update the header comment block to describe the 3-stage model instead of the old 12-step differences.
-
-```javascript
-export const meta = {
-  name: 'of1-demo-slicc',
-  description: '3-stage OF1 demo pipeline for SLICC — collect, replica, OF1 integration',
-  whenToUse: 'When the user wants to create an OF1 demo for a website domain',
-  phases: [
-    { title: 'Collect',         detail: 'Crawl site → narrative.json (keyPages, focus, persona)' },
-    { title: 'Replica',         detail: 'stardust:replica --pages → EDS site + DESIGN.json' },
-    { title: 'OF1 integration', detail: 'Delegate to of1-adopt-existing-site (pipeline mode)' },
-  ],
-}
-```
-
-- [ ] **Step 3: Verify the workflow parses**
+- [ ] **Step 1: Confirm nothing references the workflow**
 
 Run:
 ```bash
 cd /Users/quentinvecchio/workspace/labs/of1-demo-skills
-node --check workflows/of1-demo-slicc.js && echo "OK: workflow parses"
-grep -qE 'of1-extract-design-tokens|of1-build-prototypes|of1-convert-to-eds' workflows/of1-demo-slicc.js && echo "FAIL: retired refs" || echo "OK: no retired refs"
-grep -q 'replica' workflows/of1-demo-slicc.js && echo "OK: replica in workflow"
+grep -rn 'of1-demo-slicc' --include='*.md' --include='*.js' --include='*.sh' --include='*.shtml' \
+  . | grep -v 'docs/superpowers/' | grep -v 'workflows/of1-demo-slicc.js'
 ```
-Expected: `OK: workflow parses`, `OK: no retired refs`, `OK: replica in workflow`.
+Expected: **no output** (only the file itself + historical docs mention it).
+
+- [ ] **Step 2: Delete the workflow file**
+
+```bash
+cd /Users/quentinvecchio/workspace/labs/of1-demo-skills
+git rm workflows/of1-demo-slicc.js
+# remove the workflows/ dir too if now empty
+rmdir workflows 2>/dev/null || true
+```
+
+- [ ] **Step 3: Verify it's gone**
+
+Run:
+```bash
+cd /Users/quentinvecchio/workspace/labs/of1-demo-skills
+ls workflows/of1-demo-slicc.js 2>/dev/null && echo "FAIL: still present" || echo "OK: workflow deleted"
+```
+Expected: `OK: workflow deleted`.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add workflows/of1-demo-slicc.js
-git commit -m "$(printf 'refactor(workflow): 3-stage SLICC workflow (collect/replica/of1-integration)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
+git add -A
+git commit -m "$(printf 'chore: drop SLICC workflow — superseded by 3-stage orchestrators\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
 ```
 
 ---
@@ -793,7 +784,7 @@ git commit -m "$(printf 'chore: delete retired extract/prototype/convert skills;
 - D10 (3-stage UI + sub-progress) → Task 6. ✓
 - D11 (branch) → Global Constraints. ✓
 - Seams 1–4 → Tasks 1, 3, 2, (3+4+5) respectively. ✓
-- Retired skills → Tasks 7 (deps), 8 (workflow), 9 (delete + README). ✓
+- Retired skills → Tasks 7 (deps), 9 (delete + README). Workflow dropped → Task 8. ✓
 
 **Placeholder scan:** No "TBD/TODO". The `​`-guarded fences are an authoring device explicitly explained in each task ("replace with real backticks") because the plan itself is Markdown containing nested Markdown code blocks. Verification commands are concrete. ✓
 
