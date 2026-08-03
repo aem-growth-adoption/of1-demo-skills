@@ -537,88 +537,24 @@
     background: linear-gradient(to bottom, rgba(255, 61, 0, 0.4), rgba(255, 61, 0, 0.15));
   }
 
-  .of1-connector--fork {
-    height: 20px;
-  }
+  /* ─── Sub-steps (Stage 3) ─────────────────────────────────── */
 
-  .of1-connector--fork::after {
-    width: 0;
-    height: 0;
-    background: none;
-  }
-
-  .of1-connector--fork::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 20%;
-    right: 20%;
-    height: 1px;
-    background: rgba(100, 100, 255, 0.25);
-  }
-
-  /* ─── Parallel Tracks ─────────────────────────────────────── */
-
-  .of1-tracks {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    margin: 6px 0;
-  }
-
-  .of1-track {
+  .of1-substeps {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    margin-top: 10px;
+    padding-left: 14px;
+    border-left: 1px dashed var(--of1-border);
   }
 
-  .of1-track__label {
-    font-size: 13px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--of1-fg-muted);
-    padding: 4px 0;
-    border-bottom: 1px solid var(--of1-border-subtle);
-    margin-bottom: 2px;
+  .of1-card--sub {
+    padding: 6px 10px;
   }
 
-  .of1-track:first-child .of1-track__label { color: var(--of1-teal); border-color: rgba(0, 229, 160, 0.15); }
-  .of1-track:last-child .of1-track__label { color: rgba(100, 100, 255, 0.9); border-color: rgba(26, 26, 255, 0.15); }
+  .of1-card--sub .of1-card__num { display: none; }
 
-  /* ─── Parallel Group (within a track) ───────────────────── */
-
-  .of1-parallel-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 2px 0;
-  }
-
-  .of1-parallel-group .of1-card {
-    padding: 8px 10px;
-  }
-
-  .of1-parallel-group .of1-card__num { display: none; }
-
-  .of1-parallel-label {
-    font-size: 13px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    color: rgba(100, 100, 255, 0.7);
-    margin: 10px 0 4px 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .of1-parallel-label::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: rgba(26, 26, 255, 0.15);
-  }
+  .of1-card--sub .of1-card__name span { font-size: 12px; }
 
   /* ─── Group Label ────────────────────────────────────────── */
 
@@ -654,12 +590,6 @@
     color: var(--of1-fg-dim);
     background: var(--of1-fg-faint);
     line-height: 1;
-  }
-
-  .of1-badge--parallel {
-    border-color: rgba(26, 26, 255, 0.3);
-    color: rgba(100, 100, 255, 0.9);
-    background: rgba(26, 26, 255, 0.08);
   }
 
   /* ─── Spinner ────────────────────────────────────────────── */
@@ -767,18 +697,25 @@
 <script>
 (function () {
   var STEPS = [
-    { name: 'Setup', skill: 'of1-check-dependencies', review: false, desc: 'Verify skills, tools, and prerequisites; verify EDS repo, clean slate, verify preview', track: null, requires: [], openLabel: 'Repo' },
-    { name: 'Discovery', skill: 'of1-discover-narrative', review: true, desc: 'Crawl site, identify products, propose demo focus', reviewNote: 'Demo focus and narrative', track: null, requires: [0], openLabel: 'Discovery' },
-    { name: 'Extraction', skill: 'of1-extract-design-tokens', review: true, desc: 'Extract design tokens, fonts, colors, and page structure', reviewNote: 'Brand review page', track: null, requires: [1], openLabel: 'Brand Review' },
-    { name: 'Prototype', skill: 'of1-build-prototypes', review: true, desc: 'Generate pixel-perfect HTML reproductions of key pages', reviewNote: 'HTML prototypes', track: null, requires: [2], openLabel: 'Prototypes' },
-    { name: 'Stardust Deploy', skill: 'of1-convert-to-eds', review: true, desc: 'Convert prototypes to EDS blocks + content pages, publish to DA.live', reviewNote: 'Preview URL', track: 'A', requires: [3], openLabel: 'Preview' },
-    { name: 'Templates', skill: 'of1-build-templates', review: true, desc: 'Generate 25 branded templates (5 intents × 5 variations)', reviewNote: 'Template gallery', track: 'A', requires: [3], openLabel: 'Gallery' },
-    { name: 'OF1 styling', skill: 'of1-style-generative-block', review: true, desc: 'Style the generative search UI to match the brand', reviewNote: 'OF1 page', track: 'A', requires: [4], openLabel: 'OF1 Page' },
-    { name: 'Brand & content', skill: 'of1-extract-brand-voice,of1-extract-content', review: false, desc: 'Extract brand voice, products, personas, and assets', track: 'B', requires: [3] },
-    { name: 'Suggestions', skill: 'of1-build-quick-suggestions', review: false, desc: 'Generate search chips and UI copy for the demo', track: 'B', requires: [3] },
-    { name: 'CTA template', skill: 'of1-build-cta-template', review: false, desc: 'Extract design system, build branded CTA template', track: 'B', requires: [3] },
-    { name: 'Config review', skill: 'of1-generate-config-review', review: true, desc: 'Review all config before deploy', reviewNote: 'Config review page', track: 'B', requires: [7, 8, 9], openLabel: 'Config Review' },
-    { name: 'Deploy', skill: 'of1-publish', review: true, desc: 'Deploy to worker, publish demo hub', reviewNote: 'Demo Hub', track: null, requires: [5, 6, 10], openLabel: 'Demo Hub' }
+    { id: 1, name: 'Collect', key: 'collect',
+      desc: 'Discover site narrative, key pages, and focus persona', reviewNote: 'Demo focus and narrative',
+      openLabel: 'Discovery', requires: [] },
+    { id: 2, name: 'Replica', key: 'replica',
+      desc: 'Recreate key pages as a branded EDS replica (stardust:replica)', reviewNote: 'EDS replica preview',
+      openLabel: 'Preview', requires: [0] },
+    { id: 3, name: 'OF1 integration', key: 'of1',
+      desc: 'Delegate content, styling, config review, and deploy to adopt-site', reviewNote: 'Config review page',
+      openLabel: 'Config Review', requires: [0],
+      subSteps: [
+        { key: 'brand',     name: 'Brand voice' },
+        { key: 'content',   name: 'Content' },
+        { key: 'suggest',   name: 'Suggestions' },
+        { key: 'templates', name: 'Templates' },
+        { key: 'styling',   name: 'OF1 styling' },
+        { key: 'cta',       name: 'CTA' },
+        { key: 'config',    name: 'Config review' },
+        { key: 'deploy',    name: 'Deploy' }
+      ] }
   ];
 
   var OPEN_LINK_ICON = '<svg class="of1-card__open-icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -794,9 +731,19 @@
 
   var EXTERNAL_ICON = '<svg class="of1-card__deliverable-icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+  function freshStepState(step) {
+    var s = { status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
+    if (step.subSteps) {
+      s.subSteps = step.subSteps.map(function (ss) {
+        return { key: ss.key, status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
+      });
+    }
+    return s;
+  }
+
   var state = { domain: '', steps: [] };
   for (var i = 0; i < STEPS.length; i++) {
-    state.steps.push({ status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null });
+    state.steps.push(freshStepState(STEPS[i]));
   }
 
   var timerInterval = null;
@@ -814,12 +761,11 @@
   }
 
   function canRun(idx) {
-    if (!state.domain && idx > 0) return false;
-    if (idx === 0 && !state.domain) return true; // Setup can run without domain
+    if (!state.domain) return false;
     var st = state.steps[idx];
     if (st.status === 'active') return false;
 
-    // Check all required steps are done
+    // Check all required stages are done
     var reqs = STEPS[idx].requires || [];
     for (var i = 0; i < reqs.length; i++) {
       if (state.steps[reqs[i]].status !== 'done') return false;
@@ -838,41 +784,42 @@
     var html = '';
     var now = Date.now();
 
-    function renderCard(i) {
-      var step = STEPS[i];
-      var st = state.steps[i] || { status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
-      if (!st) return '';
+    // Renders a top-level stage card. `sub` is a sub-step definition when rendering a
+    // Stage-3 sub-progress row (nested, non-interactive besides Approve/Revise).
+    function renderCard(i, sub, subIdx) {
+      var step = sub || STEPS[i];
+      var st = sub ? (state.steps[i].subSteps && state.steps[i].subSteps[subIdx]) : state.steps[i];
+      if (!st) st = { status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
       var status = st.status || 'pending';
       var num = (i + 1 < 10 ? '0' : '') + (i + 1);
-      var runnable = canRun(i);
+      var runnable = sub ? false : canRun(i);
       var displayStatus = status;
       if ((status === 'pending' || status === 'failed') && runnable) displayStatus = 'ready';
 
-      var h = '<div class="of1-card of1-card--' + displayStatus + '">';
+      var cardClass = 'of1-card of1-card--' + displayStatus + (sub ? ' of1-card--sub' : '');
+      var h = '<div class="' + cardClass + '">';
       h += '<div class="of1-card__icon">' + (ICONS[displayStatus] || ICONS.pending) + '</div>';
       h += '<div class="of1-card__body">';
       h += '<div class="of1-card__row">';
-      h += '<div class="of1-card__name"><span class="of1-card__num">' + num + '</span><span>' + step.name + '</span>';
-      if (status === 'pending' && step.review) h += ' <span class="of1-badge">review</span>';
-      h += '</div>';
+      h += '<div class="of1-card__name">' + (sub ? '' : '<span class="of1-card__num">' + num + '</span>') + '<span>' + step.name + '</span></div>';
 
       if (status === 'active' && st.startedAt) {
         h += '<span class="of1-card__elapsed">' + formatElapsed(now - st.startedAt) + '</span>';
       } else if ((status === 'done' || status === 'review' || status === 'failed') && st.startedAt && st.completedAt) {
         h += '<span class="of1-card__elapsed">' + formatElapsed(st.completedAt - st.startedAt) + '</span>';
-      } else if (runnable && status !== 'active' && status !== 'done' && status !== 'review') {
+      } else if (!sub && runnable && status !== 'active' && status !== 'done' && status !== 'review') {
         h += '<button class="of1-card__run" data-step="' + (i + 1) + '">Run</button>';
       }
 
       h += '</div>';
-      h += '<div class="of1-card__desc">' + step.desc + '</div>';
-      if (step.reviewNote && (status === 'pending' || displayStatus === 'ready')) {
+      if (!sub && step.desc) h += '<div class="of1-card__desc">' + step.desc + '</div>';
+      if (!sub && step.reviewNote && (status === 'pending' || displayStatus === 'ready')) {
         h += '<div class="of1-card__desc" style="color:rgba(255,200,50,0.5);margin-top:2px">Review: ' + step.reviewNote + '</div>';
       }
 
       if (status === 'failed') {
         if (st.error) h += '<div class="of1-card__error">' + st.error + '</div>';
-        if (runnable) h += '<div class="of1-card__actions"><button class="of1-card__retry" data-step="' + (i + 1) + '">Retry</button></div>';
+        if (!sub && runnable) h += '<div class="of1-card__actions"><button class="of1-card__retry" data-step="' + (i + 1) + '">Retry</button></div>';
       }
 
       if (status === 'review') {
@@ -891,8 +838,9 @@
           h += EXTERNAL_ICON + '</a>';
         }
         h += '<div class="of1-card__actions">';
-        h += '<button class="of1-card__btn of1-card__btn--approve" onclick="window.__of1action(\'approve\',' + (i + 1) + ')">Approve</button>';
-        h += '<button class="of1-card__btn of1-card__btn--revise" onclick="window.__of1action(\'revise\',' + (i + 1) + ')">Revise</button>';
+        var actionArg = sub ? ((i + 1) + ',\'' + step.key + '\'') : (i + 1);
+        h += '<button class="of1-card__btn of1-card__btn--approve" onclick="window.__of1action(\'approve\',' + actionArg + ')">Approve</button>';
+        h += '<button class="of1-card__btn of1-card__btn--revise" onclick="window.__of1action(\'revise\',' + actionArg + ')">Revise</button>';
         h += '</div>';
       }
 
@@ -907,7 +855,7 @@
           var openText = step.openLabel ? 'Open ' + step.openLabel : 'Open';
           h += '<a class="of1-card__run of1-card__open" href="' + st.deliverable + '" target="_blank" rel="noopener" style="font-size:8px">' + openText + OPEN_LINK_ICON + '</a>';
         }
-        h += '<button class="of1-card__run" data-step="' + (i + 1) + '" style="opacity:0.5;font-size:8px">Re-run</button>';
+        if (!sub) h += '<button class="of1-card__run" data-step="' + (i + 1) + '" style="opacity:0.5;font-size:8px">Re-run</button>';
         h += '</div>';
       }
 
@@ -915,85 +863,33 @@
       return h;
     }
 
-    // Render steps with two-track parallel layout
-    // Steps without a track render linearly; tracks A and B render side-by-side
-    var i = 0;
-
-    // Render linear steps before tracks start
-    while (i < STEPS.length && !STEPS[i].track) {
+    // Render 3 top-level stages, linearly. Stage 3 nests its sub-steps beneath it.
+    for (var i = 0; i < STEPS.length; i++) {
       html += renderCard(i);
-      if (i + 1 < STEPS.length && !STEPS[i + 1].track) {
+
+      if (STEPS[i].subSteps) {
+        html += '<div class="of1-substeps">';
+        for (var s = 0; s < STEPS[i].subSteps.length; s++) {
+          html += renderCard(i, STEPS[i].subSteps[s], s);
+        }
+        html += '</div>';
+      }
+
+      if (i + 1 < STEPS.length) {
         var connClass = 'of1-connector';
         if (state.steps[i].status === 'done') connClass += ' of1-connector--done';
         else if (state.steps[i].status === 'active') connClass += ' of1-connector--active';
         html += '<div class="' + connClass + '"></div>';
       }
-      i++;
-    }
-
-    // Render parallel tracks
-    if (i < STEPS.length && STEPS[i].track) {
-      html += '<div class="of1-connector of1-connector--fork"></div>';
-      html += '<div class="of1-parallel-label">Parallel tracks<span class="of1-badge of1-badge--parallel">A + B</span></div>';
-      html += '<div class="of1-tracks">';
-
-      // Track A
-      html += '<div class="of1-track"><div class="of1-track__label">Track A — EDS Site</div>';
-      for (var a = i; a < STEPS.length; a++) {
-        if (STEPS[a].track === 'A') {
-          html += renderCard(a);
-        }
-      }
-      html += '</div>';
-
-      // Track B
-      html += '<div class="of1-track"><div class="of1-track__label">Track B — Config</div>';
-      html += '<div class="of1-parallel-group">';
-      for (var b = i; b < STEPS.length; b++) {
-        if (STEPS[b].track === 'B' && b !== 10) { // Config review separate
-          html += renderCard(b);
-        }
-      }
-      html += '</div>';
-      // Config review (needs the parallel ones above)
-      for (var c = i; c < STEPS.length; c++) {
-        if (STEPS[c].track === 'B' && c === 10) {
-          html += renderCard(c);
-        }
-      }
-      html += '</div>';
-
-      html += '</div>';
-
-      // Skip past all tracked steps
-      while (i < STEPS.length && STEPS[i].track) { i++; }
-      html += '<div class="of1-connector of1-connector--fork"></div>';
-    }
-
-    // Render remaining linear steps (Deploy)
-    while (i < STEPS.length) {
-      html += renderCard(i);
-      if (i + 1 < STEPS.length) {
-        var connClass2 = 'of1-connector';
-        if (state.steps[i].status === 'done') connClass2 += ' of1-connector--done';
-        html += '<div class="' + connClass2 + '"></div>';
-      }
-      i++;
     }
 
     container.innerHTML = html;
 
     // Quick Links
     var QUICKLINKS = [
-      { label: 'Repo', step: 1 },
-      { label: 'Discovery', step: 2 },
-      { label: 'Extraction', step: 3 },
-      { label: 'Prototype', step: 4 },
-      { label: 'Preview', step: 5 },
-      { label: 'Gallery', step: 6 },
-      { label: 'OF1 Page', step: 7 },
-      { label: 'Config Review', step: 11 },
-      { label: 'Demo Hub', step: 12 }
+      { label: 'Discovery', step: 1 },
+      { label: 'Preview', step: 2 },
+      { label: 'Config Review', step: 3 }
     ];
 
     var linkIcon = '<svg class="of1-quicklink__icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -1017,15 +913,50 @@
 
   function startTimer() { stopTimer(); timerInterval = setInterval(render, 1000); }
   function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
-  function hasActiveStep() { return state.steps.some(function(s) { return s.status === 'active'; }); }
+  function hasActiveStep() {
+    return state.steps.some(function (s) {
+      if (s.status === 'active') return true;
+      return !!(s.subSteps && s.subSteps.some(function (ss) { return ss.status === 'active'; }));
+    });
+  }
+
+  function resetAllSteps() {
+    for (var r = 0; r < state.steps.length; r++) {
+      state.steps[r] = freshStepState(STEPS[r]);
+    }
+  }
+
+  // Applies status changes carried by a field-set (used by both status objects and
+  // the sub-step target found on a Stage-3 sub-step).
+  function applyStatusFields(target, data) {
+    if (data.status) {
+      target.status = data.status;
+      if (data.status === 'pending') {
+        target.deliverable = null;
+        target.deliverables = null;
+        target.summary = null;
+        target.error = null;
+        target.startedAt = null;
+        target.completedAt = null;
+      }
+      if (data.status === 'active') {
+        target.startedAt = Date.now();
+        target.completedAt = null;
+      } else if (data.status === 'done' || data.status === 'review' || data.status === 'failed') {
+        if (!target.completedAt) target.completedAt = Date.now();
+      }
+    }
+    if (data.deliverable) target.deliverable = data.deliverable;
+    if (data.deliverables) target.deliverables = data.deliverables;
+    if (data.summary) target.summary = data.summary;
+    if (data.error) target.error = data.error;
+  }
 
   function applyUpdate(data) {
     // Handle full reset action
     if (data.action === 'reset') {
       state.domain = '';
-      for (var r = 0; r < state.steps.length; r++) {
-        state.steps[r] = { status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
-      }
+      resetAllSteps();
       stopTimer();
       slicc.setState(state);
       render();
@@ -1033,9 +964,7 @@
     }
     // Auto-reset all steps when a NEW domain is set (different from current)
     if (data.domain && data.domain !== state.domain) {
-      for (var r2 = 0; r2 < state.steps.length; r2++) {
-        state.steps[r2] = { status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
-      }
+      resetAllSteps();
       state.domain = data.domain;
       stopTimer();
       slicc.setState(state);
@@ -1043,29 +972,16 @@
       return;
     }
     if (data.domain) state.domain = data.domain;
-    if (typeof data.step === 'number' && data.step >= 1 && data.step <= STEPS.length) {
-      var idx = data.step - 1;
-      if (data.status) {
-        state.steps[idx].status = data.status;
-        if (data.status === 'pending') {
-          state.steps[idx].deliverable = null;
-          state.steps[idx].deliverables = null;
-          state.steps[idx].summary = null;
-          state.steps[idx].error = null;
-          state.steps[idx].startedAt = null;
-          state.steps[idx].completedAt = null;
-        }
-        if (data.status === 'active') {
-          state.steps[idx].startedAt = Date.now();
-          state.steps[idx].completedAt = null;
-        } else if (data.status === 'done' || data.status === 'review' || data.status === 'failed') {
-          if (!state.steps[idx].completedAt) state.steps[idx].completedAt = Date.now();
-        }
+
+    // Top-level: {stage, status, deliverables?}. Stage-3 sub-progress: {stage:3, subStep:"templates", status}.
+    if (typeof data.stage === 'number' && data.stage >= 1 && data.stage <= STEPS.length) {
+      var s = state.steps[data.stage - 1];
+      if (data.subStep && s.subSteps) {
+        var ss = s.subSteps.find(function (x) { return x.key === data.subStep; });
+        if (ss) applyStatusFields(ss, data);
+      } else {
+        applyStatusFields(s, data);
       }
-      if (data.deliverable) state.steps[idx].deliverable = data.deliverable;
-      if (data.deliverables) state.steps[idx].deliverables = data.deliverables;
-      if (data.summary) state.steps[idx].summary = data.summary;
-      if (data.error) state.steps[idx].error = data.error;
     }
     render();
     hasActiveStep() ? startTimer() : stopTimer();
@@ -1076,12 +992,17 @@
   if (saved && saved.steps && saved.steps.length === STEPS.length) {
     state = saved;
     for (var i = 0; i < state.steps.length; i++) {
-      if (!state.steps[i]) state.steps[i] = { status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
+      if (!state.steps[i]) state.steps[i] = freshStepState(STEPS[i]);
       if (!('startedAt' in state.steps[i])) state.steps[i].startedAt = null;
       if (!('completedAt' in state.steps[i])) state.steps[i].completedAt = null;
       if (!('summary' in state.steps[i])) state.steps[i].summary = null;
       if (!('deliverable' in state.steps[i])) state.steps[i].deliverable = null;
       if (!('deliverables' in state.steps[i])) state.steps[i].deliverables = null;
+      if (STEPS[i].subSteps && !state.steps[i].subSteps) {
+        state.steps[i].subSteps = STEPS[i].subSteps.map(function (ss) {
+          return { key: ss.key, status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
+        });
+      }
     }
   }
   render();
@@ -1104,63 +1025,53 @@
   // Reset
   document.getElementById('of1-reset').addEventListener('click', function () {
     state.domain = '';
-    for (var i = 0; i < state.steps.length; i++) {
-      state.steps[i] = { status: 'pending', deliverable: null, error: null, startedAt: null, completedAt: null };
-    }
+    resetAllSteps();
     stopTimer();
     slicc.setState(state);
     render();
     slicc.lick({ action: 'reset' });
   });
 
-  // Step buttons (run, retry, approve, revise)
+  // Step buttons (run, retry) — dispatch the pipeline for the current domain
   document.getElementById('of1-steps').addEventListener('click', function (e) {
     var runBtn = e.target.closest('.of1-card__run');
-    if (runBtn) {
-      var step = parseInt(runBtn.getAttribute('data-step'), 10);
-      var idx = step - 1;
-      state.steps[idx].status = 'active';
-      state.steps[idx].startedAt = Date.now();
-      state.steps[idx].completedAt = null;
-      state.steps[idx].error = null;
-      slicc.setState(state);
-      render();
-      startTimer();
-      slicc.lick({ action: 'run:' + step + ':' + STEPS[idx].skill + ':' + (state.domain || '') });
-      return;
-    }
-
     var retryBtn = e.target.closest('.of1-card__retry');
-    if (retryBtn) {
-      var step = parseInt(retryBtn.getAttribute('data-step'), 10);
-      var idx = step - 1;
-      state.steps[idx].status = 'active';
-      state.steps[idx].startedAt = Date.now();
-      state.steps[idx].completedAt = null;
-      state.steps[idx].error = null;
-      slicc.setState(state);
-      render();
-      startTimer();
-      slicc.lick({ action: 'run:' + step + ':' + STEPS[idx].skill + ':' + (state.domain || '') });
-      return;
-    }
+    var btn = runBtn || retryBtn;
+    if (!btn) return; // approve/revise handled by window.__of1action
 
-    // handled by window.__of1action now
+    var step = parseInt(btn.getAttribute('data-step'), 10);
+    var idx = step - 1;
+    state.steps[idx].status = 'active';
+    state.steps[idx].startedAt = Date.now();
+    state.steps[idx].completedAt = null;
+    state.steps[idx].error = null;
+    slicc.setState(state);
+    render();
+    startTimer();
+    slicc.lick({ action: 'run:' + (state.domain || '') });
   });
 
-  // Action handler for approve/revise buttons
+  // Action handler for approve/revise buttons (top-level stage or a Stage-3 sub-step)
   var lastAction = 0;
-  window.__of1action = function (action, step) {
+  window.__of1action = function (action, step, subStepKey) {
     var now = Date.now();
     if (now - lastAction < 1000) return;
     lastAction = now;
+    var idx = step - 1;
     if (action === 'approve') {
-      state.steps[step - 1].status = 'done';
-      state.steps[step - 1].completedAt = Date.now();
-      slicc.setState(state);
-      render();
+      var target = subStepKey && state.steps[idx].subSteps
+        ? state.steps[idx].subSteps.find(function (x) { return x.key === subStepKey; })
+        : state.steps[idx];
+      if (target) {
+        target.status = 'done';
+        target.completedAt = Date.now();
+        slicc.setState(state);
+        render();
+      }
     }
-    slicc.lick({ action: action + ':' + step + ':' + (state.domain || '') });
+    var actionStr = action + ':' + step + ':' + (state.domain || '');
+    if (subStepKey) actionStr += ':' + subStepKey;
+    slicc.lick({ action: actionStr });
     if (action === 'revise' && slicc.focus) {
       slicc.focus();
     }
