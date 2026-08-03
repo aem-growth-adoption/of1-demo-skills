@@ -145,7 +145,7 @@ Identical to `of1-demo-orchestrator-cc`'s Step 11 / `of1-demo-orchestrator`'s St
 
 ```bash
 cd "$OF1_DEMO_REPO"
-python3 "$SKILL_DIR_CONFIG_REVIEW/assets/fill-config-review.py" . "$DOMAIN"
+node "$SKILL_DIR_CONFIG_REVIEW/assets/fill-config-review.mjs" . "$DOMAIN"
 git add deliverables/config-review.html
 git commit -m "docs: config review page for $DOMAIN"
 git push origin "$BRANCH"

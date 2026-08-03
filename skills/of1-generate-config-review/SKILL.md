@@ -35,7 +35,7 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 ## Prerequisites
 
 - Config JSON files must already exist under `of1/config/` in the repo
-- The fill script at `$SKILL_DIR/assets/fill-config-review.py` (or `.jsh` in SLICC)
+- The fill script at `$SKILL_DIR/assets/fill-config-review.mjs`
 
 ## Process
 
@@ -57,11 +57,7 @@ done
 ### 2. Run the fill script
 
 ```bash
-# Claude Code (python3 available):
-python3 "$SKILL_DIR/assets/fill-config-review.py" . "$DOMAIN"
-
-# SLICC (use .jsh — no python3 in SLICC runtime):
-# run_jsh "$SKILL_DIR/assets/fill-config-review.jsh" . "$DOMAIN"
+node "$SKILL_DIR/assets/fill-config-review.mjs" . "$DOMAIN"
 ```
 
 The script reads `of1/config/{products,brand-voice,personas,suggestions,use-cases,features,cta-template}.json`, uses the template at `$SKILL_DIR/assets/config-review.html`, and writes `deliverables/config-review.html`.
