@@ -12,6 +12,22 @@ For sites that already have EDS blocks, content pages, and (usually) Stardust de
 
 The user invokes you pointed at an existing EDS repo — e.g. "adopt OF1 onto this site" or "/of1-adopt-existing-site" from inside the repo. No domain crawl is needed; the site itself is the source of truth. If the repo isn't obvious from context, ask once via `AskUserQuestion` for the local path.
 
+## Invocation mode
+
+Two modes, decided by `OF1_PIPELINE_MODE`:
+
+- **Standalone (default, `OF1_PIPELINE_MODE` unset):** everything below behaves exactly as
+  documented today. Content is extracted from the existing EDS site's own preview URL.
+- **Pipeline (`OF1_PIPELINE_MODE=1`):** invoked by the full demo orchestrator alongside a
+  running `stardust:replica`. Two differences only:
+  1. The content track (8a/8b/9) extracts from the real external domain — the orchestrator
+     passes `OF1_CONTENT_SOURCE=<domain>`, which the content-track skills honor (see each
+     skill's "Source resolution" section). Adopt-site just forwards the env var to those dispatches.
+  2. The site-integration track (6, 7, 10, 11, 12) does not start until Stage 2 has finished.
+     The orchestrator passes `OF1_REPLICA_DONE_FILE=<path>`; adopt-site waits for that file to
+     exist before dispatching the site-integration track. The content track (8a/8b → 9) runs
+     immediately, in parallel with the still-running replica.
+
 ## Phase 0 — Verify dependencies + repo state (inline)
 
 Invoke the `of1-check-dependencies` skill exactly as `of1-demo-orchestrator-cc`/`of1-demo-orchestrator` do (Skill tool on Claude Code; read + follow inline on SLICC — not Agent/scoop dispatch, this step is light and must run in your own context to read the verified state). If it fails, surface the exact error and stop.
@@ -28,6 +44,10 @@ echo "DESIGN.json present: $HAS_DESIGN_JSON"
 ```
 
 If `HAS_DESIGN_JSON=false`, Step 3 (extraction) runs in own-site mode (`OF1_EXTRACT_OWN_SITE=1`). If `true`, Step 3 is skipped entirely — `of1-extract-design-tokens` itself detects this (see its own § "0. Detect existing extraction") and writes `step-3-status.json` with `"status":"done"` either way, so downstream dependency checks don't need to special-case the skip.
+
+`DESIGN.json` may carry `_provenance.mode: bounded-single` when produced by `stardust:replica`
+in bounded (`--pages`) mode — this is fully valid input. Adopt-site consumes the tokens the same
+way regardless of provenance; do NOT reject or re-extract on a bounded-single spec.
 
 ## Step graph
 
@@ -69,6 +89,27 @@ Steps 6-base, 7, 8a, 8b, and 10 all dispatch in the SAME message, in parallel, a
 
 **Step 7 (OF1 styling) does NOT wait for step 6** — per `of1-style-generative-block`'s own dependency table (fixed in Task 2), it only needs step 1's block install context and the repo's existing chrome (`content/nav.html`/`content/footer.html`, already present since this is an existing EDS site) — dispatch it alongside step 6-base.
 
+### Pipeline-mode timing (OF1_PIPELINE_MODE=1)
+
+The step graph's DEPENDENCIES are unchanged; only the START GATE differs:
+
+- **Content track — dispatch immediately on entry** (parallel with replica): 8a, 8b → 9.
+  These need only the live external site (`OF1_CONTENT_SOURCE`) + the narrative focus.
+- **Site-integration track — dispatch only after `OF1_REPLICA_DONE_FILE` exists**:
+  6-base → 6a–6e → 6-assemble ∥ 7 ∥ 10, then 11 (needs 8a+8b+9+10), then 12.
+
+```bash
+# Site-integration gate (pipeline mode only)
+if [ -n "$OF1_PIPELINE_MODE" ]; then
+  echo "Waiting for replica to finish: $OF1_REPLICA_DONE_FILE"
+  # Event-driven on SLICC (scoop-notify) / sequential await on CC. Do NOT sleep-poll on SLICC.
+  until [ -f "$OF1_REPLICA_DONE_FILE" ]; do :; done   # CC inline fallback only
+fi
+```
+
+In standalone mode there is no replica and no gate — all five siblings (6-base, 7, 8a, 8b, 10)
+dispatch together exactly as the table below already says.
+
 **Common mistakes to avoid** (same class of mistake `of1-demo-orchestrator-cc` already warns about):
 - Do NOT run Step 11 before ALL of 8a, 8b, 9, 10 return `done`.
 - Do NOT run Step 9 before BOTH 8a and 8b return — it needs products.json + brand-voice.json.
@@ -83,6 +124,8 @@ Same step-graph, same dependency rules on both runtimes. Only the invocation mec
 - Use **TaskCreate** with one task per step (1, 3, 6-base, 6a–6e, 6-assemble, 7, 8a, 8b, 9, 10, 11, 12). Mark task 1 completed immediately; mark each task `in_progress`/`completed`/`failed` around its dispatch.
 - Each step (except artifact detection and 11, which are inline) is a single `Agent` dispatch. Sub-agents see none of this conversation — the prompt must be self-contained: read the target step skill's `SKILL.md`, export the same env vars `of1-demo-orchestrator-cc` exports (`OF1_STATE_DIR`, `OF1_DEMO_REPO`, `ADOBE_IMS_TOKEN`/`OF1_TOKEN_FILE`, `SKILL_DIR`), state the branch/owner/repo, list which prior-step output files it needs, and require the same JSON status block: `{"step":N,"status":"done"|"review"|"failed","summary":"...","deliverables":[...]}`.
 - **Step 3's dispatch additionally exports `OF1_EXTRACT_OWN_SITE=1`.** This is the ONLY step-specific env var in this pipeline — do not forget it, or extraction silently crawls the wrong target (an external domain instead of the site's own preview URL).
+- In pipeline mode also export `OF1_CONTENT_SOURCE` (to 8a/8b/9 dispatches) and pass
+  `OF1_REPLICA_DONE_FILE` to the orchestrator's own site-track gate (not to the step agents).
 - **Parallelism is mandatory** at each fan-out point — dispatch all eligible Agents in a single message with multiple Agent tool-use blocks.
 - Model assignment: same rule of thumb as `of1-demo-orchestrator-cc` — Opus only where output quality cascades downstream. Since this pipeline skips discovery/prototype entirely, the only Opus-worthy step is 7 (OF1 styling — multi-step DA authoring) and 3 when it actually runs (extraction — design-token quality cascades). Everything else (`sonnet`): 6-base, 6a–6e, 6-assemble, 8a, 8b, 9, 10.
 - Auto-approve by default (mirrors `of1-demo-orchestrator-cc`'s one-shot mode) — mark each `review`-status task completed and continue immediately, unless the user explicitly asked to pause between steps.
@@ -90,6 +133,8 @@ Same step-graph, same dependency rules on both runtimes. Only the invocation mec
 ### SLICC
 
 - Dispatch each step as a `scoop_scoop()` call with `writablePaths` covering `/scoops/<name>/`, `/shared/`, and the project repo path — same pattern `of1-demo-orchestrator` already uses per step. **Step 3's scoop additionally needs `env: { OF1_EXTRACT_OWN_SITE: "1" }`** — same reason as the Claude Code column: without it, extraction crawls the wrong target.
+- In pipeline mode also export `OF1_CONTENT_SOURCE` (to 8a/8b/9 dispatches) and pass
+  `OF1_REPLICA_DONE_FILE` to the orchestrator's own site-track gate (not to the step agents).
 - Each scoop writes its own `/shared/of1-demo-orchestrator/step-N-status.json` on completion, exactly like every step skill already documents in its own "Completion" section — **do not** additionally push to a sprinkle. There is nothing listening for `sprinkle_send` on this skill.
 - Handle completions event-driven, not via polling: end your turn after dispatching, and react when a scoop-completion notification arrives — read its status file, check if it unblocks the next dispatch per the table above, and dispatch the next batch.
 - Model assignment: same as the Claude Code column above, using `claude-opus-4-8`/`claude-sonnet-5` model strings per `of1-demo-orchestrator`'s own convention.
