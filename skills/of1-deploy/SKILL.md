@@ -281,9 +281,27 @@ fi
 
 **Pass:** response contains ≥2 sections with content. **If fails:** check worker sync status, verify `hasTemplates` is true in tenant status.
 
+### Check 7: Cookie consent banner present and functional
+
+```bash
+[ -f blocks/cookie-consent/cookie-consent.js ] && [ -f blocks/cookie-consent/cookie-consent.css ] || {
+  echo "✗ FAIL: blocks/cookie-consent/ missing — step 2-consent (of1-cookie-consent) did not run" >&2
+  exit 1
+}
+
+playwright-cli open "${PREVIEW_BASE}/?of1-region=eu"
+sleep 3
+playwright-cli eval "document.querySelector('.of1-consent-banner') ? 'banner OK' : 'BANNER MISSING'"
+
+COOKIE_POLICY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${PREVIEW_BASE}/cookie-policy")
+[ "$COOKIE_POLICY_STATUS" = "200" ] || echo "✗ FAIL: /cookie-policy returned HTTP ${COOKIE_POLICY_STATUS}"
+```
+
+**Pass:** `blocks/cookie-consent/` exists, the banner renders for the EU override, and `/cookie-policy` returns 200. **If fails:** re-run the `of1-cookie-consent` skill (step 2-consent) and see its own Step 6 verification for the full check suite (EU backdrop, US opt-out mode, no pre-ticked boxes, settings toggle after consent).
+
 ### Checklist summary
 
-Only mark Step 13 done if ALL 6 pass:
+Only mark Step 13 done if ALL 7 pass:
 
 | # | Check |
 |---|-------|
@@ -293,6 +311,7 @@ Only mark Step 13 done if ALL 6 pass:
 | 4 | Template catalog has 25 of1-* entries across all 5 intents |
 | 5 | All deliverable URLs return 200 |
 | 6 | `/api/generate` returns ≥2 sections (end-to-end worker test) |
+| 7 | Cookie consent banner renders (EU override) and `/cookie-policy` returns 200 |
 
 ## Completion
 
@@ -306,7 +325,7 @@ Present final report:
 **Gallery:** ${PREVIEW_BASE}/gallery/index.html
 **Worker tenant:** ${TENANT_ID} (synced + verified)
 
-Pre-launch checklist: 5/5 passed ✓
+Pre-launch checklist: 7/7 passed ✓
 ```
 
 ```bash
@@ -320,7 +339,7 @@ cat > "$OF1_STATE_DIR/step-13-status.json" <<EOF
     { "url": "${HUB_URL}", "label": "Demo hub" },
     { "url": "${OF1_URL}", "label": "OF1 page" }
   ],
-  "summary": "Deployed + all 5 pre-launch checks passed."
+  "summary": "Deployed + all 7 pre-launch checks passed."
 }
 EOF
 ```

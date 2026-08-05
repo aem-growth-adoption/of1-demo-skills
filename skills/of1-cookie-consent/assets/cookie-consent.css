@@ -1,0 +1,188 @@
+/* ============================================================
+   OF1 Cookie Consent — Base Template
+
+   This is the BASE CSS template. The of1-cookie-consent skill
+   customizes the --consent-* variables (and only those) to match
+   each generated site's brand, reading tokens from styles/styles.css.
+
+   NON-NEGOTIABLE — the skill must NOT change these regardless of brand:
+   - .of1-consent-btn--primary and .of1-consent-btn--secondary keep
+     identical padding/font-size/border-width (equal visual weight —
+     no dark patterns favoring Accept over Reject).
+   - Text color against banner background must stay WCAG AA contrast.
+   - z-index values stay above any other site content; opacity on the
+     banner/backdrop itself must stay 1 (no fade-so-it's-ignorable tricks).
+   DO NOT USE THIS FILE DIRECTLY — it's a starting point for restyling.
+   ============================================================ */
+
+.cookie-consent {
+  --consent-primary:      #000000;
+  --consent-primary-text: #FFFFFF;
+  --consent-surface:      #FFFFFF;
+  --consent-text:         #1A1A1A;
+  --consent-text-dim:     #555555;
+  --consent-border:       #E0E0E0;
+  --consent-radius:       8px;
+  --consent-radius-pill:  20px;
+  --consent-font:         system-ui, sans-serif;
+  --consent-shadow:       0 -4px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* ─── Blocking backdrop (EU opt-in only) ───────────────────── */
+
+.of1-consent-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 9998;
+  opacity: 1;
+}
+
+/* ─── Banner ────────────────────────────────────────────────── */
+
+.of1-consent-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  font-family: var(--consent-font);
+  opacity: 1;
+}
+
+.of1-consent-panel {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px 24px;
+  background: var(--consent-surface);
+  border-top: 1px solid var(--consent-border);
+  border-radius: var(--consent-radius) var(--consent-radius) 0 0;
+  box-shadow: var(--consent-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.of1-consent-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--consent-text);
+  margin: 0;
+}
+
+.of1-consent-link {
+  color: var(--consent-primary);
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+/* ─── Category toggles ──────────────────────────────────────── */
+
+.of1-consent-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--consent-border);
+  border-bottom: 1px solid var(--consent-border);
+}
+
+.of1-consent-category {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--consent-text);
+}
+
+.of1-consent-category--locked {
+  color: var(--consent-text-dim);
+}
+
+/* ─── Actions — Accept/Reject MUST stay equal weight ───────── */
+
+.of1-consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.of1-consent-btn {
+  font-family: var(--consent-font);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: var(--consent-radius-pill);
+  cursor: pointer;
+  border: 1.5px solid var(--consent-primary);
+  transition: opacity 0.15s ease-out;
+}
+
+.of1-consent-btn:hover {
+  opacity: 0.85;
+}
+
+.of1-consent-btn--primary,
+.of1-consent-btn--secondary {
+  padding: 10px 20px;
+  font-size: 13px;
+  border-width: 1.5px;
+}
+
+.of1-consent-btn--primary {
+  background: var(--consent-primary);
+  color: var(--consent-primary-text);
+}
+
+.of1-consent-btn--secondary {
+  background: transparent;
+  color: var(--consent-primary);
+}
+
+.of1-consent-btn--ghost {
+  background: transparent;
+  color: var(--consent-text-dim);
+  border-color: transparent;
+  text-decoration: underline;
+  padding: 10px 4px;
+}
+
+/* ─── Persistent reopen affordance ──────────────────────────── */
+
+.of1-consent-settings-toggle {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 9997;
+  font-family: var(--consent-font);
+  font-size: 12px;
+  color: var(--consent-text-dim);
+  background: var(--consent-surface);
+  border: 1px solid var(--consent-border);
+  border-radius: var(--consent-radius-pill);
+  padding: 8px 14px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.of1-consent-settings-toggle:hover {
+  color: var(--consent-text);
+}
+
+/* ─── Responsive ────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .of1-consent-panel {
+    padding: 16px;
+  }
+
+  .of1-consent-actions {
+    justify-content: stretch;
+  }
+
+  .of1-consent-btn {
+    flex: 1;
+    text-align: center;
+  }
+}
