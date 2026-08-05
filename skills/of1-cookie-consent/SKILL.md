@@ -50,7 +50,10 @@ DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 - **US** (or GPC signal set): opt-out. Those categories default `true`. No backdrop; a lightweight banner with a "Do Not Sell/Share My Info" action.
 - **Storage**: `localStorage['of1-consent']` = `{version, region, timestamp, categories}`. Re-prompts if the stored `version` doesn't match `POLICY_VERSION` in the JS.
 - **Withdrawal**: once a choice is stored, the banner is replaced with a persistent "Cookie settings" button (bottom-left) that reopens the same panel.
-- **Extension hook for future scripts**: `window.of1Consent.on(category, callback)` — fires immediately if already granted, or later when granted. Nothing consumes this yet; it's the gate any future analytics/ads block should wrap itself in.
+- **Consent API for other scripts**: `window.of1Consent = { region, has(category), on(category, callback) }`.
+  - `has(category)` — synchronous, point-in-time check of the *effective* current state: `false` for EU until the visitor explicitly accepts, `true` for US by default (opt-out model) unless they've opted out, always reflecting an explicit choice once one is stored. Fails closed for any code that doesn't find `window.of1Consent` at all (e.g. an older generated site that hasn't picked up this skill yet) — no consent info should never be read as "yes."
+  - `on(category, callback)` — fires immediately if already granted, or later when granted.
+  - **This is a cross-repo contract, not just an internal detail**: `of1-gen-web-service`'s shared `of1-client.js` calls `window.of1Consent.has('marketing')` before requesting or using any behavioral/personalization data (its `?personalize=1` flow). That's why Step 2 below `await`s the banner mount — `of1-client.js` runs later in the page lifecycle and needs `window.of1Consent` to already exist.
 
 ## Process
 
@@ -91,9 +94,11 @@ async function of1LoadConsentBanner() {
   decorateBlock(block);
   await loadBlock(block);
 }
-of1LoadConsentBanner();
+await of1LoadConsentBanner();
 /* OF1:CONSENT END */
 ```
+
+**Must be `await`ed, not fire-and-forget.** `window.of1Consent` (set synchronously near the top of `cookie-consent.js`'s `decorate()`) is a cross-repo contract — `of1-gen-web-service`'s `of1-client.js` reads `window.of1Consent.has('marketing')` before it will request or use any personalization data, and that code runs later in `loadLazy` (which `loadPage()` only starts after `loadEager` fully resolves). Without the `await`, there's a race where `loadLazy` could start before the banner has set `window.of1Consent`, and for EU visitors content could render a moment before the blocking backdrop appears. The two dynamic imports involved are same-origin static files, so the added delay is negligible.
 
 If the markers `OF1:CONSENT START`/`END` are already present in the file (from a prior run), replace the block between them instead of appending a second copy.
 
@@ -154,15 +159,17 @@ sleep 3
 playwright-cli eval "document.querySelector('.of1-consent-banner') ? 'banner OK' : 'BANNER MISSING'"
 playwright-cli eval "document.querySelector('.of1-consent-backdrop') ? 'backdrop OK' : 'BACKDROP MISSING (should be present for EU)'"
 playwright-cli eval "[...document.querySelectorAll('.of1-consent-categories input[data-category]')].every(i => !i.checked) ? 'no pre-ticked boxes OK' : 'PRE-TICKED BOX FOUND'"
+playwright-cli eval "window.of1Consent.has('marketing') === false ? 'has() false pre-decision OK' : 'has() SHOULD BE FALSE BEFORE EU VISITOR ACCEPTS'"
 playwright-cli click ".of1-consent-btn--secondary[data-action='reject']"
 playwright-cli eval "JSON.parse(localStorage.getItem('of1-consent')).categories.analytics === false ? 'reject-all stored OK' : 'REJECT NOT STORED'"
 playwright-cli eval "document.querySelector('.of1-consent-settings-toggle') ? 'settings toggle OK' : 'TOGGLE MISSING'"
 
-# US: no blocking backdrop, Do-Not-Sell action present
+# US: no blocking backdrop, Do-Not-Sell action present, opt-out means has() is true by default
 playwright-cli open "${PREVIEW_BASE}/?of1-region=us"
 sleep 3
 playwright-cli eval "document.querySelector('.of1-consent-backdrop') ? 'BACKDROP PRESENT (should be absent for US)' : 'no backdrop OK'"
 playwright-cli eval "document.querySelector('[data-action=\"dns\"]') ? 'DNS link OK' : 'DNS LINK MISSING'"
+playwright-cli eval "window.of1Consent.has('marketing') === true ? 'has() true by default for US OK' : 'has() SHOULD DEFAULT TRUE FOR US OPT-OUT'"
 
 # Cookie policy page
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${PREVIEW_BASE}/cookie-policy")

@@ -14,6 +14,15 @@
  * geolocation (e.g. Cloudflare's cf-ipcountry header) requires a backend endpoint,
  * which static EDS pages don't have. Override for QA with ?of1-region=eu|us.
  *
+ * Exposes window.of1Consent = { region, has(category), on(category, cb) } —
+ * the has() check is synchronous and reflects the *effective* current state
+ * (region default, or the visitor's explicit choice once made). Other scripts
+ * on the page — notably the of1-client SDK's personalization request — must
+ * check has('marketing') before sharing any browsing/behavioral data. This is
+ * a cross-repo contract: of1-gen-web-service depends on window.of1Consent
+ * existing before the of1 block's init() runs (see the scripts.js patch below,
+ * which awaits the banner mount for exactly this reason).
+ *
  * Copied as-is by the of1-cookie-consent skill — this file is compliance-critical
  * behavior and must never be modified per-brand. Only cookie-consent.css is restyled.
  */
@@ -96,6 +105,10 @@ class ConsentBus {
       return;
     }
     (this.listeners[category] ||= []).push(cb);
+  }
+
+  hasCategory(category) {
+    return !!(this.categories && this.categories[category]);
   }
 }
 
@@ -180,9 +193,21 @@ export default async function decorate(block) {
   const stored = loadStoredConsent();
   const bus = new ConsentBus();
 
-  // Extension point for future analytics/ads blocks: register a callback that
-  // fires once the visitor has consented (or immediately, if they already have).
-  window.of1Consent = { region, on: (category, cb) => bus.on(category, cb) };
+  // Reflect the *effective* current state immediately — for the US opt-out
+  // model that's "granted" from the very first load, not "pending" until the
+  // visitor touches the banner. For EU opt-in it's correctly "not granted"
+  // until they act. A later explicit choice (onSave) overwrites this.
+  bus.setCategories(stored ? stored.categories : defaultCategories(region));
+
+  // Extension point for other scripts (e.g. the of1-client SDK's own
+  // personalization request) to check or wait on consent before sharing
+  // anything. `has()` is a synchronous point-in-time check; `on()` also
+  // fires later if the category isn't granted yet.
+  window.of1Consent = {
+    region,
+    on: (category, cb) => bus.on(category, cb),
+    has: (category) => bus.hasCategory(category),
+  };
 
   block.textContent = '';
   let backdrop = null;
@@ -220,7 +245,6 @@ export default async function decorate(block) {
   }
 
   if (stored) {
-    bus.setCategories(stored.categories);
     mountToggle(stored.categories);
   } else {
     mountBanner(defaultCategories(region));
