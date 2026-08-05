@@ -25,6 +25,30 @@ function htmlEscape(s) {
     .replace(/'/g, '&#x27;');
 }
 
+// Escape a value destined for an HTML attribute (src/href). Config JSON is
+// LLM-generated, so a stray quote must not break out of the attribute, and a
+// disallowed scheme (e.g. javascript:) must not survive.
+function escapeAttr(s) {
+  return String(s ?? '').replace(/"/g, '&quot;');
+}
+
+function safeUrl(u) {
+  const s = String(u ?? '').trim();
+  if (s === '') return '';
+  if (/^(https?:|mailto:|tel:)/i.test(s)) return escapeAttr(s);
+  if (/^[/#?]/.test(s) || /^data:image\//i.test(s)) return escapeAttr(s);
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return ''; // disallowed scheme — drop
+  return escapeAttr(s); // bare relative path
+}
+
+// Prices are stored as numbers (14.99) but authors/LLMs may write "$14.99".
+// Normalize so we never render "$$14.99" or a bare "$".
+function formatPrice(v) {
+  if (v === null || v === undefined || v === '') return '';
+  const s = String(v).trim();
+  return s.startsWith('$') ? s : `$${s}`;
+}
+
 function loadJson(p) {
   try {
     return JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -46,9 +70,9 @@ function renderProducts(products) {
     const keywords = p.keywords ?? [];
     const persona = htmlEscape(p.persona ?? '');
     const useCase = htmlEscape(p.useCase ?? '');
-    const url = htmlEscape(p.url ?? '');
+    const url = safeUrl(p.url ?? '');
 
-    const thumb = imgs.length ? imgs[0] : '';
+    const thumb = imgs.length ? safeUrl(imgs[0]) : '';
     const featsHtml = feats.map((f) => `<li>${htmlEscape(f)}</li>`).join('');
     const highlightsHtml = highlights.map((h) => `<li>${htmlEscape(h)}</li>`).join('');
     const keywordsHtml = keywords
@@ -56,7 +80,7 @@ function renderProducts(products) {
       .map((k) => `<span class="kw">${htmlEscape(k)}</span>`)
       .join('');
     const imgsHtml = imgs
-      .map((u) => `<img src="${u}" alt="${name}" class="gallery-img" loading="lazy">`)
+      .map((u) => `<img src="${safeUrl(u)}" alt="${name}" class="gallery-img" loading="lazy">`)
       .join('');
 
     html += `<div class="product-card">
@@ -64,7 +88,7 @@ function renderProducts(products) {
     <img src="${thumb}" alt="${name}" class="product-thumb" loading="lazy">
     <div class="product-info">
       <div class="product-name">${name}</div>
-      <div class="product-meta"><span class="cat">${cat}</span><span class="price">$${price}</span><span class="img-count">${imgs.length} img${imgs.length > 1 ? 's' : ''}</span></div>
+      <div class="product-meta"><span class="cat">${cat}</span><span class="price">${htmlEscape(formatPrice(price))}</span><span class="img-count">${imgs.length} img${imgs.length > 1 ? 's' : ''}</span></div>
     </div>
     <div class="expand-icon">+</div>
   </div>
