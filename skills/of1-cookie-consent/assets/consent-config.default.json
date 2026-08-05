@@ -1,0 +1,43 @@
+{
+  "policyVersion": 1,
+  "policyUrl": "/cookie-policy",
+  "categories": [
+    {
+      "id": "necessary",
+      "label": "Necessary",
+      "description": "Required for the site to function. Always on.",
+      "required": true
+    },
+    {
+      "id": "functional",
+      "label": "Functional",
+      "description": "Remembers preferences like language or region.",
+      "required": false
+    },
+    {
+      "id": "analytics",
+      "label": "Analytics",
+      "description": "Helps us understand how visitors use the site.",
+      "required": false
+    },
+    {
+      "id": "marketing",
+      "label": "Marketing",
+      "description": "Used to personalize content and measure campaign performance.",
+      "required": false
+    }
+  ],
+  "regions": {
+    "eu": {
+      "mode": "opt-in",
+      "label": "EU/EEA/UK/CH",
+      "defaultNonEssential": false
+    },
+    "us": {
+      "mode": "opt-out",
+      "label": "US (and Global Privacy Control signal)",
+      "defaultNonEssential": true
+    }
+  },
+  "unknownRegionDefault": "eu"
+}
