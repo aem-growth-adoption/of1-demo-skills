@@ -130,37 +130,6 @@ def render_features(features):
             html += f'<span class="feature-chip">{escape(str(f))}</span>'
     return html
 
-def render_consent_categories(categories):
-    """Render cookie consent category cards HTML."""
-    html = ''
-    for c in categories:
-        label = escape(c.get('label', c.get('id', 'Unknown')))
-        desc = escape(c.get('description', ''))
-        badge = ('<span class="consent-badge consent-badge--required">Always on</span>'
-                  if c.get('required') else '<span class="consent-badge">Optional</span>')
-        html += f'''<div class="consent-category">
-  <div class="consent-cat-head"><span class="consent-cat-name">{label}</span>{badge}</div>
-  <div class="consent-cat-desc">{desc}</div>
-</div>'''
-    return html
-
-def render_consent_regions(regions):
-    """Render EU/US region-mode summary HTML."""
-    eu = regions.get('eu', {})
-    us = regions.get('us', {})
-    html = ''
-    if eu:
-        html += f'''<div class="consent-region">
-  <div class="consent-region-name">{escape(eu.get('label', 'EU/EEA/UK/CH'))}</div>
-  <div class="consent-region-mode">{escape(eu.get('mode', 'opt-in'))}</div>
-</div>'''
-    if us:
-        html += f'''<div class="consent-region">
-  <div class="consent-region-name">{escape(us.get('label', 'US'))}</div>
-  <div class="consent-region-mode">{escape(us.get('mode', 'opt-out'))}</div>
-</div>'''
-    return html
-
 def main():
     if len(sys.argv) < 3:
         print("Usage: python3 fill-config-review.py <repo-dir> <domain> [template-path]")
@@ -215,10 +184,6 @@ def main():
     
     cta = load_json(os.path.join(config_dir, 'cta-template.json'))
 
-    consent = load_json(os.path.join(config_dir, 'consent-config.json'))
-    consent_categories = consent.get('categories', [])
-    consent_regions = consent.get('regions', {})
-
     # Calculate stats
     total_images = sum(len(p.get('images', [])) for p in products)
 
@@ -244,9 +209,6 @@ def main():
         '{{SUG_PLACEHOLDER}}': escape(sug_placeholder),
         '{{SUGGESTIONS_HTML}}': render_suggestions(suggestions),
         '{{CTA_JSON}}': escape(json.dumps(cta, indent=2)[:2000]),
-        '{{CONSENT_CATEGORIES_HTML}}': render_consent_categories(consent_categories),
-        '{{CONSENT_REGIONS_HTML}}': render_consent_regions(consent_regions),
-        '{{CONSENT_POLICY_URL}}': escape(consent.get('policyUrl', '/cookie-policy')),
     }
 
     # Fill template

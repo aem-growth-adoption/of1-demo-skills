@@ -249,40 +249,37 @@ The pipeline has TWO parallel tracks that MUST run concurrently. **Do NOT serial
 
 | Trigger | Spawn immediately |
 |---------|-------------------|
-| Step 2 (Repo setup) done | **Step 2-consent (Cookie consent)** — mandatory, unattended, no user prompt. Does not wait for Step 5. |
 | Step 5 (Prototype) approved | **Track A:** Step 6 (Snowflake) AND **Track B:** Steps 9a, 9b, 11 (three scoops at once) |
 | Steps 9a + 9b done | Step 10 (Suggestions — needs products.json + brand-voice.json) |
 | Step 6 (Snowflake) done | Step 8 (OF1 styling) AND Steps 7a–7e (5 intent scoops in parallel) — 6 scoops at once |
 | Steps 7a–7e ALL complete | Step 7-assemble — run INLINE in orchestrator (no scoop) |
 | Steps 9-11 ALL complete | Step 12 (Config review) — run inline by the cone |
-| Steps 7-assemble + 8 done AND Step 12 approved AND Step 2-consent done | Step 13 (Deploy) |
+| Steps 7-assemble + 8 done AND Step 12 approved | Step 13 (Deploy) |
 
 ### Dependency graph:
 ```
 Steps 1→2 (sequential)
          ↓
-    ┌────┴──────────────┐
-    ↓                   ↓
-Step 2-consent      ┌────┴────┐
-(mandatory,         ↓         ↓
- unattended)      Step 3    Step 4   ← PARALLEL (both need only domain)
-    ↓               ↓         ↓
-    ↓               └────┬────┘
-    ↓                    ↓
-    ↓                  Step 5        ← needs both S3 + S4
-    ↓                    ↓
-    ↓               ┌────┴────────────┐
-    ↓               ↓                 ↓
-    ↓             S6         Track B (S9+S10+S11)
-    ↓               ↓                 ↓
-    ↓             ┌─┴────────┐    Step 12
-    ↓             S8   S7a∥7b∥7c∥7d∥7e
-    ↓             ↓         ↓
-    ↓             ↓     S7-assemble   ← runs ONCE after S7a–7e all done
-    ↓             ↓         ↓         ↓
-    └─────────────┴─────────┴─────────┘
-                        ↓
-                   Step 13 (Deploy)
+    ┌────┴────┐
+    ↓         ↓
+  Step 3    Step 4   ← PARALLEL (both need only domain)
+    ↓         ↓
+    └────┬────┘
+         ↓
+       Step 5        ← needs both S3 + S4
+         ↓
+    ┌────┴────────────┐
+    ↓                 ↓
+  S6         Track B (S9+S10+S11)
+    ↓                 ↓
+  ┌─┴────────┐    Step 12
+  S8   S7a∥7b∥7c∥7d∥7e
+    ↓         ↓
+    ↓     S7-assemble   ← runs ONCE after S7a–7e all done
+    ↓         ↓         ↓
+    └─────────┴─────────┘
+              ↓
+         Step 13 (Deploy)
 ```
 
 ### Key rules:
@@ -293,7 +290,6 @@ Step 2-consent      ┌────┴────┐
 5. **Step 8 runs in parallel with Steps 7a–7e** — 6 scoops at once after Step 6
 6. **Steps 9a, 9b, 11 run at once** — spawn all 3 scoops simultaneously. **Step 10 waits for step 9 to finish** (it needs products.json + brand-voice.json to ground suggestions in real content)
 7. **Push each status as it arrives** — don't wait for all parallel steps to finish before updating the sprinkle
-8. **Step 2-consent (Cookie consent) is mandatory and unattended** — dispatch it the moment Step 2 finishes, with no user prompt and no review gate. It runs independently of Steps 3–12; only Step 13 (Deploy) waits on it.
 
 ### Step 7 fan-out detail
 
@@ -455,8 +451,7 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 | 10 | Suggestions | `of1-quick-suggestions` | No | B | step 5 |
 | 11 | CTA template | `of1-cta-template-builder` | No | B | step 5 |
 | 12 | Config review | (orchestrator-inline) | Yes | B | steps 9+10+11 |
-| 2-consent | Cookie consent (**mandatory**) | `of1-cookie-consent` | No | — | step 2 (runs unattended, parallel with everything else) |
-| 13 | Deploy | `of1-deploy` | Yes | — | steps 7+8+12+2-consent |
+| 13 | Deploy | `of1-deploy` | Yes | — | steps 7+8+12 |
 
 ### Track Summary
 
@@ -464,11 +459,9 @@ When pushing ANY step status to the sprinkle (whether `"done"` or `"review"`), A
 
 **Track B (Config):** Steps 9a + 9b + 11 (parallel, start after step 5) → Step 10 (after 9 done) → Step 12 (Config review)
 
-**Cookie consent (step 2-consent):** dispatched immediately once Step 2 (Repo setup) completes — it does not wait for Step 5 approval like Tracks A/B do, and nothing else depends on it finishing first. It is **not optional and not shown as a skippable pipeline step** — dispatch it automatically, the same turn Step 2 completes, with no user prompt.
-
 **Both tracks start after Step 5 is approved.** Track B does NOT wait for Step 6. Step 8 DOES wait for Step 6 — it must commit AFTER S6 so it doesn't get overwritten.
 
-**Step 13 (Deploy)** requires Track A (step 7-assemble done AND step 8 done) AND Track B (step 12 approved) AND step 2-consent done.
+**Step 13 (Deploy)** requires Track A (step 7-assemble done AND step 8 done) AND Track B (step 12 approved).
 
 ## Step 2 — Branch Setup
 
@@ -607,8 +600,7 @@ Each step scoop needs context from prior steps. Key dependencies:
 - **Step 8 (OF1 styling)** needs: domain, block names from step 6, `stardust/` data
 - **Steps 9–12 (Track B)** need: domain, `stardust/` data from step 4. They do NOT depend on the snowflake — they can start immediately after step 5.
 - **Step 12 (Config review)** needs: all `of1/config/` files from steps 9-11 — orchestrator generates review page inline
-- **Step 2-consent (Cookie consent)** needs: only domain + repo-config.json from step 2. Dispatch it right after step 2 completes — no review gate, no dependency on steps 3–12, and it doesn't block any of them either. It's mandatory: always dispatch it, never ask the user whether to run it.
-- **Step 13 (Deploy)** needs: step 7-assemble done AND step 8 done (Track A) AND step 12 approved (Track B) AND step 2-consent done, plus domain, all config files, repo-config.json
+- **Step 13 (Deploy)** needs: step 7-assemble done AND step 8 done (Track A) AND step 12 approved (Track B), plus domain, all config files, repo-config.json
 
 When spawning a step scoop, read the relevant prior outputs and include key info in the prompt (or instruct the scoop to read specific files).
 
@@ -750,17 +742,10 @@ curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/gallery/index.html"
 ```
 Pass: All return 200.
 
-### Check 6: Cookie consent banner present and functional
-```bash
-playwright-cli open "${PREVIEW_BASE}/?of1-region=eu"
-sleep 3
-playwright-cli eval "document.querySelector('.of1-consent-banner') ? 'banner OK' : 'BANNER MISSING'"
-curl -s -o /dev/null -w "%{http_code} " "${PREVIEW_BASE}/cookie-policy"
-```
-Pass: banner renders for the EU override, and `/cookie-policy` returns 200. **If fails:** re-run `of1-cookie-consent` (step 2-consent) — see its Step 6 verification for details.
-
 ### On failure:
-Fix the issue (commit + push + re-preview + re-sync if needed), then re-run the failing check. Only push `"step":13,"status":"done"` to the sprinkle after ALL 6 pass.
+Fix the issue (commit + push + re-preview + re-sync if needed), then re-run the failing check. Only push `"step":13,"status":"done"` to the sprinkle after ALL 5 pass.
+
+Cookie consent is no longer part of this pipeline — `of1-edge-proxy` now injects and enforces a region-aware consent banner centrally for every tenant it fronts (`of1.live`), so there's nothing per-site to verify here.
 
 ## Pipeline audit
 

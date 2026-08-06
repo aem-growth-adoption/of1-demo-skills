@@ -52,12 +52,6 @@ for f in products brand-voice personas use-cases features faqs suggestions cta-t
     exit 1
   }
 done
-
-[ -s "of1/config/consent-config.json" ] || {
-  echo "FAIL: of1/config/consent-config.json missing or empty." >&2
-  echo "Step 2-consent (of1-cookie-consent) did not run — it should complete right after step 2, well before step 12." >&2
-  exit 1
-}
 ```
 
 ### 2. Run the fill script
@@ -70,7 +64,7 @@ python3 "$SKILL_DIR/assets/fill-config-review.py" . "$DOMAIN"
 # run_jsh "$SKILL_DIR/assets/fill-config-review.jsh" . "$DOMAIN"
 ```
 
-The script reads `of1/config/{products,brand-voice,personas,suggestions,use-cases,features,cta-template,consent-config}.json`, uses the template at `$SKILL_DIR/assets/config-review.html`, and writes `deliverables/config-review.html`.
+The script reads `of1/config/{products,brand-voice,personas,suggestions,use-cases,features,cta-template}.json`, uses the template at `$SKILL_DIR/assets/config-review.html`, and writes `deliverables/config-review.html`.
 
 **Always use the script — never write your own HTML generation logic or hand-edit the output.**
 
@@ -101,7 +95,6 @@ A self-contained dark-themed dashboard showing:
 - **Features**: chip list
 - **Suggestions**: title/subtitle/placeholder + suggestion chips with label and query
 - **CTA Template**: JSON preview of the CTA configuration
-- **Consent & Privacy**: EU (opt-in) vs US (opt-out) region behavior, cookie category list, link to the live `/cookie-policy` page
 
 ## Completion (pipeline mode)
 

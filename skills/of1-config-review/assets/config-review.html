@@ -77,18 +77,6 @@ h4{font-size:10px;font-weight:600;color:var(--dim);margin:10px 0 4px;text-transf
 /* Features */
 .feature-chip{display:inline-block;padding:4px 12px;background:var(--faint);border:1px solid var(--border);border-radius:20px;font-size:10px;color:var(--fg);margin:3px}
 
-/* Consent */
-.consent-categories{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-.consent-category{padding:10px;background:var(--faint);border-radius:8px;border:1px solid var(--border)}
-.consent-cat-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
-.consent-cat-name{font-weight:600;font-size:11px;color:var(--fg)}
-.consent-badge{font-size:8px;text-transform:uppercase;letter-spacing:0.06em;padding:2px 8px;border-radius:10px;background:rgba(245,240,232,0.1);color:var(--dim)}
-.consent-badge--required{background:rgba(0,229,160,0.12);color:var(--teal)}
-.consent-cat-desc{font-size:10px;color:var(--dim)}
-.consent-regions{display:flex;gap:10px;flex-wrap:wrap}
-.consent-region{padding:10px 14px;background:var(--faint);border-radius:8px;border:1px solid var(--border);flex:1;min-width:200px}
-.consent-region-name{font-weight:600;font-size:11px;color:var(--fg)}
-.consent-region-mode{font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:0.05em;margin-top:2px}
 </style>
 </head>
 <body>
@@ -139,14 +127,6 @@ h4{font-size:10px;font-weight:600;color:var(--dim);margin:10px 0 4px;text-transf
 
 <h2>CTA Template</h2>
 <div class="section"><pre style="font-size:10px;color:var(--dim);overflow-x:auto;white-space:pre-wrap">{{CTA_JSON}}</pre></div>
-
-<h2>Consent &amp; Privacy</h2>
-<div class="section">
-  <p style="color:var(--dim);margin-bottom:12px;font-size:10px">Cookie consent banner behavior by region. Policy page: <a href="{{CONSENT_POLICY_URL}}" style="color:var(--teal)">{{CONSENT_POLICY_URL}}</a></p>
-  <div class="consent-regions">{{CONSENT_REGIONS_HTML}}</div>
-  <h3 style="margin-top:14px">Categories</h3>
-  <div class="consent-categories">{{CONSENT_CATEGORIES_HTML}}</div>
-</div>
 
 <script>
 document.querySelectorAll('.product-card').forEach(card => {
