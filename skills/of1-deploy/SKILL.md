@@ -281,27 +281,9 @@ fi
 
 **Pass:** response contains ≥2 sections with content. **If fails:** check worker sync status, verify `hasTemplates` is true in tenant status.
 
-### Check 7: Cookie consent banner present and functional
-
-```bash
-[ -f blocks/cookie-consent/cookie-consent.js ] && [ -f blocks/cookie-consent/cookie-consent.css ] || {
-  echo "✗ FAIL: blocks/cookie-consent/ missing — step 2-consent (of1-cookie-consent) did not run" >&2
-  exit 1
-}
-
-playwright-cli open "${PREVIEW_BASE}/?of1-region=eu"
-sleep 3
-playwright-cli eval "document.querySelector('.of1-consent-banner') ? 'banner OK' : 'BANNER MISSING'"
-
-COOKIE_POLICY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${PREVIEW_BASE}/cookie-policy")
-[ "$COOKIE_POLICY_STATUS" = "200" ] || echo "✗ FAIL: /cookie-policy returned HTTP ${COOKIE_POLICY_STATUS}"
-```
-
-**Pass:** `blocks/cookie-consent/` exists, the banner renders for the EU override, and `/cookie-policy` returns 200. **If fails:** re-run the `of1-cookie-consent` skill (step 2-consent) and see its own Step 6 verification for the full check suite (EU backdrop, US opt-out mode, no pre-ticked boxes, settings toggle after consent).
-
 ### Checklist summary
 
-Only mark Step 13 done if ALL 7 pass:
+Only mark Step 13 done if ALL 6 pass:
 
 | # | Check |
 |---|-------|
@@ -311,7 +293,8 @@ Only mark Step 13 done if ALL 7 pass:
 | 4 | Template catalog has 25 of1-* entries across all 5 intents |
 | 5 | All deliverable URLs return 200 |
 | 6 | `/api/generate` returns ≥2 sections (end-to-end worker test) |
-| 7 | Cookie consent banner renders (EU override) and `/cookie-policy` returns 200 |
+
+Cookie consent is no longer part of this pipeline — `of1-edge-proxy` now injects and enforces a region-aware consent banner centrally for every tenant it fronts (`of1.live`), so there is nothing per-site to generate or verify here.
 
 ## Completion
 
