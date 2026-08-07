@@ -6,6 +6,11 @@ user-invocable: true
 
 # OF1 Signals Configurator
 
+**Standalone operator tool — NOT part of the demo pipeline.** Invoke it directly; no orchestrator
+dispatches it, no step graph includes it, and `of1-check-dependencies`/`verify.sh` intentionally
+does not check for it. It authors extension-only config that neither the sync/deploy pipeline nor
+the OF1 worker ever reads. Being off the step graph is deliberate — do not wire it in.
+
 Author and verify `of1/config/signals.json` — a config file read directly by the **OF1 preview
 extension** (not the OF1 worker) that lets a demo operator fake how a visitor "arrived" at the
 site, without a real email campaign, ad click, or LLM referral ever happening.

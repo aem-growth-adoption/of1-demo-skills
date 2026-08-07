@@ -30,7 +30,7 @@ Two modes, decided by `OF1_PIPELINE_MODE`:
 
 ## Phase 0 — Verify dependencies + repo state (inline)
 
-Invoke the `of1-check-dependencies` skill exactly as `of1-demo-orchestrator-cc`/`of1-demo-orchestrator` do (Skill tool on Claude Code; read + follow inline on SLICC — not Agent/scoop dispatch, this step is light and must run in your own context to read the verified state). If it fails, surface the exact error and stop.
+Invoke the `of1-check-dependencies` skill exactly as `of1-demo-orchestrator` does (Skill tool on Claude Code; read + follow inline on SLICC — not Agent/scoop dispatch, this step is light and must run in your own context to read the verified state). If it fails, surface the exact error and stop.
 
 After it succeeds, read `<STATE_DIR>/setup.json` for `stateDir`/`of1Repo` and `<STATE_DIR>/repo-config.json` for `owner`/`repo`/`branch`/`domain`. Use these for all subsequent steps.
 
@@ -38,8 +38,11 @@ After it succeeds, read `<STATE_DIR>/setup.json` for `stateDir`/`of1Repo` and `<
 
 ```bash
 cd "$OF1_DEMO_REPO"
+# Resolve DESIGN.json via the shared resolver: stardust/current/ (full replica)
+# OR project root ./ (bounded-single replica). See
+# of1-demo-orchestrator/knowledge/design-tokens-resolution.md
 HAS_DESIGN_JSON=false
-[ -f stardust/current/DESIGN.json ] && HAS_DESIGN_JSON=true
+[ -f stardust/current/DESIGN.json ] || [ -f ./DESIGN.json ] && HAS_DESIGN_JSON=true
 echo "DESIGN.json present: $HAS_DESIGN_JSON"
 ```
 
@@ -110,7 +113,7 @@ fi
 In standalone mode there is no replica and no gate — all five siblings (6-base, 7, 8a, 8b, 10)
 dispatch together exactly as the Trigger table above already says.
 
-**Common mistakes to avoid** (same class of mistake `of1-demo-orchestrator-cc` already warns about):
+**Common mistakes to avoid** (same class of mistake `of1-demo-orchestrator` already warns about):
 - Do NOT run Step 11 before ALL of 8a, 8b, 9, 10 return `done`.
 - Do NOT run Step 9 before BOTH 8a and 8b return — it needs products.json + brand-voice.json.
 - Do NOT dispatch step 6-intent agents before step 6-base returns — they read its output.
@@ -121,18 +124,22 @@ Same step-graph, same dependency rules on both runtimes. Only the invocation mec
 
 ### Claude Code
 
-- Use **TaskCreate** with one task per step (1, 3, 6-base, 6a–6e, 6-assemble, 7, 8a, 8b, 9, 10, 11, 12). Mark task 1 completed immediately; mark each task `in_progress`/`completed`/`failed` around its dispatch.
-- Each step (except artifact detection and 11, which are inline) is a single `Agent` dispatch. Sub-agents see none of this conversation — the prompt must be self-contained: read the target step skill's `SKILL.md`, export the same env vars `of1-demo-orchestrator-cc` exports (`OF1_STATE_DIR`, `OF1_DEMO_REPO`, `ADOBE_IMS_TOKEN`/`OF1_TOKEN_FILE`, `SKILL_DIR`), state the branch/owner/repo, list which prior-step output files it needs, and require the same JSON status block: `{"step":N,"status":"done"|"review"|"failed","summary":"...","deliverables":[...]}`.
+**Who dispatches (both runtimes).** On **neither** runtime is this skill run as a single Stage-3 sub-dispatch that then fans out steps 6–12 — because on **both**, the nesting is capped: a Claude Code subagent has no Agent tool, and a SLICC scoop cannot spawn sub-scoops. So the **top-level `of1-demo-orchestrator`** (which detects its runtime and follows `knowledge/dispatch-cc.md` or `knowledge/dispatch-slicc.md`) dispatches steps 6–12 itself, reading this section as the **step-definition + dependency reference**. Everything below describes *what each step needs and how they're ordered* — the orchestrator is the dispatcher in both cases.
+
+- The orchestrator uses **TaskCreate** with one task per step (1, 3, 6-base, 6a–6e, 6-assemble, 7, 8a, 8b, 9, 10, 11, 12). Mark task 1 completed immediately; mark each task `in_progress`/`completed`/`failed` around its dispatch.
+- Each step (except artifact detection and 11, which are inline) is a single `Agent` dispatch. Sub-agents see none of this conversation — the prompt must be self-contained: read the target step skill's `SKILL.md`, export the same env vars the orchestrator exports (`OF1_STATE_DIR`, `OF1_DEMO_REPO`, `ADOBE_IMS_TOKEN`/`OF1_TOKEN_FILE`, `SKILL_DIR`), state the branch/owner/repo, list which prior-step output files it needs, and require the same JSON status block: `{"step":N,"status":"done"|"review"|"failed","summary":"...","deliverables":[...]}`.
 - **Step 3's dispatch is a direct `stardust:extract` invocation targeting the site's own EDS preview URL (`https://<branch>--<repo>--<owner>.aem.page`)** — do not point it at any external domain, and do not run it at all if `HAS_DESIGN_JSON=true` from Phase 1.
 - In pipeline mode also export `OF1_CONTENT_SOURCE` (to 8a/8b/9 dispatches) and pass
   `OF1_REPLICA_DONE_FILE` to the orchestrator's own site-track gate (not to the step agents).
-- **Parallelism is mandatory** at each fan-out point — dispatch all eligible Agents in a single message with multiple Agent tool-use blocks.
-- Model assignment: same rule of thumb as `of1-demo-orchestrator-cc` — Opus only where output quality cascades downstream. Since this pipeline skips discovery/prototype entirely, the only Opus-worthy step is 7 (OF1 styling — multi-step DA authoring) and 3 when it actually runs (extraction — design-token quality cascades). Everything else (`sonnet`): 6-base, 6a–6e, 6-assemble, 8a, 8b, 9, 10.
-- Auto-approve by default (mirrors `of1-demo-orchestrator-cc`'s one-shot mode) — mark each `review`-status task completed and continue immediately, unless the user explicitly asked to pause between steps.
+- **Parallelism is mandatory** at each fan-out point — the top-level orchestrator dispatches all eligible steps in a single message with multiple Agent tool-use blocks. (This is possible precisely because the *top level* is dispatching; a Stage-3 subagent could not, hence the "who dispatches on CC" note above.)
+- Model assignment: same rule of thumb the orchestrator uses — Opus only where output quality cascades downstream. Since this pipeline skips discovery/prototype entirely, the only Opus-worthy step is 7 (OF1 styling — multi-step DA authoring) and 3 when it actually runs (extraction — design-token quality cascades). Everything else (`sonnet`): 6-base, 6a–6e, 6-assemble, 8a, 8b, 9, 10.
+- Auto-approve by default (mirrors the orchestrator's one-shot mode) — mark each `review`-status task completed and continue immediately, unless the user explicitly asked to pause between steps.
 
 ### SLICC
 
-- Dispatch each step as a `scoop_scoop()` call with `writablePaths` covering `/scoops/<name>/`, `/shared/`, and the project repo path — same pattern `of1-demo-orchestrator` already uses per step. **Step 3's scoop invokes `stardust:extract` directly against the site's own EDS preview URL** — same reason as the Claude Code column: point it at the wrong target and extraction crawls an external domain instead of the site itself.
+**Same as CC, the top-level orchestrator (`of1-demo-orchestrator`) dispatches these steps** — a scoop cannot spawn sub-scoops, so this skill is the step-definition reference, not a self-dispatching scoop. The orchestrator dispatches from its own cone.
+
+- Dispatch each step as a `scoop_scoop()` call with `writablePaths` covering `/scoops/<name>/`, `/shared/`, and the project repo path. **Step 3's scoop invokes `stardust:extract` directly against the site's own EDS preview URL** — same reason as the Claude Code column: point it at the wrong target and extraction crawls an external domain instead of the site itself.
 - In pipeline mode also export `OF1_CONTENT_SOURCE` (to 8a/8b/9 dispatches) and pass
   `OF1_REPLICA_DONE_FILE` to the orchestrator's own site-track gate (not to the step agents).
 - Each scoop writes its own `/shared/of1-demo-orchestrator/step-N-status.json` on completion, exactly like every step skill already documents in its own "Completion" section — **do not** additionally push to a sprinkle. There is nothing listening for `sprinkle_send` on this skill.
@@ -141,7 +148,7 @@ Same step-graph, same dependency rules on both runtimes. Only the invocation mec
 
 ## Step 11 — Config review (inline, no dispatch on either runtime)
 
-Identical to `of1-demo-orchestrator-cc`'s Step 11 / `of1-demo-orchestrator`'s Step 11 — run the `of1-generate-config-review` skill's fill script directly:
+Identical to `of1-demo-orchestrator`'s Step 11 — run the `of1-generate-config-review` skill's fill script directly:
 
 ```bash
 cd "$OF1_DEMO_REPO"
@@ -155,7 +162,7 @@ git push origin "$BRANCH"
 
 ## Step 12 — Deploy (inline)
 
-After step 11 is approved AND steps 6-assemble + 7 are both done, run the `of1-publish` skill inline (read it and follow it directly — same as `of1-demo-orchestrator-cc`'s Step 12).
+After step 11 is approved AND steps 6-assemble + 7 are both done, run the `of1-publish` skill inline (read it and follow it directly — same as `of1-demo-orchestrator`'s Step 12).
 
 **One of its 6 pre-launch checks needs a small adaptation for the adopt flow:**
 

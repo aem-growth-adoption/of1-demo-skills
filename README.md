@@ -27,7 +27,7 @@ Within Stage 3, `of1-adopt-existing-site` runs its own internal step graph — t
 
 | Skill | Description |
 |-------|-------------|
-| `of1-demo-orchestrator` | Orchestrate full demo preparation — user-driven 3-stage pipeline via sprinkle UI |
+| `of1-demo-orchestrator` | Orchestrate full demo preparation — 3-stage pipeline; runs on both Claude Code and SLICC (detects the runtime, sprinkle UI on SLICC) |
 | `of1-check-dependencies` | Verify prerequisites — skills, tools, and repo state; verify EDS repo + prepare repo-config.json |
 | `of1-discover-narrative` | Crawl a target website and propose a demo focus/narrative |
 | `of1-build-templates` | Generate 15 branded templates (5 intents × 3 variations) |

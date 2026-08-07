@@ -1,6 +1,6 @@
 # Extending an Existing OF1 Demo
 
-You have a working OF1 demo (built via `of1-demo-orchestrator`/`of1-demo-orchestrator-cc` or `of1-adopt-existing-site`) and want to change one thing — refresh the product catalog, tweak the brand voice, add suggestion chips, restyle the CTA, or simulate a different acquisition channel. **No orchestrator is needed** — every config-producing skill below is standalone-invocable and self-locates the repo/state it needs from `repo-config.json`, the same way it does inside the pipeline.
+You have a working OF1 demo (built via `of1-demo-orchestrator` or `of1-adopt-existing-site`) and want to change one thing — refresh the product catalog, tweak the brand voice, add suggestion chips, restyle the CTA, or simulate a different acquisition channel. **No orchestrator is needed** — every config-producing skill below is standalone-invocable and self-locates the repo/state it needs from `repo-config.json`, the same way it does inside the pipeline.
 
 | Want to change... | Call | Then |
 |---|---|---|
