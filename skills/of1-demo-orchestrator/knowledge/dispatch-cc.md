@@ -37,8 +37,23 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
      success write `<stateDir>/replica-done.json`. See the Stage 2 dispatch template below.
    - **Stage 3 content-track Agents** (steps 8a, 8b): dispatch immediately with `OF1_PIPELINE_MODE=1`,
      `OF1_CONTENT_SOURCE=<DOMAIN>` — they need only the live external site.
-3. **When `replica-done.json` exists, dispatch the Stage 3 site-integration track** per
-   `of1-adopt-existing-site`'s dependency table: step 3 (if `DESIGN.json` absent) → 6-base ∥ 7 ∥ 10,
+3. **When `replica-done.json` exists, run the Stage 2 artifact gate BEFORE dispatching the
+   site-integration track.** `replica-done.json` only means the Stage 2 agent finished — it does NOT
+   mean the replica is demo-grade. Run the gate against the repo:
+
+   ```bash
+   node "<orchestratorSkillDir>/assets/check-replica-artifacts.mjs" "<repoDir>"
+   ```
+
+   - **exit 0** — proceed to the site-integration track.
+   - **exit 2 (BLOCKED-CAPTURE)** — HARD STOP. The source is bot-protected (Akamai/Cloudflare) and
+     replica shipped placeholder imagery + an unmeasured "pass". Do **not** dispatch Stage 3 or
+     deploy. Surface the gate's escalation options to the user (retry `--headed`, content-only demo,
+     or abort) and wait for a decision. See `pipeline-contract.md` § "Stage 2 artifact gate".
+   - **exit 1** — replica's ledger is missing/empty; treat as a Stage 2 failure and re-dispatch it.
+
+   Only on exit 0, dispatch the Stage 3 site-integration track per `of1-adopt-existing-site`'s
+   dependency table: step 3 (if `DESIGN.json` absent) → 6-base ∥ 7 ∥ 10,
    then 6a–6e (after 6-base), then 6-assemble; step 9 after 8a+8b; step 11 (inline) after 8a+8b+9+10;
    step 12 (deploy, inline) after 6-assemble+7+11.
 4. **Fan out in parallel at every eligible point** — dispatch all currently-eligible steps in one

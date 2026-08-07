@@ -117,7 +117,20 @@ reference for what each step does and its dependency edges — the cone is the d
 
 - Each step 6–12 is its own `scoop_scoop()` (writablePaths incl. repo + `/shared/`, env
   `OF1_PIPELINE_MODE=1`, plus `OF1_CONTENT_SOURCE=<DOMAIN>` for 9).
-- **Fan out at every eligible point** once `replica-done.json` exists: step 3 (if `DESIGN.json`
+- **When `replica-done.json` exists, run the Stage 2 artifact gate BEFORE fanning out the
+  site-integration track.** `replica-done.json` only means the Stage 2 scoop finished, not that the
+  replica is demo-grade. In the cone's own context run:
+
+  ```bash
+  node "<orchestratorSkillDir>/assets/check-replica-artifacts.mjs" "/workspace/{REPO_NAME}"
+  ```
+
+  - **exit 0** — proceed. **exit 2 (BLOCKED-CAPTURE)** — HARD STOP: the source is bot-protected and
+    replica shipped placeholder imagery + an unmeasured "pass". Do not dispatch Stage 3 or deploy;
+    surface the gate's escalation options via `sprinkle` and wait for the user. **exit 1** — replica
+    ledger missing; re-dispatch Stage 2. See `pipeline-contract.md` § "Stage 2 artifact gate".
+
+- **Fan out at every eligible point** once the gate passes (exit 0): step 3 (if `DESIGN.json`
   absent) → 6-base ∥ 7 ∥ 10; then 6a–6e (after 6-base); then 6-assemble. Step 9 after 8a+8b; step 11
   (inline) after 8a+8b+9+10; step 12 (deploy, inline) after 6-assemble+7+11.
 - Each step scoop reads its own step skill first and writes `step-<id>-status.json`; does NOT call

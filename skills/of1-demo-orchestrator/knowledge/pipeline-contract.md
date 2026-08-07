@@ -66,12 +66,42 @@ have been removed; cross-session resume is not implemented, so nothing depends o
 | `repo-config.json` | `of1-check-dependencies` (setup) | every step | owner, repo, branch, contentPrefix, repoDir, domain, URLs |
 | `narrative.json` | Stage 1 (`of1-discover-narrative`) | orchestrator, Stages 2/3 | keyPages/focus/persona |
 | `step-2-output.md` | Stage 1 | `of1-build-templates`, `fill-demo-hub.mjs` | discovery narrative (markdown) |
-| `replica-done.json` | Stage 2 (`stardust:replica`) | orchestrator | gate for the Stage 3 site-integration track |
+| `replica-done.json` | Stage 2 (`stardust:replica`) | orchestrator | signals Stage 2 agent finished (NOT that output is demo-grade — see gate below) |
+| `stardust/replica/progress.json` | Stage 2 (`stardust:replica`) | orchestrator (Stage 2 artifact gate) | replica's own per-page/per-breakpoint ledger — the gate reads it |
 | `step-<id>-status.json` | each dispatched step | orchestrator | per-step status (grammar below) |
 | `pipeline-audit.json` | orchestrator | `fill-demo-hub.mjs` | run telemetry (schema below) |
 
 State dir: `$OF1_STATE_DIR` on Claude Code; `/shared/of1-demo-orchestrator/` on SLICC. Same file
 names on both.
+
+## Stage 2 artifact gate — replica-done ≠ demo-grade
+
+`replica-done.json` means the Stage 2 agent **finished**, not that its output is usable. When the
+source is bot-protected (Akamai/Cloudflare — apple.com is the canonical case), `stardust:replica`
+cannot capture it: its source-fidelity gate records the breakpoint as `gate-blocked` with
+`pixelPct: null`, substitutes **placeholder/gradient imagery** for product photography, and (in the
+run that motivated this gate) still marked `pass: true`. The pipeline then deploys a chromeless,
+imageless demo and reports success. `stardust:replica` is out of scope to edit, so the of1 side
+enforces its own documented rule ("a gate that can't read the live source has no pass to report")
+at the pipeline boundary.
+
+**Contract:** after `replica-done.json` appears and **before** dispatching the Stage 3
+site-integration track or deploying, the orchestrator runs:
+
+```bash
+node "<orchestratorSkillDir>/assets/check-replica-artifacts.mjs" "<repoDir>"
+```
+
+It reads `stardust/replica/progress.json` and exits:
+
+| Exit | Meaning | Orchestrator action |
+|---|---|---|
+| 0 | All breakpoints measured; no placeholder imagery | Proceed to Stage 3 |
+| 2 | **BLOCKED-CAPTURE** — unmeasured gate marked pass, and/or placeholder/gradient imagery | **HARD STOP.** Do not dispatch Stage 3 or deploy. Escalate to the user: retry `--headed`, run a content-only demo, or abort. |
+| 1 | `progress.json` missing/empty | Treat as Stage 2 failure; re-dispatch replica |
+
+This gate is the ONLY thing standing between a bot-blocked source and a shipped-but-broken demo —
+never skip it, never treat `replica-done.json` alone as permission to proceed.
 
 ## Per-step status / output contract
 
