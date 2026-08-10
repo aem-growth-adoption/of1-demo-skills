@@ -1,16 +1,16 @@
 ---
-name: of1-adopt-existing-site
+name: of1-integration
 description: "Introduce OF1 onto an existing EDS/Stardust site — reuses whatever design tokens/blocks/pages already exist instead of crawling an external domain or pixel-cloning. Works on both Claude Code and SLICC; no sprinkle/scoop UI."
 user-invocable: true
 ---
 
-# OF1 Adopt — Introduce OF1 on an Existing EDS/Stardust Site
+# OF1 Integration — Introduce OF1 on an Existing EDS/Stardust Site
 
 For sites that already have EDS blocks, content pages, and (usually) Stardust design tokens. Produces only the OF1-specific layer: templates, the `/of1` page, and tenant config. Runs identically in spirit on Claude Code and SLICC — the dispatch mechanism differs (see "## Dispatch" below), but there is **no sprinkle UI and no `sprinkle_send` call on either runtime.**
 
 ## Entry
 
-The user invokes you pointed at an existing EDS repo — e.g. "adopt OF1 onto this site" or "/of1-adopt-existing-site" from inside the repo. No domain crawl is needed; the site itself is the source of truth. If the repo isn't obvious from context, ask once via `AskUserQuestion` for the local path.
+The user invokes you pointed at an existing EDS repo — e.g. "adopt OF1 onto this site" or "/of1-integration" from inside the repo. No domain crawl is needed; the site itself is the source of truth. If the repo isn't obvious from context, ask once via `AskUserQuestion` for the local path.
 
 ## Invocation mode
 
@@ -22,7 +22,7 @@ Two modes, decided by `OF1_PIPELINE_MODE`:
   running `stardust:replica`. Two differences only:
   1. The content track (8a/8b/9) extracts from the real external domain — the orchestrator
      passes `OF1_CONTENT_SOURCE=<domain>`, which the content-track skills honor (see each
-     skill's "Source resolution" section). Adopt-site just forwards the env var to those dispatches.
+     skill's "Source resolution" section). OF1 integration just forwards the env var to those dispatches.
   2. The site-integration track (6, 7, 10, 11, 12) does not start until Stage 2 has finished.
      The orchestrator passes `OF1_REPLICA_DONE_FILE=<path>`; adopt-site waits for that file to
      exist before dispatching the site-integration track. The content track (8a/8b → 9) runs
@@ -49,7 +49,7 @@ echo "DESIGN.json present: $HAS_DESIGN_JSON"
 If `HAS_DESIGN_JSON=false`, Step 3 (extraction) invokes `stardust:extract` directly against the site's own EDS preview URL (`https://<branch>--<repo>--<owner>.aem.page`) to produce `stardust/current/DESIGN.json` (plus `PRODUCT.md`, `DESIGN.md`, and screenshots). If `true`, Step 3 is skipped entirely — the artifact-detection check above already confirmed a spec exists, so there is nothing for `stardust:extract` to do; adopt-site reuses the existing spec and writes `step-3-status.json` with `"status":"done"` either way, so downstream dependency checks don't need to special-case the skip.
 
 `DESIGN.json` may carry `_provenance.mode: bounded-single` when produced by `stardust:replica`
-in bounded (`--pages`) mode — this is fully valid input. Adopt-site consumes the tokens the same
+in bounded (`--pages`) mode — this is fully valid input. OF1 integration consumes the tokens the same
 way regardless of provenance; do NOT reject or re-extract on a bounded-single spec.
 
 ## Step graph

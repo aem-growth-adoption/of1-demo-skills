@@ -1,6 +1,6 @@
 # Design-tokens resolution — one resolver, many citers
 
-Every OF1 skill that needs the site's brand tokens (`of1-adopt-existing-site`,
+Every OF1 skill that needs the site's brand tokens (`of1-integration`,
 `of1-build-templates`, `of1-build-cta-template`, `of1-style-generative-block`)
 resolves them the **same way**. Do not hardcode a single `DESIGN.json` path —
 `stardust:replica` writes the spec to different locations depending on how it ran.

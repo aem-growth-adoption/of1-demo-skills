@@ -1,6 +1,6 @@
 ---
 name: of1-demo-orchestrator
-description: Orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, run as 3 stages — discover a narrative and focus pages, recreate those pages as a branded EDS replica via stardust:replica, then run OF1 integration (content, styling, config review, deploy) as steps 6–12 per of1-adopt-existing-site's step graph. Runs on both Claude Code and SLICC; it detects the runtime and follows the matching dispatch reference. Use when the user asks to build, demo, or one-shot an OF1 demo for a domain.
+description: Orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, run as 3 stages — discover a narrative and focus pages, recreate those pages as a branded EDS replica via stardust:replica, then run OF1 integration (content, styling, config review, deploy) as steps 6–12 per of1-integration's step graph. Runs on both Claude Code and SLICC; it detects the runtime and follows the matching dispatch reference. Use when the user asks to build, demo, or one-shot an OF1 demo for a domain.
 user-invocable: true
 ---
 
@@ -33,8 +33,8 @@ use Claude Code. Everything below is runtime-agnostic and applies on both.
 
 On **both** runtimes, one dispatch level does not nest: a Claude Code subagent has no `Agent` tool,
 and a SLICC scoop cannot call `scoop_scoop()`. So Stage 3 is **not** a single delegation to
-`of1-adopt-existing-site` that fans out internally — **this top-level orchestrator owns and
-dispatches each OF1-integration step 6–12 directly**, reading `of1-adopt-existing-site` as the
+`of1-integration` that fans out internally — **this top-level orchestrator owns and
+dispatches each OF1-integration step 6–12 directly**, reading `of1-integration` as the
 step-definition + dependency-graph reference. A single Stage-3 sub-dispatch could never spawn the
 sub-steps; the pipeline would stall.
 
@@ -92,13 +92,13 @@ Stage 2: stardust:replica <URL>            Stage 3: OF1 integration (steps 6–1
 - **Stage 2** (replica) and the **Stage 3 content track** (8a/8b) dispatch concurrently right after
   Stage 1. The content track needs only the live external site.
 - The **Stage 3 site-integration track** gates on Stage 2's `replica-done.json`, then fans out per
-  `of1-adopt-existing-site`'s dependency table: step 3 (if `DESIGN.json` absent) → 6-base ∥ 7 ∥ 10 →
+  `of1-integration`'s dependency table: step 3 (if `DESIGN.json` absent) → 6-base ∥ 7 ∥ 10 →
   6a–6e → 6-assemble; step 9 after 8a+8b; step 11 (inline) after 8a+8b+9+10; step 12 (deploy, inline)
   after 6-assemble+7+11.
 - **Fan out at every eligible point.** The pipeline is complete when step 12 returns `done`.
 
 The step-6–12 graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing are **defined once** in
-`of1-adopt-existing-site` — read them there; this orchestrator is the dispatcher, not a reimplementer.
+`of1-integration` — read them there; this orchestrator is the dispatcher, not a reimplementer.
 
 ## Stage → skill mapping
 
@@ -106,14 +106,14 @@ The step-6–12 graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing are **
 |---|---|---|---|
 | 1 | Collect | `of1-discovery` → `narrative.json` + `discovery.html` | setup |
 | 2 | Replica | `stardust:replica --pages` → EDS replica + `DESIGN.json` + `replica-done.json` | stage 1 (keyPages) |
-| 3 | OF1 integration (steps 6–12) | dispatched by THIS orchestrator per `of1-adopt-existing-site` (pipeline mode) | stage 1; site-track also on replica-done |
+| 3 | OF1 integration (steps 6–12) | dispatched by THIS orchestrator per `of1-integration` (pipeline mode) | stage 1; site-track also on replica-done |
 
 ## What Stage 2 & 3 own (do not reimplement here)
 
 - **Pixel fidelity** is owned by Stage 2 (`stardust:replica`) — it runs its own source-fidelity
   comparison/fix loop against the live site. Do not run screenshot-diff loops in the orchestrator.
 - **Step 11 (config review) and step 12 (deploy + pre-launch checklist)** run **inline** in the
-  orchestrator's own context, following `of1-adopt-existing-site`'s Step 11/Step 12 sections
+  orchestrator's own context, following `of1-integration`'s Step 11/Step 12 sections
   (including its check-5 adaptation for the adopt flow). Step 12's checklist gates the
   OF1-integration stage's `done` status.
 

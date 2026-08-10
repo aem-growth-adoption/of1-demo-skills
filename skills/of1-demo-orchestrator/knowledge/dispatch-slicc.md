@@ -112,7 +112,7 @@ scoop_scoop({ name: "of1-s3-8b-content", writablePaths: ["/scoops/of1-s3-8b-cont
 
 ## Stage 3 dispatch (steps 6–12)
 
-Use `of1-adopt-existing-site` (its "Dispatch → SLICC" column + dependency-trigger table) as the
+Use `of1-integration` (its "Dispatch → SLICC" column + dependency-trigger table) as the
 reference for what each step does and its dependency edges — the cone is the dispatcher.
 
 - Each step 6–12 is its own `scoop_scoop()` (writablePaths incl. repo + `/shared/`, env

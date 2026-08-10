@@ -18,7 +18,7 @@ One name per thing. Skills must use these names and not invent synonyms.
 | `SKILL_DIR` | orchestrator | the dispatched step | Absolute path to the step skill's own directory (for its `assets/`). |
 | `ADOBE_IMS_TOKEN` | user / environment | `of1-check-dependencies`, `of1-publish` | **Canonical DA credential** — the raw IMS token value. First choice in the token-resolution order. |
 | `OF1_TOKEN_FILE` | user / environment | `of1-check-dependencies`, `of1-publish`, `download-images.mjs` | Alternative to `ADOBE_IMS_TOKEN`: a path to a JSON file `{"access_token":"..."}`. Second in the resolution order. |
-| `OF1_PIPELINE_MODE` | orchestrator (Stage 3) | `of1-adopt-existing-site` + content-track skills | `1` when adopt-site runs inside the full pipeline (vs standalone). |
+| `OF1_PIPELINE_MODE` | orchestrator (Stage 3) | `of1-integration` + content-track skills | `1` when adopt-site runs inside the full pipeline (vs standalone). |
 | `OF1_CONTENT_SOURCE` | orchestrator (Stage 3) | content-track skills (8a/8b/9) | The external domain to extract content from, in pipeline mode. |
 | `OF1_REPLICA_DONE_FILE` | orchestrator (Stage 3) | orchestrator's site-track gate | Path to `replica-done.json` — the gate, not passed to step agents. |
 | `STRICT` | user / environment | `of1-check-dependencies` | Optional: makes dependency warnings fatal. |
@@ -36,19 +36,19 @@ Never document `DA_TOKEN` as a credential to set — set `ADOBE_IMS_TOKEN` (or `
 |---|---|---|
 | 1 | Discovery — narrative + key pages | `of1-discovery` → `narrative.json` |
 | 2 | Replica — recreate key pages as branded EDS | `stardust:replica <URL> --pages <slugs>` |
-| 3 | OF1 integration — steps 6–12 | defined by `of1-adopt-existing-site` |
+| 3 | OF1 integration — steps 6–12 | defined by `of1-integration` |
 
 Stage 2 and the Stage 3 **content track** (8a/8b/9) dispatch concurrently after Stage 1.
 The Stage 3 **site-integration track** (6·7·10 → 6-assemble → 11 → 12) gates on Stage 2's
 `replica-done.json`. **The step-6–12 graph, dependency edges, and pipeline-mode timing are
-defined once in `of1-adopt-existing-site`** — the orchestrator reads them there on both runtimes.
+defined once in `of1-integration`** — the orchestrator reads them there on both runtimes.
 
 ## Nesting cap — the top-level orchestrator dispatches steps 6–12 itself
 
 **On both runtimes, one dispatch level does not nest:** a Claude Code subagent has no Agent
 tool, and a SLICC scoop cannot call `scoop_scoop()`. Therefore Stage 3 is **not** a single
-delegation to `of1-adopt-existing-site` that fans out internally — the top-level orchestrator
-dispatches each step 6–12 itself, reading `of1-adopt-existing-site` as the step-definition +
+delegation to `of1-integration` that fans out internally — the top-level orchestrator
+dispatches each step 6–12 itself, reading `of1-integration` as the step-definition +
 dependency reference. A single Stage-3 sub-dispatch could never spawn the sub-steps; the
 pipeline would stall. (This is why there is no HARD RULE forbidding the orchestrator from
 "re-implementing" 6–12 — it must own them.)

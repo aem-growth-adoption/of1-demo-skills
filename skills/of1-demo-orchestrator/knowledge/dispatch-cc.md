@@ -24,7 +24,7 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
 
 - Stage 1 (discovery): `opus` — narrative synthesis drives both later stages.
 - Stage 2 (replica): `opus` — must follow a complex multi-phase skill precisely.
-- Stage 3 (steps 6–12): set the per-step model from `of1-adopt-existing-site`'s model table —
+- Stage 3 (steps 6–12): set the per-step model from `of1-integration`'s model table —
   **Opus** for step 7 (OF1 styling) and step 3 when it runs (extraction — token quality cascades);
   **Sonnet** for the rest (6-base, 6a–6e, 6-assemble, 8a, 8b, 9, 10).
 
@@ -52,7 +52,7 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
      or abort) and wait for a decision. See `pipeline-contract.md` § "Stage 2 artifact gate".
    - **exit 1** — replica's ledger is missing/empty; treat as a Stage 2 failure and re-dispatch it.
 
-   Only on exit 0, dispatch the Stage 3 site-integration track per `of1-adopt-existing-site`'s
+   Only on exit 0, dispatch the Stage 3 site-integration track per `of1-integration`'s
    dependency table: step 3 (if `DESIGN.json` absent) → 6-base ∥ 7 ∥ 10,
    then 6a–6e (after 6-base), then 6-assemble; step 9 after 8a+8b; step 11 (inline) after 8a+8b+9+10;
    step 12 (deploy, inline) after 6-assemble+7+11.
@@ -123,7 +123,7 @@ If status is `failed`, also write what specifically broke and what to retry.
 ```
 
 **Steps 11 (config review) and 12 (deploy) run inline in the orchestrator's own context** (not as
-Agents) — follow `of1-adopt-existing-site`'s "Step 11" and "Step 12" sections directly, including
+Agents) — follow `of1-integration`'s "Step 11" and "Step 12" sections directly, including
 its check-5 adaptation for the adopt flow.
 
 ## Auto-approve vs review mode
