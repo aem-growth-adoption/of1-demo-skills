@@ -198,7 +198,8 @@ Then ask the user:
 REPORT_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/discovery.html"
 cat > "$OF1_STATE_DIR/of1-discovery-status.json" <<EOF
 {
-  "step": 1,
+  "stage": 1,
+  "skill": "of1-discovery",
   "status": "review",
   "deliverables": [
     { "url": "${REPORT_URL}", "label": "Discovery report" }
