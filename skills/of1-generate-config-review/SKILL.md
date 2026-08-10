@@ -12,7 +12,7 @@ Generate the config-review.html deliverable for an OF1 demo using the proper tem
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-11-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `of1-generate-config-review-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo-orchestrator` git clone |
 | `SKILL_DIR` | absolute path to this skill (used to find `assets/fill-config-review.*`) |
 
@@ -96,9 +96,10 @@ A self-contained dark-themed dashboard showing:
 
 ```bash
 REVIEW_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/config-review.html"
-cat > "$OF1_STATE_DIR/step-11-status.json" <<EOF
+cat > "$OF1_STATE_DIR/of1-generate-config-review-status.json" <<EOF
 {
-  "step": 11,
+  "stage": 3,
+  "skill": "of1-generate-config-review",
   "status": "review",
   "deliverables": [
     { "url": "${REVIEW_URL}", "label": "Config review" }
