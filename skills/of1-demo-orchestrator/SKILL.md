@@ -119,8 +119,8 @@ The Integrate-skill graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing ar
 - **Pixel fidelity** is owned by Stage 2 (`stardust:replica`) — it runs its own source-fidelity
   comparison/fix loop against the live site. Do not run screenshot-diff loops in the orchestrator.
 - **`of1-generate-config-review` (config review) and `of1-publish` (deploy + pre-launch checklist)**
-  run **inline** in the orchestrator's own context, following `of1-integration`'s Step 11/Step 12
-  sections (including its check-5 adaptation for the adopt flow). `of1-publish`'s checklist gates the
+  run **inline** in the orchestrator's own context, following `of1-integration`'s Config review /
+  Deploy sections (including its check-5 adaptation for the adopt flow). `of1-publish`'s checklist gates the
   OF1-integration stage's `done` status.
 
 ## Iteration & completion

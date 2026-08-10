@@ -132,7 +132,7 @@ If status is `failed`, also write what specifically broke and what to retry.
 ```
 
 **`of1-generate-config-review` (config review) and `of1-publish` (deploy) run inline in the
-orchestrator's own context** (not as Agents) — follow `of1-integration`'s "Step 11" and "Step 12"
+orchestrator's own context** (not as Agents) — follow `of1-integration`'s "Config review" and "Deploy"
 sections directly, including its check-5 adaptation for the adopt flow.
 
 ## Auto-approve vs review mode

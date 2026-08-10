@@ -63,7 +63,7 @@ scoop_scoop({
 System prompt MUST include, in this order:
 
 ```
-## STEP 1 — MANDATORY (do this FIRST, before anything else)
+## FIRST — MANDATORY (do this before anything else)
 Run: read_file /workspace/skills/of1-discovery/SKILL.md
 Then follow those instructions EXACTLY. Do NOT improvise your own implementation.
 
