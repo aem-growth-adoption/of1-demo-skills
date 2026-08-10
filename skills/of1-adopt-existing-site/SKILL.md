@@ -165,7 +165,7 @@ git push origin "$BRANCH"
 After step 11 is approved AND steps 6-assemble + 7 are both done, run the `of1-publish` skill inline (read it and follow it directly — same as `of1-demo-orchestrator`'s Step 12).
 
 **Check 5 (deliverable URLs return 200) is already adopt-flow-aware:** it only asserts
-`discovery.html` when `step-2-output.md` exists, and discovery never runs in the adopt flow, so that
+`discovery.html` when `of1-discovery-output.md` exists, and discovery never runs in the adopt flow, so that
 URL is skipped automatically — no manual edit needed. (`brand-review.html` is no longer asserted by
 any path.) `/`, `/nav`, `/footer`, `/of1`, gallery, config-review, and the hub are asserted in both
 flows and must all return 200.

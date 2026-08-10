@@ -1,5 +1,5 @@
 ---
-name: of1-discover-narrative
+name: of1-discovery
 description: Crawl a target website and propose a demo focus and narrative for the OF1 demo.
 user-invocable: false
 ---
@@ -12,7 +12,7 @@ Crawl the target site to understand what it offers, then propose a demo focus an
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-2-output.md`, screenshots, and `step-2-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `of1-discovery-output.md`, screenshots, and `of1-discovery-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo-orchestrator` git clone |
 
 Read `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` from the contract `of1-check-dependencies` wrote:
@@ -75,7 +75,9 @@ For each page, note:
 
 ### 4. Structured output for downstream steps
 
-Write `$OF1_STATE_DIR/step-2-output.md` — consumed by steps 3, 4, and 6:
+Write `$OF1_STATE_DIR/of1-discovery-output.md` — read by `of1-extract-brand-voice`,
+`of1-extract-content`, `of1-build-templates`, `of1-build-quick-suggestions`, and
+`of1-publish` (`fill-demo-hub.mjs`):
 
 ```markdown
 # Discovery: {DOMAIN}
@@ -194,9 +196,9 @@ Then ask the user:
 
 ```bash
 REPORT_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/discovery.html"
-cat > "$OF1_STATE_DIR/step-2-status.json" <<EOF
+cat > "$OF1_STATE_DIR/of1-discovery-status.json" <<EOF
 {
-  "step": 2,
+  "step": 1,
   "status": "review",
   "deliverables": [
     { "url": "${REPORT_URL}", "label": "Discovery report" }

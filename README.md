@@ -5,7 +5,7 @@ Claude Code skills for preparing OF1 generative web search demos. These skills a
 ## Pipeline Flow
 
 ```
-Stage 1 · Collect        of1-discover-narrative → narrative.json (keyPages, focus)
+Stage 1 · Collect        of1-discovery → narrative.json (keyPages, focus)
                                    │
         ┌──────────────────────────┴──────────────────────────┐
 Stage 2 · Replica                              Stage 3 · OF1 integration
@@ -17,7 +17,7 @@ stardust:replica --pages                       of1-adopt-existing-site (pipeline
 
 | Stage | Skill | Notes |
 |-------|-------|-------|
-| 1 Collect | `of1-discover-narrative` | Emits `narrative.json` (keyPages drive Stage 2) |
+| 1 Collect | `of1-discovery` | Emits `narrative.json` (keyPages drive Stage 2) |
 | 2 Replica | `stardust:replica --pages` | Bounded same-design migration; no site-wide rollout |
 | 3 OF1 integration | `of1-adopt-existing-site` | Pipeline mode: live content source + replica-done gate |
 
@@ -29,7 +29,7 @@ Within Stage 3, `of1-adopt-existing-site` runs its own internal step graph — t
 |-------|-------------|
 | `of1-demo-orchestrator` | Orchestrate full demo preparation — 3-stage pipeline; runs on both Claude Code and SLICC (detects the runtime, sprinkle UI on SLICC) |
 | `of1-check-dependencies` | Verify prerequisites — skills, tools, and repo state; verify EDS repo + prepare repo-config.json |
-| `of1-discover-narrative` | Crawl a target website and propose a demo focus/narrative |
+| `of1-discovery` | Crawl a target website and propose a demo focus/narrative |
 | `of1-build-templates` | Generate 15 branded templates (5 intents × 3 variations) |
 | `of1-style-generative-block` | Generate CSS for dynamically-rendered generative sections |
 | `of1-extract-brand-voice` | Extract brand voice from a website and generate `brand-voice.json` |

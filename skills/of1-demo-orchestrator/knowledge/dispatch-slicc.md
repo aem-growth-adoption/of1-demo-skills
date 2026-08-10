@@ -63,7 +63,7 @@ System prompt MUST include, in this order:
 
 ```
 ## STEP 1 — MANDATORY (do this FIRST, before anything else)
-Run: read_file /workspace/skills/of1-discover-narrative/SKILL.md
+Run: read_file /workspace/skills/of1-discovery/SKILL.md
 Then follow those instructions EXACTLY. Do NOT improvise your own implementation.
 
 ## Project context
@@ -74,7 +74,7 @@ Then follow those instructions EXACTLY. Do NOT improvise your own implementation
 - repo-config.json: /shared/of1-demo-orchestrator/repo-config.json (read it for all paths)
 
 ## Output contract
-Write status to /shared/of1-demo-orchestrator/step-2-status.json (the skill's own Completion
+Write status to /shared/of1-demo-orchestrator/of1-discovery-status.json (the skill's own Completion
 section documents this exact filename/shape):
 {"step":2,"status":"review","deliverables":[{"url":"...","label":"..."}],"summary":"..."}
 Also write /shared/of1-demo-orchestrator/narrative.json per the skill's §4b.

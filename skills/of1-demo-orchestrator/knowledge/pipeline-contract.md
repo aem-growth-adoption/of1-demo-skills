@@ -34,7 +34,7 @@ Never document `DA_TOKEN` as a credential to set — set `ADOBE_IMS_TOKEN` (or `
 
 | Stage | What | Skill |
 |---|---|---|
-| 1 | Discovery — narrative + key pages | `of1-discover-narrative` → `narrative.json` |
+| 1 | Discovery — narrative + key pages | `of1-discovery` → `narrative.json` |
 | 2 | Replica — recreate key pages as branded EDS | `stardust:replica <URL> --pages <slugs>` |
 | 3 | OF1 integration — steps 6–12 | defined by `of1-adopt-existing-site` |
 
@@ -64,8 +64,8 @@ have been removed; cross-session resume is not implemented, so nothing depends o
 |---|---|---|---|
 | `setup.json` | `of1-check-dependencies` | orchestrator | Verified paths + owner/repo/branch + token source |
 | `repo-config.json` | `of1-check-dependencies` (setup) | every step | owner, repo, branch, contentPrefix, repoDir, domain, URLs |
-| `narrative.json` | Stage 1 (`of1-discover-narrative`) | orchestrator, Stages 2/3 | keyPages/focus/persona |
-| `step-2-output.md` | Stage 1 | `of1-build-templates`, `fill-demo-hub.mjs` | discovery narrative (markdown) |
+| `narrative.json` | Stage 1 (`of1-discovery`) | orchestrator, Stages 2/3 | keyPages/focus/persona |
+| `of1-discovery-output.md` | Stage 1 | `of1-build-templates`, `fill-demo-hub.mjs` | discovery narrative (markdown) |
 | `replica-done.json` | Stage 2 (`stardust:replica`) | orchestrator | signals Stage 2 agent finished (NOT that output is demo-grade — see gate below) |
 | `stardust/replica/progress.json` | Stage 2 (`stardust:replica`) | orchestrator (Stage 2 artifact gate) | replica's own per-page/per-breakpoint ledger — the gate reads it |
 | `step-<id>-status.json` | each dispatched step | orchestrator | per-step status (grammar below) |

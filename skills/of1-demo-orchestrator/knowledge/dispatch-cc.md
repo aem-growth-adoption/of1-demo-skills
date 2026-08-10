@@ -12,7 +12,7 @@ Use **TaskCreate** with one task per stage, plus one task per OF1-integration st
 
 ```
 0. Setup            (done if you got here — deps + repo-config.json)
-1. Collect          — of1-discover-narrative → narrative.json + demo story
+1. Collect          — of1-discovery → narrative.json + demo story
 2. Replica          — stardust:replica <URL> --pages <slugs> → EDS site + DESIGN.json
 3. OF1 integration  — steps 6–12, dispatched by THIS orchestrator:
    3 · 6-base · 6a–6e · 6-assemble · 7 · 8a · 8b · 9 · 10 · 11 · 12
@@ -30,7 +30,7 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
 
 ## Dispatch sequence
 
-1. **Stage 1:** dispatch `of1-discover-narrative` (model `opus`). Await `done`. Read `narrative.json`;
+1. **Stage 1:** dispatch `of1-discovery` (model `opus`). Await `done`. Read `narrative.json`;
    build `SLUGS=$(jq -r '.keyPages[].slug' <<<"$NARRATIVE" | paste -sd, -)`.
 2. **Kick off Stage 2 + the Stage 3 content track in ONE message:**
    - **Stage 2 Agent** (`opus`): invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>`; on

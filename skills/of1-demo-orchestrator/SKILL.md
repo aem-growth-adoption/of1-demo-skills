@@ -73,7 +73,7 @@ for branch URLs.
 ## The 3-stage model
 
 ```
-Stage 1: of1-discover-narrative ──┐ (narrative.json: keyPages, focus, persona)
+Stage 1: of1-discovery ──┐ (narrative.json: keyPages, focus, persona)
         ┌─────────────────────────┴─────────────────────────┐
         ↓                                                    ↓
 Stage 2: stardust:replica <URL>            Stage 3: OF1 integration (steps 6–12)
@@ -104,7 +104,7 @@ The step-6–12 graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing are **
 
 | Stage | Name | Skill | Depends on |
 |---|---|---|---|
-| 1 | Collect | `of1-discover-narrative` → `narrative.json` + `discovery.html` | setup |
+| 1 | Collect | `of1-discovery` → `narrative.json` + `discovery.html` | setup |
 | 2 | Replica | `stardust:replica --pages` → EDS replica + `DESIGN.json` + `replica-done.json` | stage 1 (keyPages) |
 | 3 | OF1 integration (steps 6–12) | dispatched by THIS orchestrator per `of1-adopt-existing-site` (pipeline mode) | stage 1; site-track also on replica-done |
 
