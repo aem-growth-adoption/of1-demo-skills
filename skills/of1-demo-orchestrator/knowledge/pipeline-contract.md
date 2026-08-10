@@ -36,22 +36,23 @@ Never document `DA_TOKEN` as a credential to set — set `ADOBE_IMS_TOKEN` (or `
 |---|---|---|
 | 1 | Discovery — narrative + key pages | `of1-discovery` → `narrative.json` |
 | 2 | Replica — recreate key pages as branded EDS | `stardust:replica <URL> --pages <slugs>` |
-| 3 | OF1 integration — steps 6–12 | defined by `of1-integration` |
+| 3 | OF1 integration — the of1-integration skills (Integrate stage) | defined by `of1-integration` |
 
 Stage 2 and the Stage 3 **content track** (8a/8b/9) dispatch concurrently after Stage 1.
-The Stage 3 **site-integration track** (6·7·10 → 6-assemble → 11 → 12) gates on Stage 2's
-`replica-done.json`. **The step-6–12 graph, dependency edges, and pipeline-mode timing are
-defined once in `of1-integration`** — the orchestrator reads them there on both runtimes.
+The Stage 3 **site-integration track** (`of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` → `of1-build-templates`(assemble) → `of1-generate-config-review` → `of1-publish`) gates on Stage 2's
+`replica-done.json`. **The Integrate-stage skill graph, dependency edges, and pipeline-mode
+timing are defined once in `of1-integration`** — the orchestrator reads them there on both
+runtimes.
 
-## Nesting cap — the top-level orchestrator dispatches steps 6–12 itself
+## Nesting cap — the top-level orchestrator dispatches each Integrate-stage skill itself
 
 **On both runtimes, one dispatch level does not nest:** a Claude Code subagent has no Agent
 tool, and a SLICC scoop cannot call `scoop_scoop()`. Therefore Stage 3 is **not** a single
 delegation to `of1-integration` that fans out internally — the top-level orchestrator
-dispatches each step 6–12 itself, reading `of1-integration` as the step-definition +
+dispatches each Integrate-stage skill itself, reading `of1-integration` as the step-definition +
 dependency reference. A single Stage-3 sub-dispatch could never spawn the sub-steps; the
 pipeline would stall. (This is why there is no HARD RULE forbidding the orchestrator from
-"re-implementing" 6–12 — it must own them.)
+"re-implementing" the Integrate stage — it must own them.)
 
 ## State files — the complete inventory
 
@@ -68,7 +69,7 @@ have been removed; cross-session resume is not implemented, so nothing depends o
 | `of1-discovery-output.md` | Stage 1 | `of1-build-templates`, `fill-demo-hub.mjs` | discovery narrative (markdown) |
 | `replica-done.json` | Stage 2 (`stardust:replica`) | orchestrator | signals Stage 2 agent finished (NOT that output is demo-grade — see gate below) |
 | `stardust/replica/progress.json` | Stage 2 (`stardust:replica`) | orchestrator (Stage 2 artifact gate) | replica's own per-page/per-breakpoint ledger — the gate reads it |
-| `step-<id>-status.json` | each dispatched step | orchestrator | per-step status (grammar below) |
+| `of1-<skill>-status.json` | each dispatched skill | orchestrator | per-skill status (grammar below) |
 | `pipeline-audit.json` | orchestrator | `fill-demo-hub.mjs` | run telemetry (schema below) |
 
 State dir: `$OF1_STATE_DIR` on Claude Code; `/shared/of1-demo-orchestrator/` on SLICC. Same file
@@ -109,12 +110,13 @@ Every dispatched step ends by writing its status, and (on CC) emitting the same 
 as its final message. Canonical shape:
 
 ```json
-{"step": "<id>", "status": "done" | "review" | "failed", "summary": "<one sentence>", "deliverables": [{"url": "...", "label": "..."}]}
+{"stage": <0-3>, "skill": "<of1-skill-name>", "status": "done" | "review" | "failed", "summary": "<one sentence>", "deliverables": [{"url": "...", "label": "..."}]}
 ```
 
-- `<id>` is the exact step id from the graph (`1`, `2`, `6-base`, `6a`…`6e`, `6-assemble`,
-  `7`, `8a`, `8b`, `9`, `10`, `11`, `12`).
-- Status files are written to `$OF1_STATE_DIR/step-<id>-status.json` (SLICC: `/shared/of1-demo-orchestrator/`).
+- `stage` is the pipeline stage (0 Setup, 1 Discover, 2 Replica, 3 Integrate); `skill` is the exact
+  of1-skill directory name. Skill-internal phases (`base`, `intent-*`, `assemble`) never appear here —
+  they are visible only in the orchestrator's dispatch logs.
+- Status files are written to `$OF1_STATE_DIR/of1-<skill>-status.json` (SLICC: `/shared/of1-demo-orchestrator/`).
   Step skills' own "Completion" sections own the exact filename/shape; this is the grammar.
 - On `failed`, also state what broke and what to retry.
 - **Only the orchestrator pushes to the sprinkle / user-facing UI.** Step dispatches write files.
@@ -128,21 +130,23 @@ derive from these; a missing URL greys them out).
 |---|---|
 | 1 — discovery | `https://{branch}--{repo}--{owner}.aem.page/deliverables/discovery.html` |
 | 2 — replica | `https://{branch}--{repo}--{owner}.aem.page/home` |
-| 3 — steps 6–12 | each step emits its own URLs in its status JSON (gallery, `/of1`, `config-review.html`, final deploy index) — pass them through as-is; do NOT invent one URL for the whole stage |
+| 3 — Integrate skills | each skill emits its own URLs in its status JSON (gallery, `/of1`, `config-review.html`, final deploy index) — pass them through as-is; do NOT invent one URL for the whole stage |
 
 ## Pipeline audit schema
 
-Write `$OF1_STATE_DIR/pipeline-audit.json` after the pipeline finishes (step 12 `done`) or
-aborts (partial audit is still useful). Because the orchestrator dispatches every step 6–12
-itself, **record each step individually** — there is no black-box Stage 3.
+Write `$OF1_STATE_DIR/pipeline-audit.json` after the pipeline finishes (`of1-publish` returns
+`done`) or aborts (partial audit is still useful). Because the orchestrator dispatches each
+Integrate-stage skill itself, **record each dispatch individually** — there is no black-box
+Stage 3.
 
 ### Per-step record fields
 
 | Field | Source |
 |---|---|
-| `stage` | Stage/step id (`1`, `2`, or a Stage 3 step id: `6-base`, `6a`…`6e`, `6-assemble`, `7`, `8a`, `8b`, `9`, `10`, `11`, `12`) |
+| `stage` | Stage number (`0`, `1`, `2`, or `3`) |
+| `skill` | Skill id for stages 0/1/3 (`of1-build-templates`, `of1-publish`, …) or `stardust:replica`/`stardust:extract` for stage 2. Skill-internal phases (`base`, `intent-*`, `assemble`) may be appended as `skill#phase` for the multi-dispatch templates skill. |
 | `name` | Human label (`discovery`, `replica`, `templates-base`, `styling`, `content`, `deploy`, …) |
-| `model` | Model used for this dispatch (`inline` for steps 11/12, which run in the orchestrator's own context) |
+| `model` | Model used for this dispatch (`inline` for `of1-generate-config-review` and `of1-publish`, which run in the orchestrator's own context) |
 | `startedAt` | ISO timestamp when dispatched |
 | `durationMs` | Wall-clock for this dispatch |
 | `totalTokens` | Token spend if available, else `null` |
@@ -172,7 +176,7 @@ ever must, change this file and both citers together, never one side.
   "stageCount": <number of dispatches including retries>,
   "stages": [
     {
-      "stage": "1", "name": "discovery", "model": "opus",
+      "stage": 1, "skill": "of1-discovery", "name": "discovery", "model": "opus",
       "startedAt": "...", "durationMs": 41200, "totalTokens": 18400, "toolUses": 22,
       "status": "done", "summary": "narrative + 5 key pages identified",
       "retries": 0, "error": null
@@ -182,8 +186,9 @@ ever must, change this file and both citers together, never one side.
 }
 ```
 
-Each entry in `stages[]` is a per-**step** record (its own `stage` field carries the step id);
-the array key stays `stages` for reader compatibility even though it now holds steps 1–12.
+Each entry in `stages[]` is a per-**skill dispatch** record (its own `stage`/`skill` fields
+carry the identity); the array key stays `stages` for reader compatibility even though it now
+holds one record per dispatched skill.
 
 Capture the skill version before the first dispatch:
 
@@ -197,26 +202,28 @@ SKILL_BRANCH=$(git -C "$SKILL_PLUGIN_DIR" branch --show-current 2>/dev/null || e
 
 After writing the step data, append an `improvements` array. For each step that had problems —
 retries, token spend >2× the expected range, duration >3× expected, or a recovered
-`failed`/`review` — write one actionable observation naming the **specific step id**:
+`failed`/`review` — write one actionable observation naming the **specific stage and skill**:
 
 ```json
 {
   "improvements": [
     {
-      "stage": "2",
+      "stage": 2,
+      "skill": "stardust:replica",
       "issue": "Replica took 22 min (2× expected) for 5 pages — stardust:replica's source-fidelity gate rejected the first render on 2 of 5 pages",
       "suggestion": "Pass tighter page-selection guidance from Stage 1 (avoid heavy client-side pages) so the first render is likelier to pass the fidelity gate"
     },
     {
-      "stage": "10",
-      "issue": "step 10 (CTA template) returned 'review' over CTA copy tone — one revision round before deploy",
+      "stage": 3,
+      "skill": "of1-build-cta-template",
+      "issue": "of1-build-cta-template returned 'review' over CTA copy tone — one revision round before deploy",
       "suggestion": "Have Stage 1's narrative.json carry an explicit tone/voice guideline the content track consumes"
     }
   ]
 }
 ```
 
-Rules: only include steps with real problems; be specific and cite the step id; each
+Rules: only include steps with real problems; be specific and cite the stage/skill; each
 `suggestion` is a concrete change to a skill or dispatch prompt; a clean run writes
 `"improvements": []` (don't invent issues); skill-level bugs get filed as skill edits, not
 left as audit notes.
