@@ -25,7 +25,7 @@ BRANCH=$(jq -r .branch <<<"$REPO_CONFIG")
 DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 ```
 
-`playwright-cli` calls below use `open` + `--fullPage=true` + `--filename` — the native SLICC syntax. CC environments with the shim at `of1-check-dependencies/scripts/playwright-cli-shim.sh` also accept this syntax (shim passes it through unchanged).
+`playwright-cli` calls below use modern @playwright/cli syntax: `open` + `--full-page` (bare boolean) + `--filename`. This works on both SLICC-native and CC `playwright-cli` binaries.
 
 ## Process
 
@@ -36,7 +36,7 @@ The crawl is bounded to ~4 pages: homepage + at most 3 nav pages. Don't visit pr
 ```bash
 playwright-cli open "https://${DOMAIN}"
 sleep 3
-playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/discovery-home.png"
+playwright-cli screenshot --full-page --filename "$OF1_STATE_DIR/discovery-home.png"
 playwright-cli tab-close "$(playwright-cli tab-list | grep -oE '[0-9]+' | tail -1)"
 ```
 
@@ -54,7 +54,7 @@ Follow top-nav links to the most visual/product-rich pages. Pick the 2–3 best 
 ```bash
 playwright-cli open "https://${DOMAIN}/{path}"
 sleep 3
-playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/discovery-{slug}.png"
+playwright-cli screenshot --full-page --filename "$OF1_STATE_DIR/discovery-{slug}.png"
 playwright-cli tab-close "$(playwright-cli tab-list | grep -oE '[0-9]+' | tail -1)"
 ```
 

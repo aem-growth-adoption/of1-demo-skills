@@ -107,12 +107,9 @@ export SKILL_DIR="<absolute path to the step skill's directory>"
 
 ## Platform notes
 - If the skill calls `upskill ...`: STOP — that means a dependency is missing; report failure.
-- playwright-cli: if the shim (of1-check-dependencies/scripts/playwright-cli-shim.sh) is installed,
-  it translates legacy syntax (visit/--output/--fullPage) automatically. The shim is NOT installed
-  by default — install it with `bash of1-check-dependencies/scripts/install-shim.sh`. If you must call
-  the raw binary directly, use modern syntax: `open` (not visit), `--filename` (not --output),
-  `--full-page` as a bare boolean (no =value), and `eval` needs a function form (`() => (…)`) — a
-  bare expression returns silently empty.
+- playwright-cli: the step skills use modern @playwright/cli syntax. If you write your own calls,
+  use `open` (not visit), `--filename` (not --output), `--full-page` as a bare boolean (no =value),
+  and give `eval` a function form (`() => (…)`) — a bare expression returns silently empty.
 
 ## Output contract
 End your last message with EXACTLY this fenced block (the orchestrator parses it) — canonical
