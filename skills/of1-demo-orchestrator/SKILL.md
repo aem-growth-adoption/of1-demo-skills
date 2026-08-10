@@ -1,6 +1,6 @@
 ---
 name: of1-demo-orchestrator
-description: Orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, run as 3 stages — discover a narrative and focus pages, recreate those pages as a branded EDS replica via stardust:replica, then run OF1 integration (content, styling, config review, deploy) as steps 6–12 per of1-integration's step graph. Runs on both Claude Code and SLICC; it detects the runtime and follows the matching dispatch reference. Use when the user asks to build, demo, or one-shot an OF1 demo for a domain.
+description: Orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, run as 3 stages — discover a narrative and focus pages, recreate those pages as a branded EDS replica via stardust:replica, then run OF1 integration (content, styling, config review, deploy) as the Integrate-stage skills per of1-integration's step graph. Runs on both Claude Code and SLICC; it detects the runtime and follows the matching dispatch reference. Use when the user asks to build, demo, or one-shot an OF1 demo for a domain.
 user-invocable: true
 ---
 
@@ -29,14 +29,14 @@ dispatch/progress/audit mechanics:
 If somehow both or neither appear available, prefer SLICC when `scoop_scoop` is present; otherwise
 use Claude Code. Everything below is runtime-agnostic and applies on both.
 
-## ⚠️ Nesting cap — this orchestrator dispatches steps 6–12 itself
+## ⚠️ Nesting cap — this orchestrator dispatches the Integrate skills itself
 
 On **both** runtimes, one dispatch level does not nest: a Claude Code subagent has no `Agent` tool,
 and a SLICC scoop cannot call `scoop_scoop()`. So Stage 3 is **not** a single delegation to
 `of1-integration` that fans out internally — **this top-level orchestrator owns and
-dispatches each OF1-integration step 6–12 directly**, reading `of1-integration` as the
-step-definition + dependency-graph reference. A single Stage-3 sub-dispatch could never spawn the
-sub-steps; the pipeline would stall.
+dispatches each OF1-integration skill directly**, reading `of1-integration` as the
+skill-definition + dependency-graph reference. A single Stage-3 sub-dispatch could never spawn the
+Integrate skills; the pipeline would stall.
 
 ## Entry
 
@@ -76,28 +76,34 @@ for branch URLs.
 Stage 1: of1-discovery ──┐ (narrative.json: keyPages, focus, persona)
         ┌─────────────────────────┴─────────────────────────┐
         ↓                                                    ↓
-Stage 2: stardust:replica <URL>            Stage 3: OF1 integration (steps 6–12)
-  --pages <slugs>                            THIS orchestrator dispatches each step,
+Stage 2: stardust:replica <URL>            Stage 3: OF1 integration (Integrate skills)
+  --pages <slugs>                            THIS orchestrator dispatches each skill,
   → EDS site + DESIGN.json                    per adopt-site's graph: content track
-  → write replica-done.json                   (8a/8b/9) runs NOW; site-integration
-                                              track (6·7·10 → assemble → 11 → 12)
+  → write replica-done.json                   (brand-voice/content/suggestions) runs NOW;
+                                              site-integration track (templates·styling·cta
+                                              → assemble → config-review → publish)
                                               gates on replica-done.json
         └─────────────────────────┬─────────────────────────┘
-                                  ↓  join + deploy (step 12) owned by THIS orchestrator
+                                  ↓  join + deploy (of1-publish) owned by THIS orchestrator
                              (deploy)
 ```
 
 - **Stage 1** (discovery) runs first; read its `narrative.json` and build the comma-separated slug
   list from `keyPages[].slug`.
-- **Stage 2** (replica) and the **Stage 3 content track** (8a/8b) dispatch concurrently right after
-  Stage 1. The content track needs only the live external site.
+- **Stage 2** (replica) and the **Stage 3 content track** (`of1-extract-brand-voice`/`of1-extract-content`)
+  dispatch concurrently right after Stage 1. The content track needs only the live external site.
 - The **Stage 3 site-integration track** gates on Stage 2's `replica-done.json`, then fans out per
-  `of1-integration`'s dependency table: step 3 (if `DESIGN.json` absent) → 6-base ∥ 7 ∥ 10 →
-  6a–6e → 6-assemble; step 9 after 8a+8b; step 11 (inline) after 8a+8b+9+10; step 12 (deploy, inline)
-  after 6-assemble+7+11.
-- **Fan out at every eligible point.** The pipeline is complete when step 12 returns `done`.
+  `of1-integration`'s dependency table: the extraction step (if `DESIGN.json` absent) →
+  `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` →
+  `of1-build-templates`(intent-*) → `of1-build-templates`(assemble);
+  `of1-build-quick-suggestions` after `of1-extract-brand-voice`+`of1-extract-content`;
+  `of1-generate-config-review` (inline) after
+  `of1-extract-brand-voice`+`of1-extract-content`+`of1-build-quick-suggestions`+`of1-build-cta-template`;
+  `of1-publish` (deploy, inline) after
+  `of1-build-templates`(assemble)+`of1-style-generative-block`+`of1-generate-config-review`.
+- **Fan out at every eligible point.** The pipeline is complete when `of1-publish` returns `done`.
 
-The step-6–12 graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing are **defined once** in
+The Integrate-skill graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing are **defined once** in
 `of1-integration` — read them there; this orchestrator is the dispatcher, not a reimplementer.
 
 ## Stage → skill mapping
@@ -106,24 +112,24 @@ The step-6–12 graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing are **
 |---|---|---|---|
 | 1 | Collect | `of1-discovery` → `narrative.json` + `discovery.html` | setup |
 | 2 | Replica | `stardust:replica --pages` → EDS replica + `DESIGN.json` + `replica-done.json` | stage 1 (keyPages) |
-| 3 | OF1 integration (steps 6–12) | dispatched by THIS orchestrator per `of1-integration` (pipeline mode) | stage 1; site-track also on replica-done |
+| 3 | OF1 integration (Integrate skills) | dispatched by THIS orchestrator per `of1-integration` (pipeline mode) | stage 1; site-track also on replica-done |
 
 ## What Stage 2 & 3 own (do not reimplement here)
 
 - **Pixel fidelity** is owned by Stage 2 (`stardust:replica`) — it runs its own source-fidelity
   comparison/fix loop against the live site. Do not run screenshot-diff loops in the orchestrator.
-- **Step 11 (config review) and step 12 (deploy + pre-launch checklist)** run **inline** in the
-  orchestrator's own context, following `of1-integration`'s Step 11/Step 12 sections
-  (including its check-5 adaptation for the adopt flow). Step 12's checklist gates the
+- **`of1-generate-config-review` (config review) and `of1-publish` (deploy + pre-launch checklist)**
+  run **inline** in the orchestrator's own context, following `of1-integration`'s Step 11/Step 12
+  sections (including its check-5 adaptation for the adopt flow). `of1-publish`'s checklist gates the
   OF1-integration stage's `done` status.
 
 ## Iteration & completion
 
-- If a step fails or the user requests a revision, re-dispatch just that step (with feedback
+- If a skill fails or the user requests a revision, re-dispatch just that skill (with feedback
   appended) — see the runtime file for the exact mechanics (`revise:` lick on SLICC; re-dispatch the
   Agent on CC).
-- When step 12 returns `done`, all three stages are complete. On SLICC the sprinkle stays open as a
-  reference with all URLs.
+- When `of1-publish` returns `done`, all three stages are complete. On SLICC the sprinkle stays open
+  as a reference with all URLs.
 
 ## Reference — shared contract & pitfalls
 

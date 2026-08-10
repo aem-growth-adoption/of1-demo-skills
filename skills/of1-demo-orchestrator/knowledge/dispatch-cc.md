@@ -7,15 +7,18 @@ the runtime-agnostic *what* (stage model, step graph, nesting cap, audit schema)
 
 ## Progress tracking — TaskCreate
 
-Use **TaskCreate** with one task per stage, plus one task per OF1-integration step under Stage 3
-(the orchestrator owns steps 6–12 directly — see the nesting cap):
+Use **TaskCreate** with one task per stage, plus one task per OF1-integration skill under Stage 3
+(the orchestrator owns the Integrate-stage skills directly — see the nesting cap):
 
 ```
 0. Setup            (done if you got here — deps + repo-config.json)
 1. Collect          — of1-discovery → narrative.json + demo story
 2. Replica          — stardust:replica <URL> --pages <slugs> → EDS site + DESIGN.json
-3. OF1 integration  — steps 6–12, dispatched by THIS orchestrator:
-   3 · 6-base · 6a–6e · 6-assemble · 7 · 8a · 8b · 9 · 10 · 11 · 12
+3. OF1 integration  — Integrate skills, dispatched by THIS orchestrator:
+   extraction · of1-build-templates(base) · of1-build-templates(intent-*) ·
+   of1-build-templates(assemble) · of1-style-generative-block · of1-extract-brand-voice ·
+   of1-extract-content · of1-build-quick-suggestions · of1-build-cta-template ·
+   of1-generate-config-review · of1-publish
 ```
 
 Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`failed` around its dispatch.
@@ -24,9 +27,11 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
 
 - Stage 1 (discovery): `opus` — narrative synthesis drives both later stages.
 - Stage 2 (replica): `opus` — must follow a complex multi-phase skill precisely.
-- Stage 3 (steps 6–12): set the per-step model from `of1-integration`'s model table —
-  **Opus** for step 7 (OF1 styling) and step 3 when it runs (extraction — token quality cascades);
-  **Sonnet** for the rest (6-base, 6a–6e, 6-assemble, 8a, 8b, 9, 10).
+- Stage 3 (Integrate skills): set the per-skill model from `of1-integration`'s model table —
+  **Opus** for `of1-style-generative-block` (OF1 styling) and the extraction step when it runs
+  (token quality cascades); **Sonnet** for the rest (`of1-build-templates`(base),
+  `of1-build-templates`(intent-*), `of1-build-templates`(assemble), `of1-extract-brand-voice`,
+  `of1-extract-content`, `of1-build-quick-suggestions`, `of1-build-cta-template`).
 
 ## Dispatch sequence
 
@@ -35,7 +40,7 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
 2. **Kick off Stage 2 + the Stage 3 content track in ONE message:**
    - **Stage 2 Agent** (`opus`): invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>`; on
      success write `<stateDir>/replica-done.json`. See the Stage 2 dispatch template below.
-   - **Stage 3 content-track Agents** (steps 8a, 8b): dispatch immediately with `OF1_PIPELINE_MODE=1`,
+   - **Stage 3 content-track Agents** (`of1-extract-brand-voice`, `of1-extract-content`): dispatch immediately with `OF1_PIPELINE_MODE=1`,
      `OF1_CONTENT_SOURCE=<DOMAIN>` — they need only the live external site.
 3. **When `replica-done.json` exists, run the Stage 2 artifact gate BEFORE dispatching the
    site-integration track.** `replica-done.json` only means the Stage 2 agent finished — it does NOT
@@ -53,12 +58,16 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
    - **exit 1** — replica's ledger is missing/empty; treat as a Stage 2 failure and re-dispatch it.
 
    Only on exit 0, dispatch the Stage 3 site-integration track per `of1-integration`'s
-   dependency table: step 3 (if `DESIGN.json` absent) → 6-base ∥ 7 ∥ 10,
-   then 6a–6e (after 6-base), then 6-assemble; step 9 after 8a+8b; step 11 (inline) after 8a+8b+9+10;
-   step 12 (deploy, inline) after 6-assemble+7+11.
-4. **Fan out in parallel at every eligible point** — dispatch all currently-eligible steps in one
-   message with multiple Agent blocks (e.g. 6-base ∥ 7 ∥ 10 once the replica is done; 6a–6e in one
-   message once 6-base returns). When step 12 returns `done`, the pipeline is complete.
+   dependency table: the extraction step (if `DESIGN.json` absent) → `of1-build-templates`(base) ∥
+   `of1-style-generative-block` ∥ `of1-build-cta-template`, then `of1-build-templates`(intent-*)
+   (after base), then `of1-build-templates`(assemble); `of1-build-quick-suggestions` after
+   `of1-extract-brand-voice`+`of1-extract-content`; `of1-generate-config-review` (inline) after
+   `of1-extract-brand-voice`+`of1-extract-content`+`of1-build-quick-suggestions`+`of1-build-cta-template`;
+   `of1-publish` (deploy, inline) after `of1-build-templates`(assemble)+`of1-style-generative-block`+`of1-generate-config-review`.
+4. **Fan out in parallel at every eligible point** — dispatch all currently-eligible skills in one
+   message with multiple Agent blocks (e.g. `of1-build-templates`(base) ∥ `of1-style-generative-block`
+   ∥ `of1-build-cta-template` once the replica is done; `of1-build-templates`(intent-*) in one
+   message once base returns). When `of1-publish` returns `done`, the pipeline is complete.
 
 ## Stage 2 dispatch template (replica)
 
@@ -78,19 +87,19 @@ On success, write the done-file so Stage 3's site-integration track can proceed:
 
 End with the JSON status block:
 ```json
-{"step": 2, "status": "done"|"failed", "summary": "...", "deliverables": [{"url":"...","label":"..."}]}
+{"stage": 2, "skill": "stardust:replica", "status": "done"|"failed", "summary": "...", "deliverables": [{"url":"...","label":"..."}]}
 ```
 ```
 
-## Step dispatch template (steps 6–12)
+## Skill dispatch template (Integrate skills)
 
-Each step is a single `Agent` call. Sub-agents see none of this conversation — the prompt must be
+Each skill is a single `Agent` call. Sub-agents see none of this conversation — the prompt must be
 self-contained. **Always pass `model` and `mode: "bypassPermissions"`.**
 
 ```
-You are executing **Step N (<step-name>)** of the OF1 demo pipeline for `<DOMAIN>`.
+You are executing the **<skill> skill** (Integrate stage) of the OF1 demo pipeline for `<DOMAIN>`.
 
-## Load the step skill
+## Load the skill
 Read the skill file and follow it as written:
   Read: <absolute path to .claude/skills/<skill>/SKILL.md>
 
@@ -103,7 +112,7 @@ export SKILL_DIR="<absolute path to the step skill's directory>"
 ## Project context
 - Branch: <branch>          (from repo-config.json)
 - DA owner/repo: <owner>/<repo>  (from repo-config.json)
-- Prior step outputs you need: <list specific files>
+- Prior skill outputs you need: <list specific files>
 
 ## Platform notes
 - If the skill calls `upskill ...`: STOP — that means a dependency is missing; report failure.
@@ -116,40 +125,40 @@ End your last message with EXACTLY this fenced block (the orchestrator parses it
 grammar and `deliverables` rules are in `pipeline-contract.md`:
 
 ```json
-{"step": N, "status": "done" | "review" | "failed", "summary": "<one sentence>", "deliverables": [{"url": "...", "label": "..."}]}
+{"stage": 3, "skill": "<skill>", "status": "done" | "review" | "failed", "summary": "<one sentence>", "deliverables": [{"url": "...", "label": "..."}]}
 ```
 
 If status is `failed`, also write what specifically broke and what to retry.
 ```
 
-**Steps 11 (config review) and 12 (deploy) run inline in the orchestrator's own context** (not as
-Agents) — follow `of1-integration`'s "Step 11" and "Step 12" sections directly, including
-its check-5 adaptation for the adopt flow.
+**`of1-generate-config-review` (config review) and `of1-publish` (deploy) run inline in the
+orchestrator's own context** (not as Agents) — follow `of1-integration`'s "Step 11" and "Step 12"
+sections directly, including its check-5 adaptation for the adopt flow.
 
 ## Auto-approve vs review mode
 
-After each step's Agent returns:
+After each skill's Agent returns:
 - **One-shot mode (default):** mark the task completed, continue immediately.
 - **Step mode:** if the returned status is `review`, call `AskUserQuestion` with "Approve and
-  continue" / "Revise — describe changes". On "Revise", re-dispatch the same step's Agent with the
+  continue" / "Revise — describe changes". On "Revise", re-dispatch the same skill's Agent with the
   user's feedback appended under a `## Revision feedback` section.
 
-The user can interrupt at any time ("revise step N") — re-dispatch with their feedback.
+The user can interrupt at any time ("revise `<skill>`") — re-dispatch with their feedback.
 
 ## Failure recovery
 
-If a step returns `failed`:
-1. Mark its task `failed` and pause (do NOT dispatch downstream steps).
+If a skill returns `failed`:
+1. Mark its task `failed` and pause (do NOT dispatch downstream skills).
 2. Show the user the failure message.
 3. Ask: retry as-is / retry with guidance / skip / abort.
 4. On retry, re-dispatch with guidance appended.
-5. On skip, only allow if no downstream step structurally depends on it.
+5. On skip, only allow if no downstream skill structurally depends on it.
 
 ## Audit capture (CC-specific)
 
 Record telemetry from each Agent result's `<usage>` block (`duration_ms`, `total_tokens`,
 `tool_uses`). Track in memory across dispatches; write the audit per `pipeline-contract.md`
-§ "Pipeline audit schema". Steps 11/12 are inline (`model: "inline"`).
+§ "Pipeline audit schema". `of1-generate-config-review`/`of1-publish` are inline (`model: "inline"`).
 
 ## State files (CC)
 
