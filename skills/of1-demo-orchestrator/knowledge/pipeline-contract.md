@@ -19,7 +19,7 @@ One name per thing. Skills must use these names and not invent synonyms.
 | `ADOBE_IMS_TOKEN` | user / environment | `of1-check-dependencies`, `of1-publish` | **Canonical DA credential** — the raw IMS token value. First choice in the token-resolution order. |
 | `OF1_TOKEN_FILE` | user / environment | `of1-check-dependencies`, `of1-publish`, `download-images.mjs` | Alternative to `ADOBE_IMS_TOKEN`: a path to a JSON file `{"access_token":"..."}`. Second in the resolution order. |
 | `OF1_PIPELINE_MODE` | orchestrator (Stage 3) | `of1-integration` + content-track skills | `1` when adopt-site runs inside the full pipeline (vs standalone). |
-| `OF1_CONTENT_SOURCE` | orchestrator (Stage 3) | content-track skills (8a/8b/9) | The external domain to extract content from, in pipeline mode. |
+| `OF1_CONTENT_SOURCE` | orchestrator (Stage 3) | content-track skills (`of1-extract-brand-voice`, `of1-extract-content`, `of1-build-quick-suggestions`) | The external domain to extract content from, in pipeline mode. |
 | `OF1_REPLICA_DONE_FILE` | orchestrator (Stage 3) | orchestrator's site-track gate | Path to `replica-done.json` — the gate, not passed to step agents. |
 | `STRICT` | user / environment | `of1-check-dependencies` | Optional: makes dependency warnings fatal. |
 
@@ -38,7 +38,7 @@ Never document `DA_TOKEN` as a credential to set — set `ADOBE_IMS_TOKEN` (or `
 | 2 | Replica — recreate key pages as branded EDS | `stardust:replica <URL> --pages <slugs>` |
 | 3 | OF1 integration — the of1-integration skills (Integrate stage) | defined by `of1-integration` |
 
-Stage 2 and the Stage 3 **content track** (8a/8b/9) dispatch concurrently after Stage 1.
+Stage 2 and the Stage 3 **content track** (`of1-extract-brand-voice` ∥ `of1-extract-content` → `of1-build-quick-suggestions`) dispatch concurrently after Stage 1.
 The Stage 3 **site-integration track** (`of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` → `of1-build-templates`(assemble) → `of1-generate-config-review` → `of1-publish`) gates on Stage 2's
 `replica-done.json`. **The Integrate-stage skill graph, dependency edges, and pipeline-mode
 timing are defined once in `of1-integration`** — the orchestrator reads them there on both
