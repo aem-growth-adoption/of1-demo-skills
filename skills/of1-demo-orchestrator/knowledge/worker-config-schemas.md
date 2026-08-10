@@ -164,8 +164,8 @@ Pre-authored exploration prompts. Object with optional UI strings + an array.
   "subtitle": "Pick a starting point or ask anything.",
   "placeholder": "Search coffee, machines, gifts...",
   "suggestions": [
-    { "type": "explore", "label": "Dark roast options", "query": "Show me all dark roast coffee options" },
-    { "type": "explore", "label": "Gift ideas", "query": "Best gift ideas for someone who loves coffee" }
+    { "type": "discovery", "label": "Dark roast options", "query": "Show me all dark roast coffee options" },
+    { "type": "recommendation", "label": "Gift ideas", "query": "Best gift ideas for someone who loves coffee" }
   ]
 }
 ```
@@ -175,7 +175,7 @@ Pre-authored exploration prompts. Object with optional UI strings + an array.
 | `title` | yes | `<h1>` heading on the /of1 page |
 | `subtitle` | yes | Supporting text below the heading |
 | `placeholder` | yes | Input field placeholder text |
-| `suggestions[].type` | yes | Always `"explore"` |
+| `suggestions[].type` | yes | The chip's intent: `comparison`, `recommendation`, `deep-dive`, `discovery`, or `budget`. Set by `of1-build-quick-suggestions` per chip. Not read/validated by the worker today (chips render from `label`+`query`) — descriptive metadata, reserved for a future consumer. |
 | `suggestions[].label` | yes | Short chip text, under 40 chars |
 | `suggestions[].query` | yes | Full query string sent to `/api/generate` when clicked |
 
