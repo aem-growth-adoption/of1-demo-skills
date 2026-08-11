@@ -33,7 +33,9 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
 
 ## Dispatch sequence
 
-1. **Stage 1:** dispatch `of1-discovery` (model `opus`). Await `done`. Read `narrative.json`;
+1. **Stage 1:** dispatch `of1-discovery` (model `opus`), exporting the standard step env
+   (`OF1_STATE_DIR`, `OF1_DEMO_REPO`, and **`SKILL_DIR`** — discovery's `fill-discovery.mjs`
+   needs it). Await `done`. Read `narrative.json`;
    build `SLUGS=$(jq -r '.keyPages[].slug' <<<"$NARRATIVE" | paste -sd, -)`.
 2. **Kick off Stage 2 + the Stage 3 content track in ONE message:**
    - **Stage 2 Agent** (`opus`): invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>`; on

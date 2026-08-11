@@ -14,6 +14,7 @@ Crawl the target site to understand what it offers, then propose a demo focus an
 |-----|---------|
 | `OF1_STATE_DIR` | state + IPC dir; receives `of1-discovery-output.md`, screenshots, and `of1-discovery-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo-orchestrator` git clone |
+| `SKILL_DIR` | absolute path to this skill's directory (used to find `assets/fill-discovery.mjs` + `assets/discovery-report.html`) |
 
 Read `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` from the contract `of1-check-dependencies` wrote:
 
@@ -135,35 +136,15 @@ key pages total — these become the ONLY pages Stage 2 recreates.
 
 ### 5. Discovery report HTML
 
-Generate a self-contained HTML report at `$OF1_DEMO_REPO/deliverables/discovery.html` using the OF1 dark theme:
+**Generate the report with the fill script — do NOT hand-write the HTML.** `fill-discovery.mjs` reads `of1-discovery-output.md` (Step 4) and the `discovery-*.png` screenshots from `$OF1_STATE_DIR`, copies the screenshots into `deliverables/assets/screenshots/` (referenced by absolute path — they resolve on the EDS preview and avoid base64 bloat), renders the markdown, and writes a themed self-contained `deliverables/discovery.html`.
 
-```css
---bg: #1C1917;
---fg: #F5F0E8;
---accent: #FF3D00;
---teal: #00E5A0;
---fg-dim: rgba(245, 240, 232, 0.55);
---border: rgba(245, 240, 232, 0.1);
---font: 'JetBrains Mono', monospace;
---heading-font: 'Cormorant Garamond', serif;
-```
-
-Include the site overview, proposed demo, key pages, page-structure analysis, and the screenshots from `$OF1_STATE_DIR/discovery-*.png` — **always embed as base64** (absolute file paths don't resolve on the EDS preview URL):
-
-```bash
-SCREENSHOT_B64=$(base64 < "$OF1_STATE_DIR/discovery-home.png")
-# In the HTML: <img src="data:image/png;base64,${SCREENSHOT_B64}">
-```
-
-Load Google Fonts (JetBrains Mono + Cormorant Garamond) from CDN.
-
-Commit and push:
+Precondition: Step 4 wrote `of1-discovery-output.md` and Steps 1–2 captured `discovery-*.png` (both in `$OF1_STATE_DIR`).
 
 ```bash
 cd "$OF1_DEMO_REPO"
-mkdir -p deliverables
-# ... write discovery.html ...
-git add deliverables/discovery.html
+OF1_STATE_DIR="$OF1_STATE_DIR" node "$SKILL_DIR/assets/fill-discovery.mjs" . "$DOMAIN"
+
+git add deliverables/
 git commit -m "docs: discovery report for ${DOMAIN}"
 git push origin "$BRANCH"
 ```

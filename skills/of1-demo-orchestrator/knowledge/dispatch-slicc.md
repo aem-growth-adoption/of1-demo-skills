@@ -56,7 +56,8 @@ sprinkle subStep mapping unambiguous.
 scoop_scoop({
   name: "of1-s1-discovery",
   model: "claude-opus-4-8",
-  writablePaths: ["/scoops/of1-s1-discovery/", "/shared/", "/workspace/{REPO_NAME}/"]
+  writablePaths: ["/scoops/of1-s1-discovery/", "/shared/", "/workspace/{REPO_NAME}/"],
+  env: { SKILL_DIR: "/workspace/skills/of1-discovery" }
 })
 ```
 
@@ -72,6 +73,7 @@ Then follow those instructions EXACTLY. Do NOT improvise your own implementation
 - Branch: {BRANCH}
 - Repo: /workspace/of1-demo-orchestrator (owner and repo read from repo-config.json)
 - State dir: /shared/of1-demo-orchestrator
+- SKILL_DIR: /workspace/skills/of1-discovery (its assets/fill-discovery.mjs + discovery-report.html — also passed as an env var)
 - repo-config.json: /shared/of1-demo-orchestrator/repo-config.json (read it for all paths)
 
 ## Output contract
