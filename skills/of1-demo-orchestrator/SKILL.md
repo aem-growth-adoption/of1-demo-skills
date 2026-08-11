@@ -92,15 +92,11 @@ Stage 2: stardust:replica <URL>            Stage 3: OF1 integration (Integrate s
   list from `keyPages[].slug`.
 - **Stage 2** (replica) and the **Stage 3 content track** (`of1-extract-brand-voice`/`of1-extract-content`)
   dispatch concurrently right after Stage 1. The content track needs only the live external site.
-- The **Stage 3 site-integration track** gates on Stage 2's `replica-done.json`, then fans out per
-  `of1-integration`'s dependency table: the extraction step (if `DESIGN.json` absent) →
-  `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` →
-  `of1-build-templates`(intent-*) → `of1-build-templates`(assemble);
-  `of1-build-quick-suggestions` after `of1-extract-brand-voice`+`of1-extract-content`;
-  `config-review` (inline) after
-  `of1-extract-brand-voice`+`of1-extract-content`+`of1-build-quick-suggestions`+`of1-build-cta-template`;
-  `of1-publish` (deploy, inline) after
-  `of1-build-templates`(assemble)+`of1-style-generative-block`+`config-review`.
+- The **Stage 3 site-integration track** gates on Stage 2's `replica-done.json`, then follows
+  `of1-integration`'s dependency graph — the first fan-out is the extraction step (if `DESIGN.json`
+  absent) → `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template`;
+  `config-review` and `of1-publish` run inline at the tail. Do not re-derive the per-skill edges
+  here (they are defined once in `of1-integration` — see the note below).
 - **Fan out at every eligible point.** The pipeline is complete when `of1-publish` returns `done`.
 
 The Integrate-skill graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing are **defined once** in
