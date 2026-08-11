@@ -25,7 +25,7 @@ BRANCH=$(jq -r .branch <<<"$REPO_CONFIG")
 DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 ```
 
-`playwright-cli` calls below use modern @playwright/cli syntax: `open` + `--full-page` (bare boolean) + `--filename`. This works on both SLICC-native and CC `playwright-cli` binaries.
+`playwright-cli` calls below follow `of1-demo-orchestrator/knowledge/common-pitfalls.md` § 9 "playwright-cli syntax" (`open`, `--full-page` bare, `--filename`, `eval` as a function form). Works on both SLICC-native and CC binaries.
 
 ## Process
 
