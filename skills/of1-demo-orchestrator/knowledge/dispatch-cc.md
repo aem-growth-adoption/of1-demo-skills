@@ -115,9 +115,8 @@ export SKILL_DIR="<absolute path to the step skill's directory>"
 
 ## Platform notes
 - If the skill calls `upskill ...`: STOP — that means a dependency is missing; report failure.
-- playwright-cli: the step skills use modern @playwright/cli syntax. If you write your own calls,
-  use `open` (not visit), `--filename` (not --output), `--full-page` as a bare boolean (no =value),
-  and give `eval` a function form (`() => (…)`) — a bare expression returns silently empty.
+- playwright-cli: if you write your own calls, follow `common-pitfalls.md` § 9 "playwright-cli syntax"
+  (`open` not visit, `--filename` not --output, `--full-page` bare, `eval` as a function form).
 
 ## Output contract
 End your last message with EXACTLY this fenced block (the orchestrator parses it) — canonical

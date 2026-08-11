@@ -204,6 +204,24 @@ curl -X POST \
 
 ---
 
+## 9. playwright-cli syntax (both runtimes)
+
+The step skills call the modern `@playwright/cli` binary, which is present on both the SLICC-native
+and CC images. When a skill (or a sub-agent writing its own calls) drives it, use this surface:
+
+- **`open <url>`** to navigate — NOT `visit`.
+- **`screenshot --full-page --filename <path>`** — `--full-page` is a bare boolean (no `=value`);
+  the output flag is `--filename`, NOT `--output`.
+- **`eval`** takes a function form (`() => (…)`); a bare expression returns silently empty.
+
+`of1-check-dependencies` probes for the `open` subcommand and warns if the binary is present but
+missing it. (Note: `--output` IS a valid flag on the shipped `.mjs` build tools like
+`download-images.mjs` — that is a different tool, not playwright-cli.)
+
+**Canonical reference:** this section. Step skills should link here rather than restating the syntax.
+
+---
+
 ## How to use this file
 
 When a step skill warns about one of these issues, it should link here instead of restating. Per-skill "Common Mistakes" tables keep only rows that are **specific to that skill's outputs** — generic warnings (DA strips images, EDS class collisions, curl pitfalls, runtime traps) all belong in this doc.
