@@ -241,7 +241,7 @@ sprinkle send of1-demo-orchestrator '{"type":"audit","file":"/shared/of1-demo-or
 The cone itself runs little inline (reading `narrative.json`, building the slug list, pushing
 sprinkle status, inline `of1-generate-config-review`/`of1-publish`). For those:
 1. **`set -o pipefail` is not supported** — execute commands manually.
-2. **No python3** — use `run_jsh`, `node -e`, or `jq`, never `python3 << 'EOF'` heredocs.
+2. **`python3` heredocs must use a quoted delimiter** (`python3 << 'EOF'`) — see `common-pitfalls.md` §7.4; `node`/`jq` are also fine. The shipped build tools are `.mjs` run via `node` (§7.1). Don't rely on synchronous subprocess calls inside a script.
 3. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else
    corrupts the UI state.
 

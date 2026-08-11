@@ -64,10 +64,10 @@ Uploading to DA alone is not enough — the file only exists in DA's source stor
 https://{branch}--{repo}--{owner}.aem.page/media/product-{id}-{n}.{ext}
 ```
 
-**Canonical reference:** `of1-extract-content` § "Pull Product Assets" (`download-images.py`/`.jsh` handles both the upload and the preview trigger automatically).
+**Canonical reference:** `of1-extract-content` § "Parallel download + upload" (`assets/download-images.mjs` handles both the upload and the preview trigger automatically).
 
-### 2.2 Minimum 2 images per product
-The pre-launch checklist FAILS if any product has fewer than 2 images. If a product detail page only shows 1 image, source additional ones from category/listing pages, manufacturer press pages, or related model pages.
+### 2.2 Minimum 4 images per product
+The pre-launch checklist FAILS if any product has fewer than 4 images (up to 8). If a product detail page shows only 1–3, source additional ones from category/listing pages, manufacturer press galleries, or related model pages. `of1-extract-content` owns this gate and asserts it before writing its status — this is the canonical threshold; keep it in sync with that skill.
 
 ### 2.3 Image format — use `png` or `jpg`, never `webply`
 Construct image URLs with `format=png` or `format=jpg` for browser compatibility. `format=webply` causes rendering issues across browsers.
@@ -76,7 +76,7 @@ Construct image URLs with `format=png` or `format=jpg` for browser compatibility
 Only use URLs that were extracted from the live DOM via Playwright and downloaded successfully (>10KB). Inventing URLs leads to broken images and user frustration.
 
 ### 2.5 Image paths in committed HTML must be absolute from repo root
-HTML deliverables served on EDS need paths like `/deliverables/assets/screenshots/home.png`, not `assets/screenshots/...`. Relative paths break because the HTML is served at `/deliverables/brand-review.html` while assets are at `/deliverables/assets/...`.
+HTML deliverables served on EDS need paths like `/deliverables/assets/screenshots/home.png`, not `assets/screenshots/...`. Relative paths break because the HTML is served at `/deliverables/config-review.html` while assets are at `/deliverables/assets/...`.
 
 ---
 
@@ -144,8 +144,13 @@ git add -A
 
 ## 7. Runtime-specific traps
 
-### 7.1 `[SLICC]` Node.js is a SHIM — do not use it
-SLICC's `node` and `npm` binaries are stubs. Don't use `.mjs` files, don't write `npm` scripts, don't run `npx`. Use Python (`python3`) for all scripting.
+### 7.1 `[SLICC]` `node` works, but only the portable surface — and NO synchronous subprocess
+The pipeline's build scripts are single `.mjs` files run via `node "$SKILL_DIR/assets/<tool>.mjs" <args>` on **both** runtimes (the `.py`/`.jsh` twins were retired — see `docs/superpowers/specs/2026-08-03-of1-mjs-script-consolidation-design.md`). SLICC's `node` runs these fine **provided** they stay on the cross-runtime surface:
+- **No synchronous subprocess** — `child_process.execSync`/`spawnSync`/`execFileSync` throw on SLICC. Use `node:*` builtins, `process.argv`, and global `fetch` only.
+- Don't write `npm` scripts or run `npx`; invoke the `.mjs` directly with `node`.
+- SLICC init runs `ipk add esbuild-wasm` (see of1-labs `of1-prompt.ts`) so the scripts' deps resolve.
+
+Ad-hoc scripting inline in a step is still fine in either `python3` or `node`; the point is the *shipped* build tools are `.mjs` and portable.
 
 ### 7.2 `[SLICC]` These auth approaches DO NOT exist
 - `npx da-auth-helper` — the package isn't installed
