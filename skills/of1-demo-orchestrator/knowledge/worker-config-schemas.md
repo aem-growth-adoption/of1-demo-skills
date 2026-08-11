@@ -17,7 +17,7 @@ Either a single string (used verbatim in the system prompt) or an object:
 }
 ```
 
-**Required for tenant readiness.** Used by prompt building in both default and template-routing flows.
+Used by prompt building in both default and template-routing flows. **Not part of the `ready` gate** (see the Required-vs-Optional table), but always generate it — it drives prompt quality.
 
 ---
 
@@ -339,7 +339,7 @@ comparison, recommendation, deep-dive, budget, discovery
 
 ## block-guide.json
 
-Free-form object embedded into the default-flow prompt. **Required for tenant readiness.** No strict schema enforced — convention:
+Free-form object embedded into the default-flow prompt. **The `ready` gate needs EITHER `block-guide` OR `templates`** — the template-routing flow ships `templates` instead, so `block-guide` is not separately required when a catalog exists. No strict schema enforced — convention:
 
 ```json
 {
@@ -355,17 +355,24 @@ Free-form object embedded into the default-flow prompt. **Required for tenant re
 
 ## Summary: Required vs Optional
 
+The `ready` column reflects the worker's `isTenantReady` (`worker/src/tenant.js`) — the exact gate
+`/api/tenants/<id>/status` returns. It requires `products`, `personas`, `use-cases`, `features`,
+`faqs`, `suggestions`, `of1-endpoint`, and `cta-template` (ALL), **plus either `block-guide` or
+`templates`** (the template-routing flow ships `templates`; the default flow ships `block-guide`;
+both is fine). `brand-voice` is NOT part of the ready gate — but always generate it, it drives
+prompt quality.
+
 | File | Required for `ready` | Vectorized |
 |------|---------------------|------------|
-| `brand-voice.json` | YES | no |
-| `block-guide.json` | YES | no |
 | `products.json` | YES | YES |
-| `personas.json` | no | no |
-| `use-cases.json` | no | no |
-| `features.json` | no | YES |
-| `faqs.json` | no | YES |
+| `personas.json` | YES | no |
+| `use-cases.json` | YES | no |
+| `features.json` | YES | YES |
+| `faqs.json` | YES | YES |
+| `suggestions.json` | YES | no |
+| `of1-endpoint.json` | YES | no |
+| `cta-template.json` | YES | no |
+| `block-guide.json` | either `block-guide` **or** `templates` | no |
+| `templates.json` | either `block-guide` **or** `templates` | no |
+| `brand-voice.json` | no (recommended — prompt quality) | no |
 | `testimonials.json` | no | no |
-| `suggestions.json` | no | no |
-| `of1-endpoint.json` | no | no |
-| `cta-template.json` | no | no |
-| `templates.json` | no | no |
