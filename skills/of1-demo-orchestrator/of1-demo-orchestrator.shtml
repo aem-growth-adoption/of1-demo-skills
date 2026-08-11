@@ -704,7 +704,7 @@
       desc: 'Recreate key pages as a branded EDS replica (stardust:replica)', reviewNote: 'EDS replica preview',
       openLabel: 'Preview', requires: [0] },
     { id: 3, name: 'OF1 integration', key: 'of1',
-      desc: 'Delegate content, styling, config review, and deploy to adopt-site', reviewNote: 'Config review page',
+      desc: 'Delegate content, styling, config review, and deploy to of1-integration', reviewNote: 'Config review page',
       openLabel: 'Config Review', requires: [0],
       subSteps: [
         { key: 'brand',     name: 'Brand voice' },

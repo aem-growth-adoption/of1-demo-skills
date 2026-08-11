@@ -78,7 +78,7 @@ Stage 1: of1-discovery ──┐ (narrative.json: keyPages, focus, persona)
         ↓                                                    ↓
 Stage 2: stardust:replica <URL>            Stage 3: OF1 integration (Integrate skills)
   --pages <slugs>                            THIS orchestrator dispatches each skill,
-  → EDS site + DESIGN.json                    per adopt-site's graph: content track
+  → EDS site + DESIGN.json                    per of1-integration's graph: content track
   → write replica-done.json                   (brand-voice/content/suggestions) runs NOW;
                                               site-integration track (templates·styling·cta
                                               → assemble → config-review → publish)

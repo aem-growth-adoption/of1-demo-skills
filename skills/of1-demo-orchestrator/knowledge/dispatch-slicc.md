@@ -10,7 +10,7 @@ Read this when `of1-demo-orchestrator` detects it is running in **SLICC** (the `
 - `claude-opus-4-8` → Opus 4.8 (`us.anthropic.claude-opus-4-8`)
 - `claude-sonnet-5` → Sonnet 5 1M context (`us.anthropic.claude-sonnet-5`)
 
-Model per skill: Stage 1 + Stage 2 = `claude-opus-4-8`. Stage 3 = adopt-site's table — Opus for
+Model per skill: Stage 1 + Stage 2 = `claude-opus-4-8`. Stage 3 = of1-integration's table — Opus for
 `of1-style-generative-block` and the extraction step when it runs; omit `model` (Sonnet) for the rest.
 
 ## Setup — open the sprinkle
@@ -36,7 +36,7 @@ Licks arrive as a single `action` string with colon-delimited fields.
   send `set-domain` FIRST before pushing any step status for a new run; no manual per-step reset needed.
 - **`run:<domain>`** — dispatch Stage 1.
 - **`approve:<skill>:<domain>`** — the user approved a review-gated Stage 3 skill; the sprinkle
-  auto-marks it done. If it unblocks downstream skills (per adopt-site's dependency table), dispatch
+  auto-marks it done. If it unblocks downstream skills (per of1-integration's dependency table), dispatch
   the next eligible batch now.
 - **`revise:<skill>:<domain>`** — ask in chat what to change, then re-dispatch just that skill's scoop
   with feedback appended.
@@ -149,7 +149,7 @@ reference for what each skill does and its dependency edges — the cone is the 
 Every scoop notifies the cone on completion. On each notification:
 1. Read the scoop's `of1-<skill>-status.json` / deliverable output.
 2. Push it to the sprinkle immediately (do NOT batch completions).
-3. Check whether it unblocks the next dispatch (per adopt-site's dependency table) and fan out the
+3. Check whether it unblocks the next dispatch (per of1-integration's dependency table) and fan out the
    next eligible batch in the same turn.
 4. The pipeline is complete when `of1-publish` (deploy) returns `done`.
 
