@@ -154,6 +154,39 @@ Array. **Vectorized for RAG.**
 
 ---
 
+## testimonials.json
+
+Array of real customer quotes. Consumed by the worker's template-fill path:
+`worker/src/tenant.js` loads it, `build-template-prompt.js` passes `tenant.testimonials || []`
+into the prompt, and `prompts/template-fill/template.njk` fills quote/author/role slots ONLY from
+this list (never invents them). Falls back to `[]` when absent.
+
+```json
+[
+  {
+    "id": "jane-doe",
+    "quote": "The actual quote text from the website.",
+    "author": "Jane Doe",
+    "role": "Head Barista",
+    "company": "Acme Coffee",
+    "source": "twitter"
+  }
+]
+```
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `id` | yes | Slug identity |
+| `quote` | yes | Verbatim quote text — must be real, on the source site |
+| `author` | no | Real person name |
+| `role` | no | Their title/role |
+| `company` | no | Their company, if shown |
+| `source` | no | One of `twitter`, `website`, `review`, `event` |
+
+**Never invent testimonials.** If the site has none, write `[]` — hallucinated social proof is unacceptable. Produced by `of1-extract-content`.
+
+---
+
 ## suggestions.json
 
 Pre-authored exploration prompts. Object with optional UI strings + an array.
@@ -331,6 +364,7 @@ Free-form object embedded into the default-flow prompt. **Required for tenant re
 | `use-cases.json` | no | no |
 | `features.json` | no | YES |
 | `faqs.json` | no | YES |
+| `testimonials.json` | no | no |
 | `suggestions.json` | no | no |
 | `of1-endpoint.json` | no | no |
 | `cta-template.json` | no | no |
