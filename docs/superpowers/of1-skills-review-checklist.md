@@ -30,7 +30,7 @@ rules living in soft-referenced prose instead of executed code.
 - [x] `of1-extract-content/assets/download-images.mjs` — reviewed + simplified: `--input` is now optional; when omitted the script derives the manifest directly from `--products-json` (default of1/config/products.json), removing the redundant python-heredoc manifest projection + /tmp/image-manifest.json temp file from the SKILL. Backward-compatible (--input still works). Verified: syntax, arg guard, manifest derivation picks only products with images[], token resolver order intact.
 - [ ] `of1-build-templates/assets/assemble-catalog.mjs`, `fill-template.mjs`
 - [x] `of1-style-generative-block/assets/ensure-nav-footer.mjs` — reviewed w/ item 12; widened token resolution to full 4-step order. Sound otherwise (never-overwrite, .plain.html check, Date-safe).
-- [ ] `of1-check-dependencies/scripts/verify.sh` (final-review found 2 glob bugs in SKILL; audit script)
+- [x] `of1-check-dependencies` verify.sh + SKILL audited. verify.sh: shellcheck-clean (warning level), no bugs — token/skill-root resolution sound. SKILL.md: found + fixed 2 real bugs in the clean-slate/restart section: (1) DANGEROUS — bare `git add -A` (L124) violates common-pitfalls §6 and could wipe the repo on a partial SLICC tree → scoped to `git add -A -- <cleaned paths + quoted globs>`; verified it stages only intended deletions and leaves out-of-scope files unstaged; (2) `sed -i '/^of1/d'` non-portable (fails on BSD/macOS = this env) → `sed -i.bak … && rm -f .bak`. Confirmed no other bare `git add -A/.` or non-portable `sed -i` in any skill.
 
 ## Already done (do NOT redo)
 - of1-extract-brand-voice (dead DOMAIN, source block) ✓
