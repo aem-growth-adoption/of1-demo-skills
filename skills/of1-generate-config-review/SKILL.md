@@ -64,7 +64,7 @@ The script reads `of1/config/{products,brand-voice,personas,suggestions,use-case
 
 **Always use the script — never write your own HTML generation logic or hand-edit the output.**
 
-### 2. Commit and push
+### 3. Commit and push
 
 ```bash
 cd "$OF1_DEMO_REPO"
@@ -73,7 +73,7 @@ git commit -m "docs: config review page for ${DOMAIN}"
 git push origin "$BRANCH"
 ```
 
-### 3. Verify
+### 4. Verify
 
 The review page is available at:
 ```
