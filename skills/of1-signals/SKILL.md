@@ -110,7 +110,16 @@ When a user wants to simulate a new arrival scenario:
    the new entry (don't clobber existing entries — list more specific/narrower entries first if
    overlap is possible), and write it back with `python3 -m json.tool <file> > /dev/null` to
    confirm valid JSON before committing.
-5. Commit and push. Confirm live with:
+5. Commit and push — stage ONLY `signals.json` (never `git add .`/`-A`; see
+   `of1-demo-orchestrator/knowledge/common-pitfalls.md` § 6). It rides the code bus (git), so no
+   DA upload or preview trigger is needed — it's served statically once EDS builds the push.
+   ```bash
+   cd "${REPO_DIR:-<repo path>}"
+   git add of1/config/signals.json
+   git commit -m "chore: add demo acquisition signal"
+   git push origin "$(git branch --show-current)"
+   ```
+   Confirm live:
    ```bash
    curl -s https://<branch>--<repo>--<owner>.aem.page/of1/config/signals.json
    ```
