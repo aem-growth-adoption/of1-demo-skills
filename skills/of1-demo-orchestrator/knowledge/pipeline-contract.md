@@ -93,13 +93,20 @@ site-integration track or deploying, the orchestrator runs:
 node "<orchestratorSkillDir>/assets/check-replica-artifacts.mjs" "<repoDir>"
 ```
 
-It reads `stardust/replica/progress.json` and exits:
+It reads `stardust/replica/progress.json` (whose `pages` is an object keyed by slug in
+stardust 0.18.1, or an array in older runs — the gate accepts both) and exits:
 
 | Exit | Meaning | Orchestrator action |
 |---|---|---|
-| 0 | All breakpoints measured; no placeholder imagery | Proceed to Stage 3 |
-| 2 | **BLOCKED-CAPTURE** — unmeasured gate marked pass, and/or placeholder/gradient imagery | **HARD STOP.** Do not dispatch Stage 3 or deploy. Escalate to the user: retry `--headed`, run a content-only demo, or abort. |
+| 0 | Measured and demo-grade. May still print `⚠` warnings — honest `pass:false` breakpoints *under* the 10% pixel bar (documented height/font-fork residuals), or page types with no parseable measurement (legacy shape) — surface those but proceed. | Proceed to Stage 3 |
+| 2 | **NOT demo-grade** — any of: **BLOCKED-CAPTURE** (unmeasured gate marked pass), **placeholder/gradient imagery**, **FIDELITY FAIL** (a measured `pixelPct` above the 10% ship bar — the adobe.com case), or **VERDICT FAIL** (`verdict.overall === "fail"`). | **HARD STOP.** Do not dispatch Stage 3 or deploy. Escalate to the user: retry `--headed`, run a content-only demo, or abort. |
 | 1 | `progress.json` missing/empty | Treat as Stage 2 failure; re-dispatch replica |
+
+**Why exit 2 is more than blocked-capture:** an earlier version only tripped on the
+"unmeasured gate claimed pass" trap, so a replica that *honestly measured and failed*
+fidelity (adobe.com: home 58.98% / cc 30.42% pixel diff, `verdict.overall: "fail"`) sailed
+through as "demo-grade" and shipped low-fidelity. The honest `pass:false` / above-bar
+`pixelPct` is the strongest signal available and now hard-stops too.
 
 This gate is the ONLY thing standing between a bot-blocked source and a shipped-but-broken demo —
 never skip it, never treat `replica-done.json` alone as permission to proceed.

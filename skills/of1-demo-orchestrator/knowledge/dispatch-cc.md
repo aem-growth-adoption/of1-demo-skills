@@ -50,10 +50,12 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
    node "<orchestratorSkillDir>/assets/check-replica-artifacts.mjs" "<repoDir>"
    ```
 
-   - **exit 0** — proceed to the site-integration track.
-   - **exit 2 (BLOCKED-CAPTURE)** — HARD STOP. The source is bot-protected (Akamai/Cloudflare) and
-     replica shipped placeholder imagery + an unmeasured "pass". Do **not** dispatch Stage 3 or
-     deploy. Surface the gate's escalation options to the user (retry `--headed`, content-only demo,
+   - **exit 0** — proceed to the site-integration track. (The gate may still print `⚠` warnings for
+     documented under-bar residuals or legacy-shape pages; note them but proceed.)
+   - **exit 2** — HARD STOP: replica is NOT demo-grade. Cause is one of BLOCKED-CAPTURE (bot-protected
+     source, unmeasured "pass"), placeholder imagery, FIDELITY FAIL (measured pixel diff above the 10%
+     bar — the adobe.com case), or VERDICT FAIL (`verdict.overall: "fail"`). Do **not** dispatch Stage 3
+     or deploy. Surface the gate's escalation options to the user (retry `--headed`, content-only demo,
      or abort) and wait for a decision. See `pipeline-contract.md` § "Stage 2 artifact gate".
    - **exit 1** — replica's ledger is missing/empty; treat as a Stage 2 failure and re-dispatch it.
 

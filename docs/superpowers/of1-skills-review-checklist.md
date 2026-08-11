@@ -5,7 +5,7 @@ dead extracted vars, re-deriving upstream artifacts, DRY-violating pasted comman
 rules living in soft-referenced prose instead of executed code.
 
 ## Phase 1 — Knowledge files (the contract; do first, it's the yardstick)
-- [ ] `knowledge/pipeline-contract.md` — audit: which rules are correctness-critical but only softly referenced?
+- [x] `knowledge/pipeline-contract.md` — audited. Gate is wired into both dispatch files (not soft). BUT found + fixed 2 real bugs in the gate script it cites (`check-replica-artifacts.mjs`): (1) assumed `progress.pages` is an array; stardust 0.18.1 writes an object keyed by slug → gate parsed nothing → normalizePages() now accepts both; (2) af1bb1a3 honest-fail bug — now exits 2 on pixelPct>10% OR verdict.overall==='fail', warns (not stops) on under-bar height/font-fork residuals. Legacy no-result shapes now flagged "fidelity UNVERIFIED". Contract exit table + both dispatch exit-2 descriptions updated.
 - [ ] `knowledge/dispatch-cc.md`
 - [ ] `knowledge/dispatch-slicc.md`
 - [ ] `knowledge/common-pitfalls.md` (204 lines, "consult when relevant" = most-skipped tier)

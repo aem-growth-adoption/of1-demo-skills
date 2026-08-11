@@ -127,10 +127,12 @@ reference for what each skill does and its dependency edges — the cone is the 
   node "<orchestratorSkillDir>/assets/check-replica-artifacts.mjs" "/workspace/{REPO_NAME}"
   ```
 
-  - **exit 0** — proceed. **exit 2 (BLOCKED-CAPTURE)** — HARD STOP: the source is bot-protected and
-    replica shipped placeholder imagery + an unmeasured "pass". Do not dispatch Stage 3 or deploy;
-    surface the gate's escalation options via `sprinkle` and wait for the user. **exit 1** — replica
-    ledger missing; re-dispatch Stage 2. See `pipeline-contract.md` § "Stage 2 artifact gate".
+  - **exit 0** — proceed (may print `⚠` warnings for under-bar residuals or legacy-shape pages; note
+    them but proceed). **exit 2** — HARD STOP: replica NOT demo-grade — BLOCKED-CAPTURE (bot-protected,
+    unmeasured "pass"), placeholder imagery, FIDELITY FAIL (measured pixel diff above the 10% bar), or
+    VERDICT FAIL (`verdict.overall: "fail"`). Do not dispatch Stage 3 or deploy; surface the gate's
+    escalation options via `sprinkle` and wait for the user. **exit 1** — replica ledger missing;
+    re-dispatch Stage 2. See `pipeline-contract.md` § "Stage 2 artifact gate".
 
 - **Fan out at every eligible point** once the gate passes (exit 0): the extraction step (if
   `DESIGN.json` absent) → `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥
