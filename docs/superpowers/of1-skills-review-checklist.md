@@ -6,8 +6,8 @@ rules living in soft-referenced prose instead of executed code.
 
 ## Phase 1 — Knowledge files (the contract; do first, it's the yardstick)
 - [x] `knowledge/pipeline-contract.md` — audited. Gate is wired into both dispatch files (not soft). BUT found + fixed 2 real bugs in the gate script it cites (`check-replica-artifacts.mjs`): (1) assumed `progress.pages` is an array; stardust 0.18.1 writes an object keyed by slug → gate parsed nothing → normalizePages() now accepts both; (2) af1bb1a3 honest-fail bug — now exits 2 on pixelPct>10% OR verdict.overall==='fail', warns (not stops) on under-bar height/font-fork residuals. Legacy no-result shapes now flagged "fidelity UNVERIFIED". Contract exit table + both dispatch exit-2 descriptions updated.
-- [ ] `knowledge/dispatch-cc.md`
-- [ ] `knowledge/dispatch-slicc.md`
+- [x] `knowledge/dispatch-cc.md` — no live bugs (dep graph internally consistent, pipeline-mode timing correct). Fixed anti-pattern: Stage-3 dependency graph + model list were re-stated here (triple-dup w/ of1-integration + dispatch-slicc). Trimmed both to pointers at `of1-integration` § "Pipeline-mode timing" / model-assignment rule. Open: playwright-cli syntax prose (lines ~119) — check overlap w/ common-pitfalls in item 4.
+- [x] `knowledge/dispatch-slicc.md` — same trim (was self-contradictory: said "use of1-integration as reference" then re-listed edges). Model line already terse/referenced, left. No live bugs.
 - [ ] `knowledge/common-pitfalls.md` (204 lines, "consult when relevant" = most-skipped tier)
 - [ ] `knowledge/worker-config-schemas.md` (337 lines)
 - [ ] `knowledge/design-tokens-resolution.md`

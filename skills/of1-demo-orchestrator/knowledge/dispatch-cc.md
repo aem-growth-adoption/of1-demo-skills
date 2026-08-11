@@ -27,11 +27,9 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
 
 - Stage 1 (discovery): `opus` — narrative synthesis drives both later stages.
 - Stage 2 (replica): `opus` — must follow a complex multi-phase skill precisely.
-- Stage 3 (Integrate skills): set the per-skill model from `of1-integration`'s model table —
-  **Opus** for `of1-style-generative-block` (OF1 styling) and the extraction step when it runs
-  (token quality cascades); **Sonnet** for the rest (`of1-build-templates`(base),
-  `of1-build-templates`(intent-*), `of1-build-templates`(assemble), `of1-extract-brand-voice`,
-  `of1-extract-content`, `of1-build-quick-suggestions`, `of1-build-cta-template`).
+- Stage 3 (Integrate skills): **read the per-skill model from `of1-integration`'s model-assignment
+  rule** (Opus only where output quality cascades — `of1-style-generative-block` and the extraction
+  step; Sonnet for the rest). Do not maintain a second copy of that list here.
 
 ## Dispatch sequence
 
@@ -59,13 +57,12 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
      or abort) and wait for a decision. See `pipeline-contract.md` § "Stage 2 artifact gate".
    - **exit 1** — replica's ledger is missing/empty; treat as a Stage 2 failure and re-dispatch it.
 
-   Only on exit 0, dispatch the Stage 3 site-integration track per `of1-integration`'s
-   dependency table: the extraction step (if `DESIGN.json` absent) → `of1-build-templates`(base) ∥
-   `of1-style-generative-block` ∥ `of1-build-cta-template`, then `of1-build-templates`(intent-*)
-   (after base), then `of1-build-templates`(assemble); `of1-build-quick-suggestions` after
-   `of1-extract-brand-voice`+`of1-extract-content`; `of1-generate-config-review` (inline) after
-   `of1-extract-brand-voice`+`of1-extract-content`+`of1-build-quick-suggestions`+`of1-build-cta-template`;
-   `of1-publish` (deploy, inline) after `of1-build-templates`(assemble)+`of1-style-generative-block`+`of1-generate-config-review`.
+   Only on exit 0, dispatch the Stage 3 site-integration track. **The dependency edges and the
+   pipeline-mode start gates are defined once in `of1-integration` § "Pipeline-mode timing" — follow
+   that graph; do not re-derive the edges here.** (In pipeline mode the content track — `of1-extract-brand-voice`
+   ∥ `of1-extract-content` → `of1-build-quick-suggestions` — was already kicked off at step 2 above,
+   so the site track's first fan-out is `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥
+   `of1-build-cta-template`.)
 4. **Fan out in parallel at every eligible point** — dispatch all currently-eligible skills in one
    message with multiple Agent blocks (e.g. `of1-build-templates`(base) ∥ `of1-style-generative-block`
    ∥ `of1-build-cta-template` once the replica is done; `of1-build-templates`(intent-*) in one

@@ -134,13 +134,12 @@ reference for what each skill does and its dependency edges — the cone is the 
     escalation options via `sprinkle` and wait for the user. **exit 1** — replica ledger missing;
     re-dispatch Stage 2. See `pipeline-contract.md` § "Stage 2 artifact gate".
 
-- **Fan out at every eligible point** once the gate passes (exit 0): the extraction step (if
-  `DESIGN.json` absent) → `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥
-  `of1-build-cta-template`; then `of1-build-templates`(intent-*) (after base); then
-  `of1-build-templates`(assemble). `of1-build-quick-suggestions` after
-  `of1-extract-brand-voice`+`of1-extract-content`; `of1-generate-config-review` (inline) after
-  `of1-extract-brand-voice`+`of1-extract-content`+`of1-build-quick-suggestions`+`of1-build-cta-template`;
-  `of1-publish` (deploy, inline) after `of1-build-templates`(assemble)+`of1-style-generative-block`+`of1-generate-config-review`.
+- **Fan out at every eligible point** once the gate passes (exit 0), following the dependency edges
+  in `of1-integration` § "Pipeline-mode timing" — do not re-derive them here. The site track's first
+  fan-out is the extraction step (if `DESIGN.json` absent) → `of1-build-templates`(base) ∥
+  `of1-style-generative-block` ∥ `of1-build-cta-template`; the content track (`of1-extract-brand-voice`
+  ∥ `of1-extract-content` → `of1-build-quick-suggestions`) was already dispatched in the Stage 2 turn
+  above. `of1-generate-config-review` and `of1-publish` run inline.
 - Each scoop reads its own skill first and writes `of1-<skill>-status.json` (phase scoops of
   `of1-build-templates` write `of1-build-templates-<phase>-status.json`); does NOT call
   `sprinkle send`.
