@@ -27,7 +27,7 @@ rules living in soft-referenced prose instead of executed code.
 ## Phase 3 — Executed code (the reliable tier — bugs here actually run)
 - [ ] `of1-publish/assets/fill-demo-hub.mjs` (touched, not audited)
 - [ ] `of1-generate-config-review/assets/fill-config-review.mjs`
-- [ ] `of1-extract-content/assets/download-images.mjs`
+- [x] `of1-extract-content/assets/download-images.mjs` — reviewed + simplified: `--input` is now optional; when omitted the script derives the manifest directly from `--products-json` (default of1/config/products.json), removing the redundant python-heredoc manifest projection + /tmp/image-manifest.json temp file from the SKILL. Backward-compatible (--input still works). Verified: syntax, arg guard, manifest derivation picks only products with images[], token resolver order intact.
 - [ ] `of1-build-templates/assets/assemble-catalog.mjs`, `fill-template.mjs`
 - [ ] `of1-style-generative-block/assets/ensure-nav-footer.mjs`
 - [ ] `of1-check-dependencies/scripts/verify.sh` (final-review found 2 glob bugs in SKILL; audit script)
