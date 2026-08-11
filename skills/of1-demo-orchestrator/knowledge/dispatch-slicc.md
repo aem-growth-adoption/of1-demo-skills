@@ -139,7 +139,7 @@ reference for what each skill does and its dependency edges — the cone is the 
   fan-out is the extraction step (if `DESIGN.json` absent) → `of1-build-templates`(base) ∥
   `of1-style-generative-block` ∥ `of1-build-cta-template`; the content track (`of1-extract-brand-voice`
   ∥ `of1-extract-content` → `of1-build-quick-suggestions`) was already dispatched in the Stage 2 turn
-  above. `of1-generate-config-review` and `of1-publish` run inline.
+  above. `config-review` and `of1-publish` run inline.
 - Each scoop reads its own skill first and writes `of1-<skill>-status.json` (phase scoops of
   `of1-build-templates` write `of1-build-templates-<phase>-status.json`); does NOT call
   `sprinkle send`.
@@ -170,7 +170,7 @@ case "$SKILL_OR_PHASE" in
   of1-extract-content)         KEY=content ;;
   of1-build-quick-suggestions) KEY=suggest ;;
   of1-build-cta-template)      KEY=cta ;;
-  of1-generate-config-review)  KEY=config ;;
+  config-review)  KEY=config ;;
   of1-publish)                 KEY=deploy ;;
   *)                           KEY="" ;;
 esac
@@ -240,7 +240,7 @@ sprinkle send of1-demo-orchestrator '{"type":"audit","file":"/shared/of1-demo-or
 ## SLICC inline-execution gotchas
 
 The cone itself runs little inline (reading `narrative.json`, building the slug list, pushing
-sprinkle status, inline `of1-generate-config-review`/`of1-publish`). For those:
+sprinkle status, inline `config-review`/`of1-publish`). For those:
 1. **`set -o pipefail` is not supported** — execute commands manually.
 2. **`python3` heredocs must use a quoted delimiter** (`python3 << 'EOF'`) — see `common-pitfalls.md` §7.4; `node`/`jq` are also fine. The shipped build tools are `.mjs` run via `node` (§7.1). Don't rely on synchronous subprocess calls inside a script.
 3. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else

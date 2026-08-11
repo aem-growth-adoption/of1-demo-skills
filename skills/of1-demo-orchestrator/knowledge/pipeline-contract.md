@@ -39,7 +39,7 @@ Never document `DA_TOKEN` as a credential to set — set `ADOBE_IMS_TOKEN` (or `
 | 3 | OF1 integration — the of1-integration skills (Integrate stage) | defined by `of1-integration` |
 
 Stage 2 and the Stage 3 **content track** (`of1-extract-brand-voice` ∥ `of1-extract-content` → `of1-build-quick-suggestions`) dispatch concurrently after Stage 1.
-The Stage 3 **site-integration track** (`of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` → `of1-build-templates`(assemble) → `of1-generate-config-review` → `of1-publish`) gates on Stage 2's
+The Stage 3 **site-integration track** (`of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` → `of1-build-templates`(assemble) → `config-review` → `of1-publish`) gates on Stage 2's
 `replica-done.json`. **The Integrate-stage skill graph, dependency edges, and pipeline-mode
 timing are defined once in `of1-integration`** — the orchestrator reads them there on both
 runtimes.
@@ -153,7 +153,7 @@ Stage 3.
 | `stage` | Stage number (`0`, `1`, `2`, or `3`) |
 | `skill` | Skill id for stages 0/1/3 (`of1-build-templates`, `of1-publish`, …) or `stardust:replica`/`stardust:extract` for stage 2. Skill-internal phases (`base`, `intent-*`, `assemble`) may be appended as `skill#phase` for the multi-dispatch templates skill. |
 | `name` | Human label (`discovery`, `replica`, `templates-base`, `styling`, `content`, `deploy`, …) |
-| `model` | Model used for this dispatch (`inline` for `of1-generate-config-review` and `of1-publish`, which run in the orchestrator's own context) |
+| `model` | Model used for this dispatch (`inline` for `config-review` and `of1-publish`, which run in the orchestrator's own context) |
 | `startedAt` | ISO timestamp when dispatched |
 | `durationMs` | Wall-clock for this dispatch |
 | `totalTokens` | Token spend if available, else `null` |

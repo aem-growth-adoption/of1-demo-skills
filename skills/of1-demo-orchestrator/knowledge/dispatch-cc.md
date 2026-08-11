@@ -18,7 +18,7 @@ Use **TaskCreate** with one task per stage, plus one task per OF1-integration sk
    extraction · of1-build-templates(base) · of1-build-templates(intent-*) ·
    of1-build-templates(assemble) · of1-style-generative-block · of1-extract-brand-voice ·
    of1-extract-content · of1-build-quick-suggestions · of1-build-cta-template ·
-   of1-generate-config-review · of1-publish
+   config-review · of1-publish
 ```
 
 Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`failed` around its dispatch.
@@ -129,7 +129,7 @@ grammar and `deliverables` rules are in `pipeline-contract.md`:
 If status is `failed`, also write what specifically broke and what to retry.
 ```
 
-**`of1-generate-config-review` (config review) and `of1-publish` (deploy) run inline in the
+**`config-review` (config review) and `of1-publish` (deploy) run inline in the
 orchestrator's own context** (not as Agents) — follow `of1-integration`'s "Config review" and "Deploy"
 sections directly, including its check-5 adaptation for the adopt flow.
 
@@ -156,7 +156,7 @@ If a skill returns `failed`:
 
 Record telemetry from each Agent result's `<usage>` block (`duration_ms`, `total_tokens`,
 `tool_uses`). Track in memory across dispatches; write the audit per `pipeline-contract.md`
-§ "Pipeline audit schema". `of1-generate-config-review`/`of1-publish` are inline (`model: "inline"`).
+§ "Pipeline audit schema". `config-review`/`of1-publish` are inline (`model: "inline"`).
 
 ## State files (CC)
 

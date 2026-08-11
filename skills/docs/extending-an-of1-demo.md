@@ -4,10 +4,10 @@ You have a working OF1 demo (built via `of1-demo-orchestrator` or `of1-integrati
 
 | Want to change... | Call | Then |
 |---|---|---|
-| Products, personas, use cases, FAQs, testimonials | `of1-extract-content` | `of1-generate-config-review` → `of1-publish` |
-| Brand tone/voice | `of1-extract-brand-voice` | `of1-generate-config-review` → `of1-publish` |
-| Suggestion chips / search UI copy | `of1-build-quick-suggestions` | `of1-generate-config-review` → `of1-publish` |
-| CTA visual template | `of1-build-cta-template` | `of1-generate-config-review` → `of1-publish` |
+| Products, personas, use cases, FAQs, testimonials | `of1-extract-content` | `config-review` → `of1-publish` |
+| Brand tone/voice | `of1-extract-brand-voice` | `config-review` → `of1-publish` |
+| Suggestion chips / search UI copy | `of1-build-quick-suggestions` | `config-review` → `of1-publish` |
+| CTA visual template | `of1-build-cta-template` | `config-review` → `of1-publish` |
 | Fake acquisition signals (email/ads/LLM referral simulation) | `of1-signals` | **No redeploy** — extension-only config, never synced to the OF1 worker |
 
 ## Why no orchestrator
@@ -18,7 +18,7 @@ Each config skill already reads `repo-config.json` (owner/repo/branch/domain) fr
 
 After any config change, regenerate the review page and redeploy so the change actually reaches the OF1 worker:
 
-1. **`of1-generate-config-review`** — regenerates `deliverables/config-review.html` from whatever's currently in `of1/config/`.
+1. **`config-review`** — regenerates `deliverables/config-review.html` from whatever's currently in `of1/config/`.
 2. **`of1-publish`** — commits, pushes, syncs the OF1 worker (`POST /api/tenants/<id>/sync`), and re-runs the pre-launch checklist.
 
 **Exception: `of1-signals`.** `signals.json` is read directly by the OF1 **preview extension**, not the OF1 worker — it's never synced, so no `of1-publish` step is needed after editing it. Just push the file and the extension picks it up on next load.

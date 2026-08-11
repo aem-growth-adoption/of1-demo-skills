@@ -97,10 +97,10 @@ Stage 2: stardust:replica <URL>            Stage 3: OF1 integration (Integrate s
   `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` →
   `of1-build-templates`(intent-*) → `of1-build-templates`(assemble);
   `of1-build-quick-suggestions` after `of1-extract-brand-voice`+`of1-extract-content`;
-  `of1-generate-config-review` (inline) after
+  `config-review` (inline) after
   `of1-extract-brand-voice`+`of1-extract-content`+`of1-build-quick-suggestions`+`of1-build-cta-template`;
   `of1-publish` (deploy, inline) after
-  `of1-build-templates`(assemble)+`of1-style-generative-block`+`of1-generate-config-review`.
+  `of1-build-templates`(assemble)+`of1-style-generative-block`+`config-review`.
 - **Fan out at every eligible point.** The pipeline is complete when `of1-publish` returns `done`.
 
 The Integrate-skill graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing are **defined once** in
@@ -118,7 +118,7 @@ The Integrate-skill graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing ar
 
 - **Pixel fidelity** is owned by Stage 2 (`stardust:replica`) — it runs its own source-fidelity
   comparison/fix loop against the live site. Do not run screenshot-diff loops in the orchestrator.
-- **`of1-generate-config-review` (config review) and `of1-publish` (deploy + pre-launch checklist)**
+- **`config-review` (config review) and `of1-publish` (deploy + pre-launch checklist)**
   run **inline** in the orchestrator's own context, following `of1-integration`'s Config review /
   Deploy sections (including its check-5 adaptation for the adopt flow). `of1-publish`'s checklist gates the
   OF1-integration stage's `done` status.
