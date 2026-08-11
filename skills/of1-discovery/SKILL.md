@@ -1,7 +1,7 @@
 ---
 name: of1-discovery
 description: Crawl a target website and propose a demo focus and narrative for the OF1 demo.
-user-invocable: false
+user-invocable: true
 ---
 
 # OF1 Discovery
