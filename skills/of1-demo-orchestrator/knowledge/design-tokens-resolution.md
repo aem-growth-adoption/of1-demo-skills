@@ -20,6 +20,9 @@ bounded path**, while `./DESIGN.json` is present on both. A skill that reads onl
 
 ## Resolution order (use this everywhere)
 
+The paths below are relative to the repo root — `cd "$OF1_DEMO_REPO"` first (or prefix each
+path with `$OF1_DEMO_REPO/`).
+
 ```bash
 # Resolve the brand design spec. Prefer current/, fall back to project root.
 DESIGN_JSON=""
