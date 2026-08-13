@@ -26,7 +26,9 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
 ## Model assignment
 
 - Stage 1 (discovery): `opus` — narrative synthesis drives both later stages.
-- Stage 2 (replica): `opus` — must follow a complex multi-phase skill precisely.
+- Stage 2 (replica): `opus`, `effort: "high"` — must follow a complex multi-phase skill precisely,
+  and the iterative pixel-diff/CSS-fixing loop benefits from deeper per-iteration reasoning (see
+  the Stage 2 dispatch template below for the wall-clock budget that goes with this).
 - Stage 3 (Integrate skills): **read the per-skill model from `of1-integration`'s model-assignment
   rule** (Opus only where output quality cascades — `of1-style-generative-block` and the extraction
   step; Sonnet for the rest). Do not maintain a second copy of that list here.
@@ -38,7 +40,7 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
    needs it). Await `done`. Read `narrative.json`;
    build `SLUGS=$(jq -r '.keyPages[].slug' <<<"$NARRATIVE" | paste -sd, -)`.
 2. **Kick off Stage 2 + the Stage 3 content track in ONE message:**
-   - **Stage 2 Agent** (`opus`): invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>`; on
+   - **Stage 2 Agent** (`opus`, `effort: "high"`): invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>`; on
      success write `<stateDir>/replica-done.json`. See the Stage 2 dispatch template below.
    - **Stage 3 content-track Agents** (`of1-extract-brand-voice`, `of1-extract-content`): dispatch immediately with `OF1_PIPELINE_MODE=1`,
      `OF1_CONTENT_SOURCE=<DOMAIN>` — they need only the live external site.
@@ -72,6 +74,10 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
 
 ## Stage 2 dispatch template (replica)
 
+Dispatch with `model: "opus"` and `effort: "high"` — this is careful, deliberate pixel-delta
+reasoning and CSS-precision fixing, not fast pattern-matching; more thinking per iteration should
+converge in fewer iterations rather than needing to repeat sloppy guesses.
+
 ```
 You are executing Stage 2 (Replica) of the OF1 demo pipeline for `<DOMAIN>`.
 
@@ -82,6 +88,23 @@ Arguments: https://<DOMAIN> --pages <SLUGS>
 
 Follow stardust:replica exactly. It extracts, recreates, runs its source-fidelity gate,
 migrates and deploys those pages to the branch <BRANCH> on repo <OWNER>/<REPO>.
+
+## Wall-clock budget — on top of replica's own iteration cap
+
+replica's own "hard cap: 3 iterations per breakpoint" (source-fidelity-gate.md) is an *attempt*
+cap, not a time cap — it can still spend a very long time if convergence is slow. Layer this
+additional stop condition on top of it, evaluated **at the top of each iteration, never mid-probe**
+(so the single-live-navigation-per-instrument invariant stays intact):
+
+- Track elapsed wall-clock time since this Agent started.
+- If a single page+breakpoint's gate has spent more than **20 minutes** without both (a) the pixel
+  diff trending down between the last two iterations and (b) being on track to pass the ≤10% bar
+  by iteration 3, treat this exactly as if you'd exhausted the iteration cap: stop immediately, and
+  log it into `stardust/replica/progress.json`'s existing residual ledger (§ Residual logging in
+  source-fidelity-gate.md) using the same `residuals[]` shape you'd use for an ordinary iteration-3
+  residual — do not invent a new stop mechanism or a new file.
+- This is a backstop for slow convergence, not a replacement for replica's own discipline — if
+  replica's normal 3-iteration cap resolves faster, that takes precedence and this never triggers.
 
 On success, write the done-file so Stage 3's site-integration track can proceed:
   echo '{"stage":2,"status":"done"}' > <stateDir>/replica-done.json

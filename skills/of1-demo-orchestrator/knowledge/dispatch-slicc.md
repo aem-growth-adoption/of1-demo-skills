@@ -106,6 +106,18 @@ Stage 2 prompt: invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>` (boun
 exactly. On success: `echo '{"stage":2,"status":"done"}' > /shared/of1-demo-orchestrator/replica-done.json`.
 End with a `{"stage":2,"skill":"stardust:replica",...}` status block — the sprinkle renders it under the Replica stage.
 
+**Wall-clock budget on top of replica's own iteration cap** — replica's "hard cap: 3 iterations
+per breakpoint" (source-fidelity-gate.md) is an attempt cap, not a time cap, and can still run very
+long if convergence is slow. Add this instruction to the scoop's prompt: track elapsed wall-clock
+time since the scoop started; if a single page+breakpoint's gate has spent more than 20 minutes
+without the pixel diff trending down between the last two iterations and being on track to pass the
+≤10% bar by iteration 3, stop immediately (checked at the top of each iteration, never mid-probe, to
+keep the single-live-navigation-per-instrument invariant intact) and log it into
+`stardust/replica/progress.json`'s existing residual ledger (§ Residual logging in
+source-fidelity-gate.md) using the same `residuals[]` shape as an ordinary iteration-3 residual —
+do not invent a new stop mechanism. If replica's normal 3-iteration cap resolves faster, that takes
+precedence and this never triggers.
+
 In the SAME turn, dispatch the two content-track scoops (need only the live site; omit `model`):
 
 ```
