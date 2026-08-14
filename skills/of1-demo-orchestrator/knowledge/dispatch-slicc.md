@@ -246,7 +246,10 @@ files are the only run records.
 
 ## Audit capture (SLICC-specific)
 
-Write the audit per `pipeline-contract.md` § "Pipeline audit schema". SLICC has no `<usage>` block:
+Write the audit per `pipeline-contract.md` § "Pipeline audit schema" — **before dispatching
+`of1-publish`, not after it returns** (its own step 3 reads this file to render the hub's audit
+section; writing it later means the hub was already generated without it). SLICC has no
+`<usage>` block:
 - Timing: stamp start at `scoop_scoop()`, end when the status file appears.
   ```bash
   STAGE_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)

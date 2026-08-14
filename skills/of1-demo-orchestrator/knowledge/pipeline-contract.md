@@ -141,10 +141,26 @@ derive from these; a missing URL greys them out).
 
 ## Pipeline audit schema
 
-Write `$OF1_STATE_DIR/pipeline-audit.json` after the pipeline finishes (`of1-publish` returns
-`done`) or aborts (partial audit is still useful). Because the orchestrator dispatches each
-Integrate-stage skill itself, **record each dispatch individually** — there is no black-box
-Stage 3.
+Write `$OF1_STATE_DIR/pipeline-audit.json` **before dispatching `of1-publish`**, with every
+stage/skill record known up to that point — NOT after `of1-publish` returns `done`. `of1-publish`'s
+own step 3 runs `fill-demo-hub.mjs`, which reads this exact file to render the hub's "Pipeline
+Audit" section; if the audit is written only after `of1-publish` finishes, the hub has already
+been generated without it and the section silently omits itself (`renderAudit` returns `''` — no
+error, just a missing section). This actually happened on a live run (frescopa.coffee,
+2026-08-14): the audit landed ~6 minutes after `fill-demo-hub.mjs` had already run.
+
+Because `of1-publish` itself needs a record too, treat this as two writes, not one:
+1. **Before dispatching `of1-publish`:** write the file with every record so far (stages 0-3 minus
+   `of1-publish` itself).
+2. **After `of1-publish` returns:** append its own record (and re-run `fill-demo-hub.mjs`, or patch
+   `deliverables/index.html`'s audit section directly, if the hub must reflect it — otherwise leave
+   the hub as generated in step 3 and just keep the JSON file complete for anyone reading it directly).
+
+If the pipeline aborts before reaching `of1-publish`, write whatever partial audit exists — still
+useful, and there's no hub-generation ordering constraint to worry about in that case.
+
+Because the orchestrator dispatches each Integrate-stage skill itself, **record each dispatch
+individually** — there is no black-box Stage 3.
 
 ### Per-step record fields
 

@@ -201,7 +201,10 @@ If a skill returns `failed`:
 
 Record telemetry from each Agent result's `<usage>` block (`duration_ms`, `total_tokens`,
 `tool_uses`). Track in memory across dispatches; write the audit per `pipeline-contract.md`
-§ "Pipeline audit schema". `config-review`/`of1-publish` are inline (`model: "inline"`).
+§ "Pipeline audit schema" — **write it right before dispatching `of1-publish`, not after it
+returns** (its own step 3 reads this file to render the hub's audit section; writing it later
+means the hub was already generated without it). `config-review`/`of1-publish` are inline
+(`model: "inline"`).
 
 ## State files (CC)
 
