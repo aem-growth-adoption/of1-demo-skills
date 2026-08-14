@@ -54,8 +54,13 @@ const PIXEL_BAR_PCT = 10;
 // ceiling for "visibly imperfect but presentable", not "broken".
 const DOCUMENTED_RESIDUAL_CEILING_PCT = 20;
 // What counts as replica's own acknowledgment that it deliberately stopped
-// iterating and logged the gap, rather than silently failing.
-const RESIDUAL_NOTE_RE = /residual|iter(ation)?\s*cap/i;
+// trying and logged the gap, rather than silently failing: either it hit its
+// iteration cap on a genuine convergence attempt, or it deliberately skipped
+// a section outright (third-party embeds — maps, chat widgets, live
+// booking/inventory — that never render in headless capture and can't
+// converge no matter how many iterations; see the Stage 2 dispatch
+// template's "Maps and other third-party embeds" guidance).
+const RESIDUAL_NOTE_RE = /residual|iter(ation)?\s*cap|third-party embed|static placeholder/i;
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -218,8 +223,8 @@ function main() {
   if (documentedResiduals.length) {
     console.error(
       `⚠ ${documentedResiduals.length} breakpoint(s) blew the ${PIXEL_BAR_PCT}% ship bar but are ` +
-        `documented residuals under the ${DOCUMENTED_RESIDUAL_CEILING_PCT}% ceiling (replica hit its ` +
-        `iteration cap and logged why):`,
+        `documented residuals under the ${DOCUMENTED_RESIDUAL_CEILING_PCT}% ceiling (replica logged ` +
+        `why — iteration-cap exhaustion or a deliberately skipped third-party embed):`,
     );
     for (const r of documentedResiduals) {
       console.error(`    • ${r.archetype} @ ${r.bp}: ${r.pixelPct}%${r.note ? ` — ${r.note}` : ''}`);

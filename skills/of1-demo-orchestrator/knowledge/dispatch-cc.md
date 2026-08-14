@@ -106,6 +106,26 @@ additional stop condition on top of it, evaluated **at the top of each iteration
 - This is a backstop for slow convergence, not a replacement for replica's own discipline — if
   replica's normal 3-iteration cap resolves faster, that takes precedence and this never triggers.
 
+## Maps and other third-party embeds — do not attempt to recreate
+
+A live Google/Apple/Bing Maps embed (store locators, "find a location" widgets, directions
+iframes) never renders in headless capture (it errors or stays blank), so the fidelity gate can
+never actually measure it, and no amount of CSS portation or re-authoring will make it converge —
+this burned ~40 minutes on a single demo (frescopa.coffee, 2026-08-14) chasing a Maps hydration
+band. The same applies to other third-party JS widgets that only render with live network/API
+access replica has no path to reproduce (chat widgets, live inventory/booking widgets, ad iframes).
+
+For any section whose content is one of these, skip stardust:replica's normal recreation procedure
+for that section entirely — do not re-author it, do not CSS-port it, do not iterate the fidelity
+gate against it. Replace it with a fixed-height static `<div>` sized to the source's layout
+geometry (same section height/margins so surrounding sections don't reflow), styled with the
+page's own background/border tokens so it reads as an intentional placeholder, not a bug. Log it
+in `stardust/replica/progress.json`'s residual ledger the same way a CSS portation is logged (note:
+"third-party embed, not recreated — replaced with static placeholder"), so `check-replica-artifacts.mjs`
+can classify it as a documented residual rather than an unexplained gap. Exclude that section's pixels
+from the breakpoint's fidelity measurement if the gate instrument supports region exclusion; otherwise
+document the expected hot band in the same residual note so it isn't mistaken for a real defect.
+
 On success, write the done-file so Stage 3's site-integration track can proceed:
   echo '{"stage":2,"status":"done"}' > <stateDir>/replica-done.json
 

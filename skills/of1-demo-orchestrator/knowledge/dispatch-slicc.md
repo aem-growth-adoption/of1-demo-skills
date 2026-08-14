@@ -118,6 +118,18 @@ source-fidelity-gate.md) using the same `residuals[]` shape as an ordinary itera
 do not invent a new stop mechanism. If replica's normal 3-iteration cap resolves faster, that takes
 precedence and this never triggers.
 
+**Maps and other third-party embeds — do not attempt to recreate.** Add this instruction to the
+scoop's prompt too: a live Google/Apple/Bing Maps embed (store locators, "find a location"
+widgets, directions iframes) never renders in headless capture, so the fidelity gate can never
+measure it and no amount of CSS portation will make it converge (burned ~40 minutes on a single
+demo, frescopa.coffee, 2026-08-14, chasing a Maps hydration band). Same for other third-party JS
+widgets needing live network/API access replica can't reproduce (chat widgets, live
+inventory/booking widgets, ad iframes). For any such section, skip the normal recreation procedure
+entirely — replace it with a fixed-height static `<div>` sized to the source's layout geometry, styled
+with the page's own background/border tokens, and log it in `progress.json`'s residual ledger
+("third-party embed, not recreated — replaced with static placeholder") so the artifact gate treats
+it as a documented residual rather than an unexplained gap.
+
 In the SAME turn, dispatch the two content-track scoops (need only the live site; omit `model`):
 
 ```
