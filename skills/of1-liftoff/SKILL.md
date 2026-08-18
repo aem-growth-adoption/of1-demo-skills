@@ -57,6 +57,38 @@ Full detail for each step is in `knowledge/liftoff-flow.md`. Summary:
    check plus a human-approval gate per page, write `stardust/liftoff/progress.json`, then run
    `check-liftoff-artifacts.mjs`.
 
+## SLICC sub-progress (of1-liftoff → sprinkle)
+
+When running under SLICC — detected the same way `of1-demo-orchestrator` detects it (the
+`sprinkle`/`scoop_scoop` primitives are available; `Agent`/`TaskCreate` are not) — `of1-liftoff` is
+the one approved exception to "only the cone calls `sprinkle send`": because Stage 2 is a single
+long-running scoop the cone can't see inside, this skill pushes its OWN sub-step progress to the
+`of1-demo-orchestrator` sprinkle at each phase boundary:
+
+```
+sprinkle send of1-demo-orchestrator '{"stage":2,"subStep":"<key>","status":"active|done"}'
+```
+
+Push `active` when a phase starts and `done` when it completes. Map the 6 steps above to the 5
+sprinkle sub-step keys exactly like this (steps 4–5 share the `lift` key):
+
+| Step(s) | subStep key |
+|---|---|
+| 1. Scaffold + 2. Add Block Collection set | `scaffold` |
+| 3. Extract | `extract` |
+| 4. Skin | `skin` |
+| 5. Lift (home + product pages) | `lift` |
+| 6. Stabilize | `stabilize` |
+
+`stabilize` pushes `active` when the render/lint/no-JS-errors checks begin and `done` once the gate
+passes — the human-approval gate itself stays a STAGE-level review (the cone's own top-level
+`{"stage":2,"status":"review"}`, not a sub-step status); do not invent a separate review state for
+the `stabilize` sub-step.
+
+**CC no-op guard:** on Claude Code there is no sprinkle and no `sprinkle send` tool. This section
+applies ONLY when the SLICC primitives are detected present — on Claude Code, skip all of the above
+entirely; do not attempt the call, and do not error or block on its absence.
+
 ## `blocks-manifest.json` schema
 
 Written to the repo root (or wherever step 6 places it — `tokensSource` records the actual

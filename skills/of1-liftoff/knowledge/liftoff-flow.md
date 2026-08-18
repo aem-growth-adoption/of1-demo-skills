@@ -6,6 +6,12 @@ read-and-follow of the target `SKILL.md`, executed in `of1-liftoff`'s own contex
 separately dispatched Agent/scoop. Neither Claude Code nor SLICC allows a dispatched skill to fan
 out a further dispatch level, so this skill must do all of its sub-skill work itself.
 
+**SLICC sub-progress:** on SLICC (sprinkle/scoop primitives present — see `SKILL.md` §
+"SLICC sub-progress" for the exact push command, phase→key mapping, and statuses), push
+`{"stage":2,"subStep":"<key>","status":"active"}` at the start of each step below and `"done"` at
+its end: steps 1–2 → `scaffold`, step 3 → `extract`, step 4 → `skin`, step 5 → `lift`, step 6 →
+`stabilize`. On Claude Code (no sprinkle primitive) this is a no-op — skip it entirely, never error.
+
 ## 1. Scaffold
 
 `of1-check-dependencies`'s `verify.sh` is explicit that its EDS-repo check is **"structural check,

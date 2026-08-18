@@ -702,7 +702,14 @@
       openLabel: 'Discovery', requires: [] },
     { id: 2, name: 'Liftoff', key: 'liftoff',
       desc: 'Lift key pages onto standard EDS blocks + brand-token skinning (of1-liftoff)', reviewNote: 'Lifted pages preview',
-      openLabel: 'Preview', requires: [0] },
+      openLabel: 'Preview', requires: [0],
+      subSteps: [
+        { key: 'scaffold',  name: 'Scaffold + blocks' },
+        { key: 'extract',   name: 'Extract tokens' },
+        { key: 'skin',      name: 'Skin styles' },
+        { key: 'lift',      name: 'Lift pages' },
+        { key: 'stabilize', name: 'Stabilize' }
+      ] },
     { id: 3, name: 'OF1 integration', key: 'of1',
       desc: 'Delegate content, styling, config review, and deploy to of1-integration', reviewNote: 'Config review page',
       openLabel: 'Config Review', requires: [0],

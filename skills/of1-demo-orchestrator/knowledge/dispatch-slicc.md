@@ -28,7 +28,11 @@ scoop_scoop({
 
 The sprinkle must stay open and receiving updates throughout. After each step completes, push its
 status via `sprinkle send of1-demo-orchestrator '<json>'`. **Only this cone calls `sprinkle send`** —
-step scoops write files; the cone reads them and pushes.
+step scoops write files; the cone reads them and pushes. **One approved exception:** the
+`of1-s2-liftoff` scoop pushes its OWN Stage-2 sub-step updates (see "Stage 2 sub-progress" below) —
+the cone cannot observe of1-liftoff's internal phases since Stage 2 is a single long-running scoop.
+All other scoops still only write files; the cone still owns the Stage-2 top-level status, the
+artifact gate, and approve/revise.
 
 ## Lick events (sprinkle → cone)
 
@@ -124,6 +128,18 @@ writing `stardust/liftoff/progress.json` and `blocks-manifest.json`. On success:
 End with a `{"stage":2,"skill":"of1-liftoff",...}` status block — the sprinkle renders it under the
 Liftoff stage.
 
+The Stage 2 prompt MUST also tell `of1-liftoff` to self-report its own sub-step progress directly
+to the sprinkle as it runs (SLICC only — this is the one exception to "only the cone calls
+`sprinkle send`"; see `of1-liftoff`'s own SLICC sub-progress note for the exact phase→key mapping
+and the CC no-op guard):
+
+```
+You are running under SLICC. As you complete each internal phase, push your own sub-step progress:
+`sprinkle send of1-demo-orchestrator '{"stage":2,"subStep":"<key>","status":"active|done"}'`
+per your SLICC sub-progress note. Do NOT push the top-level {"stage":2,...} status — the cone still
+owns that.
+```
+
 There is no wall-clock budget, iteration cap, or third-party-embed placeholder guidance to add to
 this prompt — those applied to replica's iterative pixel-diff/CSS-fixing loop, which `of1-liftoff`
 does not have (it gates on render/lint/no-JS-errors + human approval, not a measured pixel diff).
@@ -178,6 +194,25 @@ Every scoop notifies the cone on completion. On each notification:
 
 **Do NOT use `while/sleep` polling loops** — they block your turn and prevent you from receiving
 other licks. The platform notifies you; yield and wait.
+
+## Stage 2 sub-progress (of1-liftoff → sprinkle)
+
+Unlike every other scoop, `of1-s2-liftoff` pushes its OWN Stage-2 sub-step updates directly —
+the cone cannot see inside of1-liftoff's single long-running scoop the way it can observe discrete
+Integrate-stage skill completions. of1-liftoff pushes:
+
+```
+sprinkle send of1-demo-orchestrator '{"stage":2,"subStep":"<key>","status":"active|done"}'
+```
+
+at each phase boundary — `active` when the phase starts, `done` when it completes. Keys are
+EXACTLY `scaffold, extract, skin, lift, stabilize` — they must match the sprinkle's Stage-2
+`subSteps[]` keys or the row won't update. Valid statuses are only `pending, active, done, review,
+failed` (same set as everywhere else in this doc).
+
+The cone still pushes the TOP-LEVEL `{"stage":2,"status":...}` itself (`active` on dispatch,
+`review`/`done` from of1-liftoff's final status block) and still owns the Stage-2 artifact gate and
+approve/revise — of1-liftoff only drives the nested sub-step rows, never the stage-level status.
 
 ## Stage 3 sub-progress (cone → sprinkle)
 
