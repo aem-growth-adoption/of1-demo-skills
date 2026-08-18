@@ -73,7 +73,7 @@ Snowflake gathers prerequisites at the start of each run. Supply these values (d
 | Target EDS repo | `${OWNER}/${REPO}` (local clone at `$OF1_DEMO_REPO`) |
 | `DA_ROOT` | `/` |
 | `PAGE_SLUG` | `${SLUG}` (e.g. `prototype-home`) |
-| `TEMPLATE_NAME` | `${SLUG}` (matches the fragment path the stage-3 template skill reads) |
+| `TEMPLATE_NAME` | `${SLUG}` (matches the fragment path a later stage-3 skill reads) |
 | `level` | `page` (overlay — preserves the prototype DOM byte-for-byte) |
 | `assetStrategy` | `da-media` (binaries uploaded to DA media bus; URLs branch-independent and reusable across runs) |
 | DA token | snowflake reads `$DA_TOKEN` from env automatically |
@@ -110,7 +110,7 @@ for SLUG in $PROTOTYPES; do
   [ -f "templates/${SLUG}.html" ] || { echo "✗ MISSING: templates/${SLUG}.html"; FAIL=true; }
   # Per-template CSS
   [ -f "styles/${SLUG}.css" ] || { echo "✗ MISSING: styles/${SLUG}.css"; FAIL=true; }
-  # Header/footer fragments — the stage-3 template skill reads these for /of1 page chrome
+  # Header/footer fragments — a later stage-3 skill reads these for /of1 page chrome
   [ -f "fragments/${SLUG}/header.html" ] || { echo "✗ MISSING: fragments/${SLUG}/header.html"; FAIL=true; }
   [ -f "fragments/${SLUG}/footer.html" ] || { echo "✗ MISSING: fragments/${SLUG}/footer.html"; FAIL=true; }
 done
