@@ -15,9 +15,9 @@ The worker continues its existing classification and templating pipeline:
 1. **Classify intent** from the incoming request (e.g., "product details", "reviews", "comparison")
 2. **Route via `byIntent`** to select the matching template
 3. **Fill `data-slot` placeholders** with extracted content (existing logic)
-4. **Return block-table markup** as `<main>…</main>` containing empty or minimally-decorated `<div class="block" data-block-name="...">` elements
+4. **Return block-table markup** as `<main>…</main>` containing slot-filled but not-yet-EDS-decorated `<div class="block" data-block-name="...">` elements. Each slot contains extracted content (text, links, media URLs, etc.); what is absent is EDS decoration (block CSS, generated wrapper classes, and JavaScript injection).
 
-**Key change:** Return markup, NOT fully rendered/styled HTML.
+**Key change:** Return markup with content filled, NOT fully decorated or styled HTML.
 
 ### Browser (Delivery Page) Responsibility
 
@@ -63,39 +63,52 @@ Standard intent-classification request (unchanged from current behavior).
 ```html
 <main>
   <div class="block" data-block-name="header">
-    <!-- Content for 'header' block, no EDS decoration applied -->
+    <h1 data-slot="header.title">Apple MacBook Pro 16"</h1>
+    <p data-slot="header.subtitle">Supercharged by M4 Pro</p>
+    <a href="/products/mbp-16" data-slot="header.link-url">Learn More</a>
   </div>
   <div class="block" data-block-name="product-details">
-    <!-- Content for 'product-details' block, no EDS decoration applied -->
+    <h2 data-slot="details.heading">Specifications</h2>
+    <ul>
+      <li><span data-slot="details.spec-1">Up to 12-core CPU</span></li>
+      <li><span data-slot="details.spec-2">Up to 20-core GPU</span></li>
+    </ul>
+    <p data-slot="details.price">Starting at $3,499</p>
   </div>
   <!-- Additional blocks as dictated by template -->
 </main>
 ```
 
+**Note:** Slot content is **present and filled** with per-request data (product name, specs, price, URLs). What is **not present** is EDS decoration: no block-specific CSS classes (e.g., no `header__hero`, no `product-details__card`), no injected `<script>` tags, and no wrapping `<style>` blocks. The browser will apply these during `decorateMain()` and `loadBlocks()`.
+
 **Constraints:**
 - Root element must be `<main>` with no extra wrappers
 - Each block must be a `<div class="block" data-block-name="...">` (EDS standard)
 - Block names must match entries in the shared `blocks-manifest.json` (no unknown blocks)
+- **All `data-slot` placeholders must be filled** with extracted content (no empty slots; personalization data is present)
 - No inline `<style>` or `<script>` (decoration happens client-side)
-- No pre-applied EDS decoration classes (e.g., no `.decorated` from `decorateMain`)
+- No pre-applied EDS decoration classes (e.g., no `.decorated` from `decorateMain`, no block-specific utility classes)
+- No injected block-specific `.js` or `.css` (loaded client-side during `loadBlocks()`)
 
 ---
 
 ## Subrequest Budget Examples
+
+*Note: The counts below are illustrative, not measured from production data. Actual subrequest cost depends on template complexity and data-fetch fanout.*
 
 ### Before (v5, full HTML rendering in worker)
 
 - Fetch product data: 3 subrequests
 - Fetch reviews: 2 subrequests
 - Render HTML + inline block styles/scripts: **~10 subrequests** (processing, block CSS/JS inlining)
-- **Total: 15+ subrequests**, leaves ~35 for growth
+- **Total: ~15 subrequests**, leaves ~35 for growth
 
 ### After (v6, markup + client decoration)
 
 - Fetch product data: 3 subrequests
 - Fetch reviews: 2 subrequests
-- Return minimal markup: **0 subrequests** (no asset bundling)
-- **Worker total: 5 subrequests**, leaves ~45 for growth
+- Return slot-filled markup: **0 subrequests** (no asset bundling)
+- **Worker total: ~5 subrequests**, leaves ~45 for growth
 - **Browser loading block CSS/JS: unlimited**, happens after page load
 
 ---
@@ -106,9 +119,10 @@ When updating the worker to satisfy this contract, verify:
 
 ### Output Format
 - [ ] Worker returns a `<main>…</main>` block-table structure, NOT a complete rendered document
-- [ ] Each block is a bare `<div class="block" data-block-name="...">` with no pre-applied EDS classes
-- [ ] No `<style>` blocks or inline styles in worker response
-- [ ] No `<script>` blocks in worker response
+- [ ] All `data-slot` placeholders are **filled with content** (no empty divs; personalization data is present)
+- [ ] Each block is a `<div class="block" data-block-name="...">` with **no EDS decoration classes** (e.g., no `.decorated`, no block-specific styling classes added by `decorateMain`)
+- [ ] No `<style>` blocks or inline styles in worker response; no injected block `.css`
+- [ ] No `<script>` blocks in worker response; no injected block `.js`
 - [ ] Response HTTP status is 200 with `Content-Type: text/html; charset=utf-8`
 
 ### Delivery Page Integration (`/of1` route)
@@ -123,9 +137,10 @@ When updating the worker to satisfy this contract, verify:
 - [ ] Test with a high-asset-count template (e.g., 5+ blocks) to ensure no budget exhaustion
 
 ### Testing
-- [ ] Unit test: Worker returns undecorated markup with correct block structure
-- [ ] Integration test: `/of1` page loads markup, decorates, and renders without visual regression
-- [ ] Performance: Measure total block load time and confirm it stays under acceptable thresholds (e.g., FCP target unchanged)
+- [ ] Unit test: Worker returns slot-filled, undecorated markup with correct block structure and no EDS classes/scripts/styles
+- [ ] Integration test: `/of1` page loads markup, decorates with `decorateMain()`, renders blocks with `loadBlocks()`, and matches visual baseline
+- [ ] Content verification: Inspect returned markup and confirm all critical slots are filled (e.g., title, price, links); verify no empty placeholders slip through
+- [ ] Performance: Measure total block load time (worker + browser decoration) and confirm it stays under acceptable thresholds (e.g., FCP target unchanged)
 - [ ] Edge case: Worker outage or slow response should not block EDS runtime load (use a timeout for worker fetch)
 
 ---
@@ -139,9 +154,10 @@ When updating the worker to satisfy this contract, verify:
 
 ## Related Artifacts
 
-- **OF1 v6 Orchestrator Plan:** `docs/superpowers/plans/2026-08-18-of1-v6-rework.md`
-- **OF1 v6 Orchestrator Rewiring:** `.superpowers/sdd/2026-08-18-of1-v6-eds-block-templating/task-6-*.md`
-- **Block Manifest Schema:** `docs/superpowers/specs/of1-blocks-manifest-schema.md` (shared across v6 implementation)
+- **OF1 v6 Implementation Plan:** `docs/superpowers/plans/2026-08-18-of1-v6-eds-block-templating.md`
+- **OF1 v6 Design Spec:** `docs/superpowers/specs/2026-08-18-of1-v6-eds-block-templating-design.md`
+- **Block Manifest Schema:** Documented in `skills/of1-liftoff/SKILL.md` with validator at `skills/of1-liftoff/assets/validate-blocks-manifest.mjs`
+- **Orchestrator Rewiring:** `.superpowers/sdd/2026-08-18-of1-v6-eds-block-templating/task-6-*.md`
 
 ---
 
