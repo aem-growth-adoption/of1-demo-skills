@@ -192,7 +192,7 @@ EDS wraps content in `<div class="header-wrapper"><div class="header block">…<
 
 When fixing card images that stardust:prototype left blank or wrong, pull the URL from the captured page JSON — **never construct it from a path pattern**.
 
-Step 4 wrote one JSON file per crawled page at `stardust/current/pages/<page>.json`, each listing the `images` array with the exact URLs as they appeared in the live DOM. That's the canonical source.
+`of1-extract-design` wrote one JSON file per crawled page at `stardust/current/pages/<page>.json`, each listing the `images` array with the exact URLs as they appeared in the live DOM. That's the canonical source.
 
 ```bash
 # ✅ CORRECT — look up the captured URL
