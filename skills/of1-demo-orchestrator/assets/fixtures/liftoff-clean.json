@@ -1,0 +1,3 @@
+{ "pages": [ { "slug": "/", "role": "home", "rendered": true, "lint": "pass", "jsErrors": 0, "approved": true },
+             { "slug": "/product/x", "role": "product", "rendered": true, "lint": "pass", "jsErrors": 0, "approved": true } ],
+  "blocksManifest": "blocks-manifest.json" }
