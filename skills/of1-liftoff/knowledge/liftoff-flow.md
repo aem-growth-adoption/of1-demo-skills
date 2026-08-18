@@ -165,6 +165,11 @@ argument list. `skin-tokens.mjs` itself fails loudly ("no usable tokens found in
 refusing to skin") if the file it's given has none — treat that exit code as a hard stop, not a
 warning to paper over.
 
+Skipping skinning on this path is safe downstream: Stage 3 (`of1-build-templates`, `base` mode and
+its `assemble` step-1 recheck) explicitly accepts the repo's existing `styles/styles.css` `:root`
+(core vars `--heading-font-family`/`--text-color`/`--background-color`) as the token source when no
+`OF1-TOKENS` marker was written, so no `DESIGN.json` fallback is needed there either.
+
 ## 5. Lift — home + product pages
 
 For `home` and every key page whose derived role is `product` (see SKILL.md § Env), invoke
@@ -217,11 +222,14 @@ validator.
 3. Emit a human-approval gate (config-review style: surface each lifted page for the user to look
    at, then set that page's `approved: true` in the ledger once accepted — do not set `approved`
    before an actual human look, and do not default it to `true`).
-4. Only after every page's ledger entry has all four fields set and `approved: true`, run:
-
-   ```bash
-   node "<orchestratorSkillDir>/assets/check-liftoff-artifacts.mjs" "$OF1_DEMO_REPO"
-   ```
-
-   Exit 0 → write `liftoff-done.json` and report the final status block as `done`. Non-zero → do
-   not write `liftoff-done.json`; report `failed` with the gate's own error lines as the summary.
+4. Only after every page's ledger entry has all four fields set and `approved: true`, self-verify
+   against the ledger you just wrote — `of1-liftoff` has no env var resolving the orchestrator's
+   asset dir (`SKILL_DIR` here points at `of1-liftoff`'s own dir, not the orchestrator's), so do not
+   invent a path to the orchestrator's `check-liftoff-artifacts.mjs`. Instead, read back
+   `stardust/liftoff/progress.json` and confirm every page entry has `rendered: true`, `lint: "pass"`,
+   `jsErrors: 0`, and `approved: true`. All pages passing → write `liftoff-done.json` and report the
+   final status block as `done`. Any page missing or failing a field → do not write
+   `liftoff-done.json`; report `failed` naming the offending page(s) and field(s) as the summary. The
+   orchestrator re-runs `check-liftoff-artifacts.mjs` itself once `liftoff-done.json` appears — that
+   is the authoritative gate call; this self-check only prevents `of1-liftoff` from claiming success
+   on an incomplete ledger.

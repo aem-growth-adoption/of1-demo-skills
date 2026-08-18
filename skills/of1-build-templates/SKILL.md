@@ -185,13 +185,19 @@ node "$(dirname "$SKILL_DIR")/of1-liftoff/assets/validate-blocks-manifest.mjs" "
 }
 ```
 
-3. **Confirm `styles/styles.css` already carries the OF1-TOKENS block** — fail loudly if absent; `intent` mode never writes CSS, so if the tokens aren't already on the page, nothing will define them:
+3. **Confirm `styles/styles.css` already carries a usable token source** — fail loudly if neither holds; `intent` mode never writes CSS, so if no tokens are already on the page, nothing will define them. Two paths are valid: (a) the normal skinned path, where `styles.css` carries the `OF1-TOKENS` marker block; or (b) `of1-liftoff`'s documented fallback, where extraction yielded no usable `DESIGN.json` and skinning was skipped, leaving the repo's own `:root` as the authoritative brand tokens — accept that when the core vars (`--heading-font-family`, `--text-color`, `--background-color`) are already defined:
 
 ```bash
-grep -q 'OF1-TOKENS' styles/styles.css || {
-  echo "FAIL: styles/styles.css missing the OF1-TOKENS block — resolve before running intent agents" >&2
+if grep -q 'OF1-TOKENS' styles/styles.css; then
+  : # marker present — normal skinned path
+elif grep -q -- '--heading-font-family' styles/styles.css \
+  && grep -q -- '--text-color' styles/styles.css \
+  && grep -q -- '--background-color' styles/styles.css; then
+  echo "NOTE: no OF1-TOKENS marker — skinning was skipped upstream (of1-liftoff fallback); using styles/styles.css's own :root as the token source."
+else
+  echo "FAIL: styles/styles.css has neither the OF1-TOKENS block nor the core :root brand vars (--heading-font-family, --text-color, --background-color) — resolve before running intent agents" >&2
   exit 1
-}
+fi
 ```
 
 `base` writes no files. It only gates the fan-out: if either check fails, the orchestrator should not dispatch `intent` agents.
@@ -300,13 +306,19 @@ COUNT_META=$(ls templates/of1-*.metadata.json 2>/dev/null | wc -l)
 
 ### 1. Verify `base` mode's gate already passed
 
-`base` mode (run before the intent fan-out) validated `blocks-manifest.json` and confirmed `styles/styles.css` carries the OF1-TOKENS block. Re-check both before assembling, in case `assemble` runs in a fresh context:
+`base` mode (run before the intent fan-out) validated `blocks-manifest.json` and confirmed `styles/styles.css` carries a usable token source. Re-check before assembling, in case `assemble` runs in a fresh context — same two accepted paths as `base` mode step 3 (marker OR core `:root` vars):
 
 ```bash
-grep -q 'OF1-TOKENS' styles/styles.css || {
-  echo "FAIL: styles/styles.css missing the OF1-TOKENS block" >&2
+if grep -q 'OF1-TOKENS' styles/styles.css; then
+  : # marker present — normal skinned path
+elif grep -q -- '--heading-font-family' styles/styles.css \
+  && grep -q -- '--text-color' styles/styles.css \
+  && grep -q -- '--background-color' styles/styles.css; then
+  echo "NOTE: no OF1-TOKENS marker — skinning was skipped upstream (of1-liftoff fallback); using styles/styles.css's own :root as the token source."
+else
+  echo "FAIL: styles/styles.css has neither the OF1-TOKENS block nor the core :root brand vars (--heading-font-family, --text-color, --background-color)" >&2
   exit 1
-}
+fi
 ```
 
 ### 2. Assemble the catalog (fully inlined)
