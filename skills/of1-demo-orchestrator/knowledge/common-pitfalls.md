@@ -18,7 +18,7 @@ EDS wraps the page header in `<div class="header-wrapper"><div class="header blo
 
 **Rule:** Use `class="site-header"` and `class="site-footer"` in prototype/template HTML and the matching CSS selectors.
 
-**Canonical reference:** `stardust:replica` § recreation (CSS class naming) and `stardust:deploy` § "Naming rules" (never name a block after a reserved EDS class).
+**Canonical reference:** `stardust:prototype` § recreation (CSS class naming) and `stardust:deploy`/`snowflake` § "Naming rules" (never name a block after a reserved EDS class).
 
 ### 1.3 Required EDS block-wrapper resets
 Every template CSS file MUST start with:

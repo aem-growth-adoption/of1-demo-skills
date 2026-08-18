@@ -13,7 +13,9 @@ Use **TaskCreate** with one task per stage, plus one task per OF1-integration sk
 ```
 0. Setup            (done if you got here — deps + repo-config.json)
 1. Collect          — of1-discovery → narrative.json + demo story
-2. Replica          — stardust:replica <URL> --pages <slugs> → EDS site + DESIGN.json
+2a. Extract design  — of1-extract-design <URL> → stardust/current/DESIGN.json + brand-review.html
+2b. Prototype       — of1-prototype → stardust/prototypes/prototype-*.html
+2c. Snowflake       — of1-snowflake → EDS overlay pages + $OF1_STAGE2_DONE_FILE
 3. OF1 integration  — Integrate skills, dispatched by THIS orchestrator:
    extraction · of1-build-templates(base) · of1-build-templates(intent-*) ·
    of1-build-templates(assemble) · of1-style-generative-block · of1-extract-brand-voice ·
@@ -26,9 +28,10 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
 ## Model assignment
 
 - Stage 1 (discovery): `opus` — narrative synthesis drives both later stages.
-- Stage 2 (replica): `opus`, `effort: "high"` — must follow a complex multi-phase skill precisely,
-  and the iterative pixel-diff/CSS-fixing loop benefits from deeper per-iteration reasoning (see
-  the Stage 2 dispatch template below for the wall-clock budget that goes with this).
+- Stage 2 (2a/2b/2c): `opus`, `effort: "high"` for 2b (`of1-prototype`) — its iterative visual-diff
+  fix loop benefits from deeper per-iteration reasoning (see the Stage 2 dispatch template below
+  for the wall-clock budget that goes with it). 2a (`of1-extract-design`) and 2c (`of1-snowflake`)
+  run `opus` at default effort.
 - Stage 3 (Integrate skills): **read the per-skill model from `of1-integration`'s model-assignment
   rule** (Opus only where output quality cascades — `of1-style-generative-block` and the extraction
   step; Sonnet for the rest). Do not maintain a second copy of that list here.
@@ -39,99 +42,90 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
    (`OF1_STATE_DIR`, `OF1_DEMO_REPO`, and **`SKILL_DIR`** — discovery's `fill-discovery.mjs`
    needs it). Await `done`. Read `narrative.json`;
    build `SLUGS=$(jq -r '.keyPages[].slug' <<<"$NARRATIVE" | paste -sd, -)`.
-2. **Kick off Stage 2 + the Stage 3 content track in ONE message:**
-   - **Stage 2 Agent** (`opus`, `effort: "high"`): invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>`; on
-     success write `<stateDir>/replica-done.json`. See the Stage 2 dispatch template below.
+2. **Kick off Stage 2's first substep + the Stage 3 content track in ONE message:**
+   - **Stage 2a Agent** (`opus`): invoke `of1-extract-design https://<DOMAIN> --pages <SLUGS>`. Await
+     `done`/`review` — on `failed` (blocked capture or other fail-loud condition), pause and follow
+     "Failure recovery" below; do NOT dispatch 2b.
    - **Stage 3 content-track Agents** (`of1-extract-brand-voice`, `of1-extract-content`): dispatch immediately with `OF1_PIPELINE_MODE=1`,
      `OF1_CONTENT_SOURCE=<DOMAIN>` — they need only the live external site.
-3. **When `replica-done.json` exists, run the Stage 2 artifact gate BEFORE dispatching the
-   site-integration track.** `replica-done.json` only means the Stage 2 agent finished — it does NOT
-   mean the replica is demo-grade. Run the gate against the repo:
+3. **On 2a `done`, dispatch Stage 2b** (`of1-prototype`, `opus`, `effort: "high"` — see the Stage 2b
+   dispatch template below for the wall-clock budget). Await `done`.
+4. **On 2b `done`, dispatch Stage 2c** (`of1-snowflake`, `opus`). It loops `snowflake` over every
+   prototype from 2b and, on success, writes `$OF1_STAGE2_DONE_FILE`. Await `done`.
+5. **When `$OF1_STAGE2_DONE_FILE` exists, run the Stage 2 artifact-existence check BEFORE
+   dispatching the site-integration track.** This replaces the old replica fidelity gate — 2a/2b/2c
+   each fail loud on their own problems, so this check only confirms Stage 2's outputs actually
+   landed:
+   - Confirm `$OF1_STAGE2_DONE_FILE` parses as `{"stage":2,"status":"done"}`.
+   - Confirm the EDS overlay pages 2c reported in `of1-snowflake-status.json` exist in the repo.
+   - If both hold, proceed to the site-integration track. If `$OF1_STAGE2_DONE_FILE` is missing or
+     malformed, or an expected overlay page is absent, treat it as a Stage 2 failure — identify
+     which substep (2a/2b/2c) didn't complete and re-dispatch it. See `pipeline-contract.md`
+     § "Stage 2 completion check".
 
-   ```bash
-   node "<orchestratorSkillDir>/assets/check-replica-artifacts.mjs" "<repoDir>"
-   ```
-
-   - **exit 0** — proceed to the site-integration track. (The gate may still print `⚠` warnings for
-     documented under-bar residuals or legacy-shape pages; note them but proceed.)
-   - **exit 2** — HARD STOP: replica is NOT demo-grade. Cause is one of BLOCKED-CAPTURE (bot-protected
-     source, unmeasured "pass"), placeholder imagery, FIDELITY FAIL (measured pixel diff above the 10%
-     bar — the adobe.com case), or VERDICT FAIL (`verdict.overall: "fail"`). Do **not** dispatch Stage 3
-     or deploy. Surface the gate's escalation options to the user (retry `--headed`, content-only demo,
-     or abort) and wait for a decision. See `pipeline-contract.md` § "Stage 2 artifact gate".
-   - **exit 1** — replica's ledger is missing/empty; treat as a Stage 2 failure and re-dispatch it.
-
-   Only on exit 0, dispatch the Stage 3 site-integration track. **The dependency edges and the
-   pipeline-mode start gates are defined once in `of1-integration` § "Pipeline-mode timing" — follow
-   that graph; do not re-derive the edges here.** (In pipeline mode the content track — `of1-extract-brand-voice`
-   ∥ `of1-extract-content` → `of1-build-quick-suggestions` — was already kicked off at step 2 above,
-   so the site track's first fan-out is `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥
-   `of1-build-cta-template`.)
-4. **Fan out in parallel at every eligible point** — dispatch all currently-eligible skills in one
+   **The dependency edges and the pipeline-mode start gates are defined once in `of1-integration`
+   § "Pipeline-mode timing" — follow that graph; do not re-derive the edges here.** (In pipeline
+   mode the content track — `of1-extract-brand-voice` ∥ `of1-extract-content` →
+   `of1-build-quick-suggestions` — was already kicked off at step 2 above, so the site track's first
+   fan-out is `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template`.)
+6. **Fan out in parallel at every eligible point** — dispatch all currently-eligible skills in one
    message with multiple Agent blocks (e.g. `of1-build-templates`(base) ∥ `of1-style-generative-block`
-   ∥ `of1-build-cta-template` once the replica is done; `of1-build-templates`(intent-*) in one
+   ∥ `of1-build-cta-template` once Stage 2 is done; `of1-build-templates`(intent-*) in one
    message once base returns). When `of1-publish` returns `done`, the pipeline is complete.
 
-## Stage 2 dispatch template (replica)
+## Stage 2b dispatch template (prototype)
 
-Dispatch with `model: "opus"` and `effort: "high"` — this is careful, deliberate pixel-delta
+Dispatch with `model: "opus"` and `effort: "high"` — this is careful, deliberate visual-delta
 reasoning and CSS-precision fixing, not fast pattern-matching; more thinking per iteration should
 converge in fewer iterations rather than needing to repeat sloppy guesses.
 
 ```
-You are executing Stage 2 (Replica) of the OF1 demo pipeline for `<DOMAIN>`.
+You are executing Stage 2b (Prototype) of the OF1 demo pipeline for `<DOMAIN>`.
 
-Invoke the stardust replica skill:
-  Skill: stardust:replica
-Arguments: https://<DOMAIN> --pages <SLUGS>
-(bounded mode — recreate ONLY those pages; no site-wide rollout)
+Read the skill file and follow it as written:
+  Read: <absolute path to .claude/skills/of1-prototype/SKILL.md>
 
-Follow stardust:replica exactly. It extracts, recreates, runs its source-fidelity gate,
-migrates and deploys those pages to the branch <BRANCH> on repo <OWNER>/<REPO>.
+It wraps `stardust:prototype` for each key page from Stage 1's `narrative.json`, running its own
+visual-diff/fix loop against the live site.
 
-## Wall-clock budget — on top of replica's own iteration cap
+## Wall-clock budget — on top of the visual-diff loop's own iteration cap
 
-replica's own "hard cap: 3 iterations per breakpoint" (source-fidelity-gate.md) is an *attempt*
-cap, not a time cap — it can still spend a very long time if convergence is slow. Layer this
-additional stop condition on top of it, evaluated **at the top of each iteration, never mid-probe**
-(so the single-live-navigation-per-instrument invariant stays intact):
+The visual-diff loop's iteration cap is an *attempt* cap, not a time cap — it can still spend a
+very long time if convergence is slow. Layer this additional stop condition on top of it, evaluated
+**at the top of each iteration, never mid-probe** (so the single-live-navigation-per-instrument
+invariant stays intact):
 
 - Track elapsed wall-clock time since this Agent started.
-- If a single page+breakpoint's gate has spent more than **20 minutes** without both (a) the pixel
-  diff trending down between the last two iterations and (b) being on track to pass the ≤10% bar
-  by iteration 3, treat this exactly as if you'd exhausted the iteration cap: stop immediately, and
-  log it into `stardust/replica/progress.json`'s existing residual ledger (§ Residual logging in
-  source-fidelity-gate.md) using the same `residuals[]` shape you'd use for an ordinary iteration-3
-  residual — do not invent a new stop mechanism or a new file.
-- This is a backstop for slow convergence, not a replacement for replica's own discipline — if
-  replica's normal 3-iteration cap resolves faster, that takes precedence and this never triggers.
+- If a single page's diff loop has spent more than **20 minutes** without the visual diff trending
+  down between the last two iterations, treat this exactly as if you'd exhausted the iteration cap:
+  stop immediately and log the residual using the skill's own residual-logging convention — do not
+  invent a new stop mechanism or a new file.
+- This is a backstop for slow convergence, not a replacement for the skill's own discipline — if its
+  normal iteration cap resolves faster, that takes precedence and this never triggers.
 
 ## Maps and other third-party embeds — do not attempt to recreate
 
 A live Google/Apple/Bing Maps embed (store locators, "find a location" widgets, directions
-iframes) never renders in headless capture (it errors or stays blank), so the fidelity gate can
+iframes) never renders in headless capture (it errors or stays blank), so the visual-diff loop can
 never actually measure it, and no amount of CSS portation or re-authoring will make it converge —
 this burned ~40 minutes on a single demo (frescopa.coffee, 2026-08-14) chasing a Maps hydration
 band. The same applies to other third-party JS widgets that only render with live network/API
-access replica has no path to reproduce (chat widgets, live inventory/booking widgets, ad iframes).
+access the prototype has no path to reproduce (chat widgets, live inventory/booking widgets, ad iframes).
 
-For any section whose content is one of these, skip stardust:replica's normal recreation procedure
-for that section entirely — do not re-author it, do not CSS-port it, do not iterate the fidelity
-gate against it. Replace it with a fixed-height static `<div>` sized to the source's layout
-geometry (same section height/margins so surrounding sections don't reflow), styled with the
-page's own background/border tokens so it reads as an intentional placeholder, not a bug. Log it
-in `stardust/replica/progress.json`'s residual ledger the same way a CSS portation is logged (note:
-"third-party embed, not recreated — replaced with static placeholder"), so `check-replica-artifacts.mjs`
-can classify it as a documented residual rather than an unexplained gap. Exclude that section's pixels
-from the breakpoint's fidelity measurement if the gate instrument supports region exclusion; otherwise
-document the expected hot band in the same residual note so it isn't mistaken for a real defect.
-
-On success, write the done-file so Stage 3's site-integration track can proceed:
-  echo '{"stage":2,"status":"done"}' > <stateDir>/replica-done.json
+For any section whose content is one of these, skip the normal recreation procedure for that
+section entirely — do not re-author it, do not CSS-port it, do not iterate the diff loop against
+it. Replace it with a fixed-height static `<div>` sized to the source's layout geometry (same
+section height/margins so surrounding sections don't reflow), styled with the page's own
+background/border tokens so it reads as an intentional placeholder, not a bug. Log it as a
+documented residual the same way a CSS portation is logged (note: "third-party embed, not
+recreated — replaced with static placeholder") so it reads as an intentional residual rather than
+an unexplained gap. Exclude that section's pixels from the diff measurement if the instrument
+supports region exclusion; otherwise document the expected hot band in the same residual note so
+it isn't mistaken for a real defect.
 
 End with the JSON status block:
 ```json
-{"stage": 2, "skill": "stardust:replica", "status": "done"|"failed", "summary": "...", "deliverables": [{"url":"...","label":"..."}]}
+{"stage": 2, "skill": "of1-prototype", "status": "done"|"failed", "summary": "...", "deliverables": [{"url":"...","label":"..."}]}
 ```
 ```
 

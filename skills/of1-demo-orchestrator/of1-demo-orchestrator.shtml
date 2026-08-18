@@ -700,9 +700,14 @@
     { id: 1, name: 'Collect', key: 'collect',
       desc: 'Discover site narrative, key pages, and focus persona', reviewNote: 'Demo focus and narrative',
       openLabel: 'Discovery', requires: [] },
-    { id: 2, name: 'Replica', key: 'replica',
-      desc: 'Recreate key pages as a branded EDS replica (stardust:replica)', reviewNote: 'EDS replica preview',
-      openLabel: 'Preview', requires: [0] },
+    { id: 2, name: 'Extract → Prototype → Snowflake', key: 'stage2',
+      desc: 'Recreate key pages as a branded EDS site: extract design tokens, prototype, then convert via snowflake', reviewNote: 'EDS site preview',
+      openLabel: 'Preview', requires: [0],
+      subSteps: [
+        { key: 'extract',   name: 'Extract design' },
+        { key: 'prototype', name: 'Prototype' },
+        { key: 'snowflake', name: 'Snowflake' }
+      ] },
     { id: 3, name: 'OF1 integration', key: 'of1',
       desc: 'Delegate content, styling, config review, and deploy to of1-integration', reviewNote: 'Config review page',
       openLabel: 'Config Review', requires: [0],

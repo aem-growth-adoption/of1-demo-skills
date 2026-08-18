@@ -10,7 +10,8 @@ Read this when `of1-demo-orchestrator` detects it is running in **SLICC** (the `
 - `claude-opus-4-8` → Opus 4.8 (`us.anthropic.claude-opus-4-8`)
 - `claude-sonnet-5` → Sonnet 5 1M context (`us.anthropic.claude-sonnet-5`)
 
-Model per skill: Stage 1 + Stage 2 = `claude-opus-4-8`. Stage 3 = of1-integration's table — Opus for
+Model per skill: Stage 1 and Stage 2's three substeps (2a `of1-extract-design`, 2b `of1-prototype`,
+2c `of1-snowflake`) = `claude-opus-4-8`. Stage 3 = of1-integration's table — Opus for
 `of1-style-generative-block` and the extraction step when it runs; omit `model` (Sonnet) for the rest.
 
 ## Setup — open the sprinkle
@@ -44,7 +45,8 @@ Licks arrive as a single `action` string with colon-delimited fields.
 
 ## Scoop naming
 
-`of1-s1-discovery`, `of1-s2-replica`, and one per Integrate-stage skill — `of1-s3-<skill>[-<phase>]`
+`of1-s1-discovery`, `of1-s2a-extract-design`, `of1-s2b-prototype`, `of1-s2c-snowflake`, and one per
+Integrate-stage skill — `of1-s3-<skill>[-<phase>]`
 (e.g. `of1-s3-brand`, `of1-s3-content`, `of1-s3-styling`, `of1-s3-suggest`, `of1-s3-cta`). The
 `of1-build-templates` phases become `of1-s3-templates-base`, `of1-s3-templates-intent-comparison`,
 … `of1-s3-templates-intent-discovery`, `of1-s3-templates-assemble`. The skill (and phase) keeps the
@@ -92,43 +94,26 @@ SLUGS=$(jq -r '.keyPages[].slug' <<<"$NARRATIVE" | paste -sd, -)
 DOMAIN=$(jq -r .domain <<<"$NARRATIVE")
 ```
 
-## Stage 2 + Stage 3 content track (same turn)
+## Stage 2 (three sequential scoops) + Stage 3 content track (same turn as 2a)
+
+Stage 2's substeps run sequentially — dispatch 2a, await it, dispatch 2b, await it, dispatch 2c.
+Kick off the Stage 3 content-track scoops alongside 2a since they need only the live site.
 
 ```
 scoop_scoop({
-  name: "of1-s2-replica",
+  name: "of1-s2a-extract-design",
   model: "claude-opus-4-8",
-  writablePaths: ["/scoops/of1-s2-replica/", "/shared/", "/workspace/{REPO_NAME}/"]
+  writablePaths: ["/scoops/of1-s2a-extract-design/", "/shared/", "/workspace/{REPO_NAME}/"]
 })
 ```
 
-Stage 2 prompt: invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>` (bounded mode). Follow it
-exactly. On success: `echo '{"stage":2,"status":"done"}' > /shared/of1-demo-orchestrator/replica-done.json`.
-End with a `{"stage":2,"skill":"stardust:replica",...}` status block — the sprinkle renders it under the Replica stage.
-
-**Wall-clock budget on top of replica's own iteration cap** — replica's "hard cap: 3 iterations
-per breakpoint" (source-fidelity-gate.md) is an attempt cap, not a time cap, and can still run very
-long if convergence is slow. Add this instruction to the scoop's prompt: track elapsed wall-clock
-time since the scoop started; if a single page+breakpoint's gate has spent more than 20 minutes
-without the pixel diff trending down between the last two iterations and being on track to pass the
-≤10% bar by iteration 3, stop immediately (checked at the top of each iteration, never mid-probe, to
-keep the single-live-navigation-per-instrument invariant intact) and log it into
-`stardust/replica/progress.json`'s existing residual ledger (§ Residual logging in
-source-fidelity-gate.md) using the same `residuals[]` shape as an ordinary iteration-3 residual —
-do not invent a new stop mechanism. If replica's normal 3-iteration cap resolves faster, that takes
-precedence and this never triggers.
-
-**Maps and other third-party embeds — do not attempt to recreate.** Add this instruction to the
-scoop's prompt too: a live Google/Apple/Bing Maps embed (store locators, "find a location"
-widgets, directions iframes) never renders in headless capture, so the fidelity gate can never
-measure it and no amount of CSS portation will make it converge (burned ~40 minutes on a single
-demo, frescopa.coffee, 2026-08-14, chasing a Maps hydration band). Same for other third-party JS
-widgets needing live network/API access replica can't reproduce (chat widgets, live
-inventory/booking widgets, ad iframes). For any such section, skip the normal recreation procedure
-entirely — replace it with a fixed-height static `<div>` sized to the source's layout geometry, styled
-with the page's own background/border tokens, and log it in `progress.json`'s residual ledger
-("third-party embed, not recreated — replaced with static placeholder") so the artifact gate treats
-it as a documented residual rather than an unexplained gap.
+2a prompt: read `/workspace/skills/of1-extract-design/SKILL.md` and follow it exactly for
+`https://<DOMAIN>` and Stage 1's key pages. It writes `stardust/current/DESIGN.json`,
+`deliverables/brand-review.html`, and `of1-extract-design-status.json`, and **fails loud**
+(`status: "failed"`) rather than substituting placeholder imagery when the source is bot-protected.
+End with a `{"stage":2,"skill":"of1-extract-design",...}` status block — the sprinkle renders it
+under the Stage 2 row. On `failed`, do NOT dispatch 2b; surface the failure and wait per "Handling
+completions" below.
 
 In the SAME turn, dispatch the two content-track scoops (need only the live site; omit `model`):
 
@@ -136,6 +121,57 @@ In the SAME turn, dispatch the two content-track scoops (need only the live site
 scoop_scoop({ name: "of1-s3-brand",   writablePaths: ["/scoops/of1-s3-brand/", "/shared/", "/workspace/{REPO_NAME}/"],   env: { OF1_PIPELINE_MODE: "1", OF1_CONTENT_SOURCE: "<DOMAIN>" } })
 scoop_scoop({ name: "of1-s3-content", writablePaths: ["/scoops/of1-s3-content/", "/shared/", "/workspace/{REPO_NAME}/"], env: { OF1_PIPELINE_MODE: "1", OF1_CONTENT_SOURCE: "<DOMAIN>" } })
 ```
+
+On 2a `done`, dispatch 2b:
+
+```
+scoop_scoop({
+  name: "of1-s2b-prototype",
+  model: "claude-opus-4-8",
+  writablePaths: ["/scoops/of1-s2b-prototype/", "/shared/", "/workspace/{REPO_NAME}/"]
+})
+```
+
+2b prompt: read `/workspace/skills/of1-prototype/SKILL.md` and follow it exactly. It wraps
+`stardust:prototype` per key page, running its own visual-diff/fix loop against the live site, and
+writes `stardust/prototypes/prototype-*.html` + `of1-prototype-status.json`.
+
+**Wall-clock budget on top of the visual-diff loop's own iteration cap** — the loop's iteration cap
+is an attempt cap, not a time cap, and can still run very long if convergence is slow. Add this
+instruction to the scoop's prompt: track elapsed wall-clock time since the scoop started; if a
+single page's diff loop has spent more than 20 minutes without the visual diff trending down
+between the last two iterations, stop immediately (checked at the top of each iteration, never
+mid-probe, to keep the single-live-navigation-per-instrument invariant intact) and log the residual
+using the skill's own residual-logging convention — do not invent a new stop mechanism. If the
+skill's normal iteration cap resolves faster, that takes precedence and this never triggers.
+
+**Maps and other third-party embeds — do not attempt to recreate.** Add this instruction to the
+scoop's prompt too: a live Google/Apple/Bing Maps embed (store locators, "find a location"
+widgets, directions iframes) never renders in headless capture, so the visual-diff loop can never
+measure it and no amount of CSS portation will make it converge (burned ~40 minutes on a single
+demo, frescopa.coffee, 2026-08-14, chasing a Maps hydration band). Same for other third-party JS
+widgets needing live network/API access the prototype can't reproduce (chat widgets, live
+inventory/booking widgets, ad iframes). For any such section, skip the normal recreation procedure
+entirely — replace it with a fixed-height static `<div>` sized to the source's layout geometry,
+styled with the page's own background/border tokens, and log it as a documented residual
+("third-party embed, not recreated — replaced with static placeholder") so it reads as an
+intentional residual rather than an unexplained gap.
+
+On 2b `done`, dispatch 2c:
+
+```
+scoop_scoop({
+  name: "of1-s2c-snowflake",
+  model: "claude-opus-4-8",
+  writablePaths: ["/scoops/of1-s2c-snowflake/", "/shared/", "/workspace/{REPO_NAME}/"],
+  env: { OF1_STAGE2_DONE_FILE: "/shared/of1-demo-orchestrator/stage2-done.json" }
+})
+```
+
+2c prompt: read `/workspace/skills/of1-snowflake/SKILL.md` and follow it exactly. It loops
+`snowflake` over every prototype from 2b, writes `of1-snowflake-status.json`, and on success writes
+`$OF1_STAGE2_DONE_FILE` (`{"stage":2,"status":"done"}`) — the gate the Stage 3 site-integration
+track waits on. End with a `{"stage":2,"skill":"of1-snowflake",...}` status block.
 
 ## Stage 3 dispatch (Integrate skills)
 
@@ -145,26 +181,24 @@ reference for what each skill does and its dependency edges — the cone is the 
 - Each Integrate-stage skill (and each `of1-build-templates` phase) is its own `scoop_scoop()`
   (writablePaths incl. repo + `/shared/`, env `OF1_PIPELINE_MODE=1`, plus
   `OF1_CONTENT_SOURCE=<DOMAIN>` for `of1-build-quick-suggestions`).
-- **When `replica-done.json` exists, run the Stage 2 artifact gate BEFORE fanning out the
-  site-integration track.** `replica-done.json` only means the Stage 2 scoop finished, not that the
-  replica is demo-grade. In the cone's own context run:
+- **When `$OF1_STAGE2_DONE_FILE` exists, run the Stage 2 artifact-existence check BEFORE fanning out
+  the site-integration track.** This replaces the old replica fidelity gate — 2a/2b/2c each fail
+  loud on their own problems, so this only confirms Stage 2's outputs actually landed. In the cone's
+  own context:
 
-  ```bash
-  node "<orchestratorSkillDir>/assets/check-replica-artifacts.mjs" "/workspace/{REPO_NAME}"
-  ```
+  - Confirm `$OF1_STAGE2_DONE_FILE` parses as `{"stage":2,"status":"done"}`.
+  - Confirm the EDS overlay pages 2c reported in `of1-snowflake-status.json` exist in
+    `/workspace/{REPO_NAME}`.
+  - If both hold, proceed to the site-integration track. If either is missing/malformed, treat it
+    as a Stage 2 failure, identify which substep didn't complete, surface it via `sprinkle`, and
+    wait for the user (retry that substep / abort). See `pipeline-contract.md` § "Stage 2 completion
+    check".
 
-  - **exit 0** — proceed (may print `⚠` warnings for under-bar residuals or legacy-shape pages; note
-    them but proceed). **exit 2** — HARD STOP: replica NOT demo-grade — BLOCKED-CAPTURE (bot-protected,
-    unmeasured "pass"), placeholder imagery, FIDELITY FAIL (measured pixel diff above the 10% bar), or
-    VERDICT FAIL (`verdict.overall: "fail"`). Do not dispatch Stage 3 or deploy; surface the gate's
-    escalation options via `sprinkle` and wait for the user. **exit 1** — replica ledger missing;
-    re-dispatch Stage 2. See `pipeline-contract.md` § "Stage 2 artifact gate".
-
-- **Fan out at every eligible point** once the gate passes (exit 0), following the dependency edges
+- **Fan out at every eligible point** once the check passes, following the dependency edges
   in `of1-integration` § "Pipeline-mode timing" — do not re-derive them here. The site track's first
   fan-out is the extraction step (if `DESIGN.json` absent) → `of1-build-templates`(base) ∥
   `of1-style-generative-block` ∥ `of1-build-cta-template`; the content track (`of1-extract-brand-voice`
-  ∥ `of1-extract-content` → `of1-build-quick-suggestions`) was already dispatched in the Stage 2 turn
+  ∥ `of1-extract-content` → `of1-build-quick-suggestions`) was already dispatched in the 2a turn
   above. `config-review` and `of1-publish` run inline.
 - Each scoop reads its own skill first and writes `of1-<skill>-status.json` (phase scoops of
   `of1-build-templates` write `of1-build-templates-<phase>-status.json`); does NOT call
@@ -212,16 +246,16 @@ esac
 
 ## scoop_wait timeout policy
 
-For long-running scoops (Stage 2 replica, the OF1-styling `of1-style-generative-block`) set a generous timeout:
+For long-running scoops (Stage 2b `of1-prototype`, the OF1-styling `of1-style-generative-block`) set a generous timeout:
 
 ```
-scoop_wait({ scoop_names: ["of1-s2-replica"], timeout_ms: 1800000 })  // 30 minutes
+scoop_wait({ scoop_names: ["of1-s2b-prototype"], timeout_ms: 1800000 })  // 30 minutes
 ```
 
 `timeout_ms` does NOT kill the scoop — it only wakes the cone. When it fires:
 1. Do NOT immediately `drop_scoop` — the scoop is likely still working.
-2. Check whether expected output files exist (`ls stardust/current/` for Stage 2; `ls of1/config/`
-   for the content track).
+2. Check whether expected output files exist (`ls stardust/current/` for 2a, `ls stardust/prototypes/`
+   for 2b; `ls of1/config/` for the content track).
 3. If files exist but the status file doesn't: it's in its final steps (commit/push/status-write) —
    wait another minute or let the notify lick arrive.
 4. Only `drop_scoop` if silent for 5+ minutes AND no output files.
@@ -234,8 +268,9 @@ Default is auto-approve: on `"status":"review"`, push the review status (so the 
 immediately treat it as approved, and proceed. If the user later clicks "Revise", handle reactively.
 "One shot" (triggered by "one shot a demo of X" etc.) is the same behavior made explicit — zero
 approval gates, all deliverables still generated/committed (`of1-publish`'s checklist still runs), sprinkle
-still updated with every step status + deliverable URLs, Stage 2 + the content track concurrent. Only
-pause between steps if the user explicitly says "pause"/"wait for my review".
+still updated with every step status + deliverable URLs, Stage 2's 2a and the content track
+concurrent (2b/2c follow sequentially after 2a). Only pause between steps if the user explicitly
+says "pause"/"wait for my review".
 
 ## State files (SLICC)
 

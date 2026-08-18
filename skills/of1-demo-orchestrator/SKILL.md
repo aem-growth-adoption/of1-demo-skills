@@ -1,14 +1,15 @@
 ---
 name: of1-demo-orchestrator
-description: Orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, run as 3 stages — discover a narrative and focus pages, recreate those pages as a branded EDS replica via stardust:replica, then run OF1 integration (content, styling, config review, deploy) as the Integrate-stage skills per of1-integration's step graph. Runs on both Claude Code and SLICC; it detects the runtime and follows the matching dispatch reference. Use when the user asks to build, demo, or one-shot an OF1 demo for a domain.
+description: Orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, run as 3 stages — discover a narrative and focus pages, recreate those pages as a branded EDS site via the three sequential substeps of1-extract-design → of1-prototype → of1-snowflake, then run OF1 integration (content, styling, config review, deploy) as the Integrate-stage skills per of1-integration's step graph. Runs on both Claude Code and SLICC; it detects the runtime and follows the matching dispatch reference. Use when the user asks to build, demo, or one-shot an OF1 demo for a domain.
 user-invocable: true
 ---
 
 # OF1 Demo — Orchestrator
 
 Turns any website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, in
-3 stages: **discovery → replica → OF1 integration**. Auto-approves by default; the user can
-interrupt to revise any step.
+3 stages: **discovery → extract/prototype/snowflake → OF1 integration**. Stage 2 is itself three
+sequential substeps — 2a `of1-extract-design`, 2b `of1-prototype`, 2c `of1-snowflake`. Auto-approves
+by default; the user can interrupt to revise any step.
 
 This is **one orchestrator for both runtimes.** The pipeline logic — stages, step graph,
 dependency edges, status contract, audit schema — is identical everywhere and lives here plus in
@@ -76,13 +77,13 @@ for branch URLs.
 Stage 1: of1-discovery ──┐ (narrative.json: keyPages, focus, persona)
         ┌─────────────────────────┴─────────────────────────┐
         ↓                                                    ↓
-Stage 2: stardust:replica <URL>            Stage 3: OF1 integration (Integrate skills)
-  --pages <slugs>                            THIS orchestrator dispatches each skill,
-  → EDS site + DESIGN.json                    per of1-integration's graph: content track
-  → write replica-done.json                   (brand-voice/content/suggestions) runs NOW;
-                                              site-integration track (templates·styling·cta
-                                              → assemble → config-review → publish)
-                                              gates on replica-done.json
+Stage 2: 2a of1-extract-design <URL>       Stage 3: OF1 integration (Integrate skills)
+      → 2b of1-prototype                    THIS orchestrator dispatches each skill,
+      → 2c of1-snowflake                     per of1-integration's graph: content track
+  → EDS site + DESIGN.json                   (brand-voice/content/suggestions) runs NOW;
+  → write $OF1_STAGE2_DONE_FILE              site-integration track (templates·styling·cta
+    (2c only, on completion)                 → assemble → config-review → publish)
+                                              gates on $OF1_STAGE2_DONE_FILE
         └─────────────────────────┬─────────────────────────┘
                                   ↓  join + deploy (of1-publish) owned by THIS orchestrator
                              (deploy)
@@ -90,13 +91,15 @@ Stage 2: stardust:replica <URL>            Stage 3: OF1 integration (Integrate s
 
 - **Stage 1** (discovery) runs first; read its `narrative.json` and build the comma-separated slug
   list from `keyPages[].slug`.
-- **Stage 2** (replica) and the **Stage 3 content track** (`of1-extract-brand-voice`/`of1-extract-content`)
+- **Stage 2** (2a → 2b → 2c) and the **Stage 3 content track** (`of1-extract-brand-voice`/`of1-extract-content`)
   dispatch concurrently right after Stage 1. The content track needs only the live external site.
-- The **Stage 3 site-integration track** gates on Stage 2's `replica-done.json`, then follows
-  `of1-integration`'s dependency graph — the first fan-out is the extraction step (if `DESIGN.json`
-  absent) → `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template`;
-  `config-review` and `of1-publish` run inline at the tail. Do not re-derive the per-skill edges
-  here (they are defined once in `of1-integration` — see the note below).
+  Stage 2's three substeps run sequentially — 2b needs 2a's `DESIGN.json`, 2c needs 2b's prototypes.
+- The **Stage 3 site-integration track** gates on Stage 2's `$OF1_STAGE2_DONE_FILE` (written by 2c),
+  then follows `of1-integration`'s dependency graph — the first fan-out is the extraction step (if
+  `DESIGN.json` absent) → `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥
+  `of1-build-cta-template`; `config-review` and `of1-publish` run inline at the tail. Do not
+  re-derive the per-skill edges here (they are defined once in `of1-integration` — see the note
+  below).
 - **Fan out at every eligible point.** The pipeline is complete when `of1-publish` returns `done`.
 
 The Integrate-skill graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing are **defined once** in
@@ -107,13 +110,21 @@ The Integrate-skill graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing ar
 | Stage | Name | Skill | Depends on |
 |---|---|---|---|
 | 1 | Collect | `of1-discovery` → `narrative.json` + `discovery.html` | setup |
-| 2 | Replica | `stardust:replica --pages` → EDS replica + `DESIGN.json` + `replica-done.json` | stage 1 (keyPages) |
-| 3 | OF1 integration (Integrate skills) | dispatched by THIS orchestrator per `of1-integration` (pipeline mode) | stage 1; site-track also on replica-done |
+| 2a | Extract design | `of1-extract-design` → `stardust/current/DESIGN.json` + `deliverables/brand-review.html` + `of1-extract-design-status.json` | stage 1 (keyPages) |
+| 2b | Prototype | `of1-prototype` → `stardust/prototypes/prototype-*.html` + `of1-prototype-status.json` | 2a (`DESIGN.json`) |
+| 2c | Snowflake | `of1-snowflake` → EDS overlay pages + `of1-snowflake-status.json` + `$OF1_STAGE2_DONE_FILE` | 2b (prototypes) |
+| 3 | OF1 integration (Integrate skills) | dispatched by THIS orchestrator per `of1-integration` (pipeline mode) | stage 1; site-track also on `$OF1_STAGE2_DONE_FILE` |
 
 ## What Stage 2 & 3 own (do not reimplement here)
 
-- **Pixel fidelity** is owned by Stage 2 (`stardust:replica`) — it runs its own source-fidelity
-  comparison/fix loop against the live site. Do not run screenshot-diff loops in the orchestrator.
+- **Fidelity is owned by Stage 2's sub-skills, not the orchestrator.** `of1-prototype` runs its own
+  visual-diff/fix loop against the live site; `of1-snowflake` runs `snowflake`'s own content checks
+  per prototype. Do not run screenshot-diff loops in the orchestrator. `of1-extract-design` **fails
+  loud** (`status: "failed"`) on a blocked capture rather than shipping a placeholder — the
+  orchestrator does not need a separate artifact gate for that failure mode.
+- After 2c, the orchestrator does an **artifact-existence check** (the EDS overlay pages and
+  `$OF1_STAGE2_DONE_FILE` exist) before dispatching Stage 3 or deploying — a lighter check than the
+  old replica fidelity gate, since 2a/2b/2c already fail loud on their own problems.
 - **`config-review` (config review) and `of1-publish` (deploy + pre-launch checklist)**
   run **inline** in the orchestrator's own context, following `of1-integration`'s Config review /
   Deploy sections (including its check-5 adaptation for the adopt flow). `of1-publish`'s checklist gates the

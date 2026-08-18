@@ -20,7 +20,7 @@ One name per thing. Skills must use these names and not invent synonyms.
 | `OF1_TOKEN_FILE` | user / environment | `of1-check-dependencies`, `of1-publish`, `download-images.mjs` | Alternative to `ADOBE_IMS_TOKEN`: a path to a JSON file `{"access_token":"..."}`. Second in the resolution order. |
 | `OF1_PIPELINE_MODE` | orchestrator (Stage 3) | `of1-integration` + content-track skills | `1` when of1-integration runs inside the full pipeline (vs standalone). |
 | `OF1_CONTENT_SOURCE` | orchestrator (Stage 3) | content-track skills (`of1-extract-brand-voice`, `of1-extract-content`, `of1-build-quick-suggestions`) | The external domain to extract content from, in pipeline mode. |
-| `OF1_REPLICA_DONE_FILE` | orchestrator (Stage 3) | orchestrator's site-track gate | Path to `replica-done.json` — the gate, not passed to step agents. |
+| `OF1_STAGE2_DONE_FILE` | orchestrator (Stage 2) | `of1-snowflake` (writes it), orchestrator's site-track gate (reads it) | Path to `stage2-done.json` (default basename) — written by 2c (`of1-snowflake`) on completion; the gate, not passed to Stage-3 step agents. |
 | `STRICT` | user / environment | `of1-check-dependencies` | Optional: makes dependency warnings fatal. |
 
 **`DA_TOKEN` is NOT an input env var.** It is a **shell local** that `of1-publish` and
@@ -35,12 +35,16 @@ Never document `DA_TOKEN` as a credential to set — set `ADOBE_IMS_TOKEN` (or `
 | Stage | What | Skill |
 |---|---|---|
 | 1 | Discovery — narrative + key pages | `of1-discovery` → `narrative.json` |
-| 2 | Replica — recreate key pages as branded EDS | `stardust:replica <URL> --pages <slugs>` |
+| 2a | Extract design — capture the live site's design tokens/brand surface | `of1-extract-design <URL>` (wraps `stardust:extract`) |
+| 2b | Prototype — render redesigned key pages | `of1-prototype` (wraps `stardust:prototype`) |
+| 2c | Snowflake — convert each prototype to an EDS overlay page | `of1-snowflake` (wraps `snowflake`, one invocation per prototype) |
 | 3 | OF1 integration — the of1-integration skills (Integrate stage) | defined by `of1-integration` |
 
-Stage 2 and the Stage 3 **content track** (`of1-extract-brand-voice` ∥ `of1-extract-content` → `of1-build-quick-suggestions`) dispatch concurrently after Stage 1.
+Stage 2's three substeps run **sequentially** — 2a → 2b → 2c — since each consumes the prior
+substep's output (2b needs 2a's `DESIGN.json`; 2c needs 2b's prototypes). Stage 2 (as a whole) and
+the Stage 3 **content track** (`of1-extract-brand-voice` ∥ `of1-extract-content` → `of1-build-quick-suggestions`) dispatch concurrently after Stage 1.
 The Stage 3 **site-integration track** (`of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` → `of1-build-templates`(assemble) → `config-review` → `of1-publish`) gates on Stage 2's
-`replica-done.json`. **The Integrate-stage skill graph, dependency edges, and pipeline-mode
+`$OF1_STAGE2_DONE_FILE` (written by 2c/`of1-snowflake`). **The Integrate-stage skill graph, dependency edges, and pipeline-mode
 timing are defined once in `of1-integration`** — the orchestrator reads them there on both
 runtimes.
 
@@ -67,49 +71,42 @@ have been removed; cross-session resume is not implemented, so nothing depends o
 | `repo-config.json` | `of1-check-dependencies` (setup) | every step | owner, repo, branch, contentPrefix, repoDir, domain, URLs |
 | `narrative.json` | Stage 1 (`of1-discovery`) | orchestrator, Stages 2/3 | keyPages/focus/persona |
 | `of1-discovery-output.md` | Stage 1 | `of1-build-templates`, `fill-demo-hub.mjs` | discovery narrative (markdown) |
-| `replica-done.json` | Stage 2 (`stardust:replica`) | orchestrator | signals Stage 2 agent finished (NOT that output is demo-grade — see gate below) |
-| `stardust/replica/progress.json` | Stage 2 (`stardust:replica`) | orchestrator (Stage 2 artifact gate) | replica's own per-page/per-breakpoint ledger — the gate reads it |
+| `stardust/current/DESIGN.json` | Stage 2a (`of1-extract-design`, via `stardust:extract`) | orchestrator, 2b, Stage 3 (design-tokens resolver) | captured design tokens/brand surface |
+| `deliverables/brand-review.html` | Stage 2a (`of1-extract-design`) | orchestrator, user review | brand-surface review page |
+| `of1-extract-design-status.json` | Stage 2a | orchestrator | per-skill status (fails loud on a blocked capture — see below) |
+| `stardust/prototypes/prototype-*.html` | Stage 2b (`of1-prototype`) | 2c, orchestrator | rendered redesign prototypes per key page |
+| `of1-prototype-status.json` | Stage 2b | orchestrator | per-skill status |
+| `of1-snowflake-status.json` | Stage 2c (`of1-snowflake`) | orchestrator | per-skill status |
+| `$OF1_STAGE2_DONE_FILE` (default `stage2-done.json`) | Stage 2c (`of1-snowflake`) | orchestrator's site-track gate | `{"stage":2,"status":"done"}` — signals ALL of Stage 2 (2a→2b→2c) finished |
 | `of1-<skill>-status.json` | each dispatched skill | orchestrator | per-skill status (grammar below) |
 | `pipeline-audit.json` | orchestrator | `fill-demo-hub.mjs` | run telemetry (schema below) |
 
 State dir: `$OF1_STATE_DIR` on Claude Code; `/shared/of1-demo-orchestrator/` on SLICC. Same file
 names on both.
 
-## Stage 2 artifact gate — replica-done ≠ demo-grade
+## Stage 2 completion check — artifact existence, not a fidelity gate
 
-`replica-done.json` means the Stage 2 agent **finished**, not that its output is usable. When the
-source is bot-protected (Akamai/Cloudflare — apple.com is the canonical case), `stardust:replica`
-cannot capture it: its source-fidelity gate records the breakpoint as `gate-blocked` with
-`pixelPct: null`, substitutes **placeholder/gradient imagery** for product photography, and (in the
-run that motivated this gate) still marked `pass: true`. The pipeline then deploys a chromeless,
-imageless demo and reports success. `stardust:replica` is out of scope to edit, so the of1 side
-enforces its own documented rule ("a gate that can't read the live source has no pass to report")
-at the pipeline boundary.
+Stage 2 no longer has a separate post-hoc fidelity gate. Each substep owns its own correctness
+instead:
 
-**Contract:** after `replica-done.json` appears and **before** dispatching the Stage 3
-site-integration track or deploying, the orchestrator runs:
+- **2a (`of1-extract-design`) fails loud.** If the live source is bot-protected or otherwise
+  uncapturable, it writes `of1-extract-design-status.json` with `"status": "failed"` naming the
+  blocked capture — it does not substitute placeholder imagery and report success. Treat a
+  `failed` 2a exactly like any other failed step (see "Failure recovery" in the dispatch files):
+  pause, surface the message, ask the user to retry/skip/abort. Do not dispatch 2b.
+- **2b (`of1-prototype`)** runs its own visual-diff/fix loop (wrapping `stardust:prototype`)
+  against the live site before returning `done`.
+- **2c (`of1-snowflake`)** runs `snowflake`'s own per-prototype content checks, and only writes
+  `$OF1_STAGE2_DONE_FILE` after every prototype has been converted.
 
-```bash
-node "<orchestratorSkillDir>/assets/check-replica-artifacts.mjs" "<repoDir>"
-```
-
-It reads `stardust/replica/progress.json` (whose `pages` is an object keyed by slug in
-stardust 0.18.1, or an array in older runs — the gate accepts both) and exits:
-
-| Exit | Meaning | Orchestrator action |
-|---|---|---|
-| 0 | Measured and demo-grade. May still print `⚠` warnings — honest `pass:false` breakpoints *under* the 10% pixel bar (documented height/font-fork residuals), or page types with no parseable measurement (legacy shape) — surface those but proceed. | Proceed to Stage 3 |
-| 2 | **NOT demo-grade** — any of: **BLOCKED-CAPTURE** (unmeasured gate marked pass), **placeholder/gradient imagery**, **FIDELITY FAIL** (a measured `pixelPct` above the 10% ship bar — the adobe.com case), or **VERDICT FAIL** (`verdict.overall === "fail"`). | **HARD STOP.** Do not dispatch Stage 3 or deploy. Escalate to the user: retry `--headed`, run a content-only demo, or abort. |
-| 1 | `progress.json` missing/empty | Treat as Stage 2 failure; re-dispatch replica |
-
-**Why exit 2 is more than blocked-capture:** an earlier version only tripped on the
-"unmeasured gate claimed pass" trap, so a replica that *honestly measured and failed*
-fidelity (adobe.com: home 58.98% / cc 30.42% pixel diff, `verdict.overall: "fail"`) sailed
-through as "demo-grade" and shipped low-fidelity. The honest `pass:false` / above-bar
-`pixelPct` is the strongest signal available and now hard-stops too.
-
-This gate is the ONLY thing standing between a bot-blocked source and a shipped-but-broken demo —
-never skip it, never treat `replica-done.json` alone as permission to proceed.
+**Contract:** once `$OF1_STAGE2_DONE_FILE` exists, the orchestrator does a lightweight
+artifact-existence check before dispatching the Stage 3 site-integration track or deploying —
+confirm the expected EDS overlay pages exist (per-prototype output listed in `of1-snowflake-status.json`)
+and that `$OF1_STAGE2_DONE_FILE`'s JSON is `{"stage":2,"status":"done"}`. There is no separate
+`.mjs` gate script for this — 2a/2b/2c's own fail-loud behavior already covers the failure modes
+the old replica gate existed to catch (blocked capture, unmeasured "pass", placeholder imagery).
+If `$OF1_STAGE2_DONE_FILE` is missing or malformed, treat it as a Stage 2 failure and re-dispatch
+the substep that didn't complete.
 
 ## Per-step status / output contract
 
@@ -136,7 +133,8 @@ derive from these; a missing URL greys them out).
 | Stage/step | Deliverable URL |
 |---|---|
 | 1 — discovery | `https://{branch}--{repo}--{owner}.aem.page/deliverables/discovery.html` |
-| 2 — replica | `https://{branch}--{repo}--{owner}.aem.page/home` |
+| 2a — extract design | `https://{branch}--{repo}--{owner}.aem.page/deliverables/brand-review.html` |
+| 2b/2c — prototype/snowflake | each skill emits its own URLs in its status JSON (prototype previews, converted EDS overlay pages) — pass them through as-is |
 | 3 — Integrate skills | each skill emits its own URLs in its status JSON (gallery, `/of1`, `config-review.html`, final deploy index) — pass them through as-is; do NOT invent one URL for the whole stage |
 
 ## Pipeline audit schema
@@ -167,8 +165,8 @@ individually** — there is no black-box Stage 3.
 | Field | Source |
 |---|---|
 | `stage` | Stage number (`0`, `1`, `2`, or `3`) |
-| `skill` | Skill id for stages 0/1/3 (`of1-build-templates`, `of1-publish`, …) or `stardust:replica`/`stardust:extract` for stage 2. Skill-internal phases (`base`, `intent-*`, `assemble`) may be appended as `skill#phase` for the multi-dispatch templates skill. |
-| `name` | Human label (`discovery`, `replica`, `templates-base`, `styling`, `content`, `deploy`, …) |
+| `skill` | Skill id for stages 0/1/3 (`of1-build-templates`, `of1-publish`, …) or `of1-extract-design`/`of1-prototype`/`of1-snowflake` for stage 2's three substeps. Skill-internal phases (`base`, `intent-*`, `assemble`) may be appended as `skill#phase` for the multi-dispatch templates skill. |
+| `name` | Human label (`discovery`, `extract-design`, `prototype`, `snowflake`, `templates-base`, `styling`, `content`, `deploy`, …) |
 | `model` | Model used for this dispatch (`inline` for `config-review` and `of1-publish`, which run in the orchestrator's own context) |
 | `startedAt` | ISO timestamp when dispatched |
 | `durationMs` | Wall-clock for this dispatch |
@@ -232,9 +230,9 @@ retries, token spend >2× the expected range, duration >3× expected, or a recov
   "improvements": [
     {
       "stage": 2,
-      "skill": "stardust:replica",
-      "issue": "Replica took 22 min (2× expected) for 5 pages — stardust:replica's source-fidelity gate rejected the first render on 2 of 5 pages",
-      "suggestion": "Pass tighter page-selection guidance from Stage 1 (avoid heavy client-side pages) so the first render is likelier to pass the fidelity gate"
+      "skill": "of1-prototype",
+      "issue": "Prototype took 22 min (2× expected) for 5 pages — of1-prototype's visual-diff loop rejected the first render on 2 of 5 pages",
+      "suggestion": "Pass tighter page-selection guidance from Stage 1 (avoid heavy client-side pages) so the first render is likelier to pass the visual-diff loop"
     },
     {
       "stage": 3,

@@ -1,9 +1,8 @@
 # of1-demo-orchestrator assets
 
-- `check-replica-artifacts.mjs` — Stage 2 artifact gate. Run after `replica-done.json`
-  appears and **before** dispatching the Stage 3 site-integration track or deploying.
-  Reads `stardust/replica/progress.json` and hard-stops (exit 2) on blocked-capture
-  signatures: an unmeasured source-fidelity gate marked `pass:true`, and/or
-  placeholder/gradient imagery standing in for real photography (the apple.com/Akamai
-  failure mode). Exit 0 = demo-grade, exit 1 = missing ledger. See
-  `../knowledge/pipeline-contract.md` § "Stage 2 artifact gate".
+No assets currently ship with this skill. Stage 2's fidelity/artifact checking now lives in the
+sub-skills themselves (2a `of1-extract-design` fails loud on a blocked capture; 2b `of1-prototype`
+runs its own visual-diff loop; 2c `of1-snowflake` runs `snowflake`'s content checks) plus a
+lightweight artifact-existence check the orchestrator does inline — see
+`../knowledge/pipeline-contract.md` § "Stage 2 completion check". There is no longer a standalone
+gate script here.

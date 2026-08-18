@@ -2,21 +2,13 @@
 
 Every OF1 skill that needs the site's brand tokens (`of1-integration`,
 `of1-build-templates`, `of1-build-cta-template`, `of1-style-generative-block`)
-resolves them the **same way**. Do not hardcode a single `DESIGN.json` path —
-`stardust:replica` writes the spec to different locations depending on how it ran.
+resolves them the **same way**.
 
 ## Where `DESIGN.json` actually lives
 
-`stardust:replica` produces the design spec in one of two places:
-
-| Run mode | Where `DESIGN.json` lands |
-|---|---|
-| **Full / `--prep`** | `stardust/current/DESIGN.json`, promoted (copied) verbatim to project-root `./DESIGN.json` |
-| **Bounded (`stardust:extract --single` / `--pages`)** | `current/` is NOT produced; a synthesized spec is written to project-root `./DESIGN.json`, marked `_provenance.mode: bounded-single` |
-
-So `stardust/current/DESIGN.json` is present on the full path but **absent on the
-bounded path**, while `./DESIGN.json` is present on both. A skill that reads only
-`stardust/current/DESIGN.json` silently misses the bounded-single spec.
+Stage 2a (`of1-extract-design`, wrapping `stardust:extract`) always writes the design spec to
+`stardust/current/DESIGN.json` — there is no bounded/synthesized-spec variant to account for; every
+demo run goes through 2a before anything downstream reads brand tokens.
 
 ## Resolution order (use this everywhere)
 
@@ -24,11 +16,9 @@ The paths below are relative to the repo root — `cd "$OF1_DEMO_REPO"` first (o
 path with `$OF1_DEMO_REPO/`).
 
 ```bash
-# Resolve the brand design spec. Prefer current/, fall back to project root.
+# Resolve the brand design spec. Written by of1-extract-design (Stage 2a).
 DESIGN_JSON=""
-if   [ -f stardust/current/DESIGN.json ]; then DESIGN_JSON="stardust/current/DESIGN.json"
-elif [ -f ./DESIGN.json ];               then DESIGN_JSON="./DESIGN.json"
-fi
+if [ -f stardust/current/DESIGN.json ]; then DESIGN_JSON="stardust/current/DESIGN.json"; fi
 ```
 
 Then, for a brand-token source, prefer `DESIGN.json` but treat the repo's own
