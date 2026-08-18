@@ -113,8 +113,8 @@ Write `$OF1_STATE_DIR/of1-discovery-output.md` — read by `of1-extract-brand-vo
 ### 4b. Machine-readable narrative for the orchestrator
 
 Also write `$OF1_STATE_DIR/narrative.json` — the orchestrator reads `keyPages[].slug`
-to build Stage 2's `stardust:replica --pages` argument, and `focus`/`persona` to steer
-Stage 3's product focus:
+to build Stage 2a's `of1-extract-design --pages` argument (wraps `stardust:extract --pages`),
+and `focus`/`persona` to steer Stage 3's product focus:
 
 ```bash
 cat > "$OF1_STATE_DIR/narrative.json" <<EOF
