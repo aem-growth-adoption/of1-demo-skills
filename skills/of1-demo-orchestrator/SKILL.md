@@ -1,13 +1,13 @@
 ---
 name: of1-demo-orchestrator
-description: Orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, run as 3 stages — discover a narrative and focus pages, recreate those pages as a branded EDS replica via stardust:replica, then run OF1 integration (content, styling, config review, deploy) as the Integrate-stage skills per of1-integration's step graph. Runs on both Claude Code and SLICC; it detects the runtime and follows the matching dispatch reference. Use when the user asks to build, demo, or one-shot an OF1 demo for a domain.
+description: Orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, run as 3 stages — discover a narrative and focus pages, lift those pages onto standard EDS blocks + brand-token skinning via of1-liftoff, then run OF1 integration (content, styling, config review, deploy) as the Integrate-stage skills per of1-integration's step graph. Runs on both Claude Code and SLICC; it detects the runtime and follows the matching dispatch reference. Use when the user asks to build, demo, or one-shot an OF1 demo for a domain.
 user-invocable: true
 ---
 
 # OF1 Demo — Orchestrator
 
 Turns any website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, in
-3 stages: **discovery → replica → OF1 integration**. Auto-approves by default; the user can
+3 stages: **discovery → liftoff → OF1 integration**. Auto-approves by default; the user can
 interrupt to revise any step.
 
 This is **one orchestrator for both runtimes.** The pipeline logic — stages, step graph,
@@ -76,13 +76,13 @@ for branch URLs.
 Stage 1: of1-discovery ──┐ (narrative.json: keyPages, focus, persona)
         ┌─────────────────────────┴─────────────────────────┐
         ↓                                                    ↓
-Stage 2: stardust:replica <URL>            Stage 3: OF1 integration (Integrate skills)
-  --pages <slugs>                            THIS orchestrator dispatches each skill,
-  → EDS site + DESIGN.json                    per of1-integration's graph: content track
-  → write replica-done.json                   (brand-voice/content/suggestions) runs NOW;
-                                              site-integration track (templates·styling·cta
+Stage 2: of1-liftoff <URL>                  Stage 3: OF1 integration (Integrate skills)
+  reads keyPages from narrative.json          THIS orchestrator dispatches each skill,
+  → EDS blocks + DESIGN.json                   per of1-integration's graph: content track
+    + blocks-manifest.json                     (brand-voice/content/suggestions) runs NOW;
+  → write liftoff-done.json                   site-integration track (templates·styling·cta
                                               → assemble → config-review → publish)
-                                              gates on replica-done.json
+                                              gates on liftoff-done.json
         └─────────────────────────┬─────────────────────────┘
                                   ↓  join + deploy (of1-publish) owned by THIS orchestrator
                              (deploy)
@@ -90,9 +90,11 @@ Stage 2: stardust:replica <URL>            Stage 3: OF1 integration (Integrate s
 
 - **Stage 1** (discovery) runs first; read its `narrative.json` and build the comma-separated slug
   list from `keyPages[].slug`.
-- **Stage 2** (replica) and the **Stage 3 content track** (`of1-extract-brand-voice`/`of1-extract-content`)
+- **Stage 2** (liftoff) and the **Stage 3 content track** (`of1-extract-brand-voice`/`of1-extract-content`)
   dispatch concurrently right after Stage 1. The content track needs only the live external site.
-- The **Stage 3 site-integration track** gates on Stage 2's `replica-done.json`, then follows
+  `of1-liftoff` reads `keyPages[].slug` from `narrative.json` itself (dispatched with just
+  `Arguments: <DOMAIN>`); it is NOT passed a slug list on the command line.
+- The **Stage 3 site-integration track** gates on Stage 2's `liftoff-done.json`, then follows
   `of1-integration`'s dependency graph — the first fan-out is the extraction step (if `DESIGN.json`
   absent) → `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template`;
   `config-review` and `of1-publish` run inline at the tail. Do not re-derive the per-skill edges
@@ -107,13 +109,15 @@ The Integrate-skill graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing ar
 | Stage | Name | Skill | Depends on |
 |---|---|---|---|
 | 1 | Collect | `of1-discovery` → `narrative.json` + `discovery.html` | setup |
-| 2 | Replica | `stardust:replica --pages` → EDS replica + `DESIGN.json` + `replica-done.json` | stage 1 (keyPages) |
-| 3 | OF1 integration (Integrate skills) | dispatched by THIS orchestrator per `of1-integration` (pipeline mode) | stage 1; site-track also on replica-done |
+| 2 | Liftoff | `of1-liftoff <URL>` → EDS blocks + `DESIGN.json` + `blocks-manifest.json` + `liftoff-done.json` | stage 1 (keyPages) |
+| 3 | OF1 integration (Integrate skills) | dispatched by THIS orchestrator per `of1-integration` (pipeline mode) | stage 1; site-track also on liftoff-done |
 
 ## What Stage 2 & 3 own (do not reimplement here)
 
-- **Pixel fidelity** is owned by Stage 2 (`stardust:replica`) — it runs its own source-fidelity
-  comparison/fix loop against the live site. Do not run screenshot-diff loops in the orchestrator.
+- **Pixel fidelity is NOT chased** by Stage 2 (`of1-liftoff`) — it lifts pages onto the standard
+  EDS block palette and gates on render/lint/no-JS-errors plus a human-approval step, never on a
+  measured pixel diff against the live site. Do not run screenshot-diff loops in the orchestrator;
+  that fidelity discipline belonged to the retired `stardust:replica` path and no longer applies.
 - **`config-review` (config review) and `of1-publish` (deploy + pre-launch checklist)**
   run **inline** in the orchestrator's own context, following `of1-integration`'s Config review /
   Deploy sections (including its check-5 adaptation for the adopt flow). `of1-publish`'s checklist gates the

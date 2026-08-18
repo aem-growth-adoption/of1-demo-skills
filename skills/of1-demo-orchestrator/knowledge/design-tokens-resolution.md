@@ -3,16 +3,17 @@
 Every OF1 skill that needs the site's brand tokens (`of1-integration`,
 `of1-build-templates`, `of1-build-cta-template`, `of1-style-generative-block`)
 resolves them the **same way**. Do not hardcode a single `DESIGN.json` path —
-`stardust:replica` writes the spec to different locations depending on how it ran.
+`stardust:extract` (run inside `of1-liftoff`'s Stage 2, or standalone by `of1-integration`
+when adopting an existing site) writes the spec to different locations depending on how it ran.
 
 ## Where `DESIGN.json` actually lives
 
-`stardust:replica` produces the design spec in one of two places:
+`stardust:extract` produces the design spec in one of two places:
 
 | Run mode | Where `DESIGN.json` lands |
 |---|---|
 | **Full / `--prep`** | `stardust/current/DESIGN.json`, promoted (copied) verbatim to project-root `./DESIGN.json` |
-| **Bounded (`stardust:extract --single` / `--pages`)** | `current/` is NOT produced; a synthesized spec is written to project-root `./DESIGN.json`, marked `_provenance.mode: bounded-single` |
+| **Bounded (`stardust:extract --single` / tokens-only, as `of1-liftoff` runs it)** | `current/` is NOT produced; a synthesized spec is written to project-root `./DESIGN.json`, marked `_provenance.mode: bounded-single` |
 
 So `stardust/current/DESIGN.json` is present on the full path but **absent on the
 bounded path**, while `./DESIGN.json` is present on both. A skill that reads only

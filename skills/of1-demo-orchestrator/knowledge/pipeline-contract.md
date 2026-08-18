@@ -20,7 +20,7 @@ One name per thing. Skills must use these names and not invent synonyms.
 | `OF1_TOKEN_FILE` | user / environment | `of1-check-dependencies`, `of1-publish`, `download-images.mjs` | Alternative to `ADOBE_IMS_TOKEN`: a path to a JSON file `{"access_token":"..."}`. Second in the resolution order. |
 | `OF1_PIPELINE_MODE` | orchestrator (Stage 3) | `of1-integration` + content-track skills | `1` when of1-integration runs inside the full pipeline (vs standalone). |
 | `OF1_CONTENT_SOURCE` | orchestrator (Stage 3) | content-track skills (`of1-extract-brand-voice`, `of1-extract-content`, `of1-build-quick-suggestions`) | The external domain to extract content from, in pipeline mode. |
-| `OF1_REPLICA_DONE_FILE` | orchestrator (Stage 3) | orchestrator's site-track gate | Path to `replica-done.json` — the gate, not passed to step agents. |
+| `OF1_LIFTOFF_DONE_FILE` | orchestrator (Stage 3) | orchestrator's site-track gate | Path to `liftoff-done.json` — the gate, not passed to step agents. |
 | `STRICT` | user / environment | `of1-check-dependencies` | Optional: makes dependency warnings fatal. |
 
 **`DA_TOKEN` is NOT an input env var.** It is a **shell local** that `of1-publish` and
@@ -35,12 +35,12 @@ Never document `DA_TOKEN` as a credential to set — set `ADOBE_IMS_TOKEN` (or `
 | Stage | What | Skill |
 |---|---|---|
 | 1 | Discovery — narrative + key pages | `of1-discovery` → `narrative.json` |
-| 2 | Replica — recreate key pages as branded EDS | `stardust:replica <URL> --pages <slugs>` |
+| 2 | Liftoff — recreate key pages onto standard EDS blocks + brand-token skinning | `of1-liftoff <URL>` |
 | 3 | OF1 integration — the of1-integration skills (Integrate stage) | defined by `of1-integration` |
 
 Stage 2 and the Stage 3 **content track** (`of1-extract-brand-voice` ∥ `of1-extract-content` → `of1-build-quick-suggestions`) dispatch concurrently after Stage 1.
 The Stage 3 **site-integration track** (`of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` → `of1-build-templates`(assemble) → `config-review` → `of1-publish`) gates on Stage 2's
-`replica-done.json`. **The Integrate-stage skill graph, dependency edges, and pipeline-mode
+`liftoff-done.json`. **The Integrate-stage skill graph, dependency edges, and pipeline-mode
 timing are defined once in `of1-integration`** — the orchestrator reads them there on both
 runtimes.
 
@@ -67,49 +67,40 @@ have been removed; cross-session resume is not implemented, so nothing depends o
 | `repo-config.json` | `of1-check-dependencies` (setup) | every step | owner, repo, branch, contentPrefix, repoDir, domain, URLs |
 | `narrative.json` | Stage 1 (`of1-discovery`) | orchestrator, Stages 2/3 | keyPages/focus/persona |
 | `of1-discovery-output.md` | Stage 1 | `of1-build-templates`, `fill-demo-hub.mjs` | discovery narrative (markdown) |
-| `replica-done.json` | Stage 2 (`stardust:replica`) | orchestrator | signals Stage 2 agent finished (NOT that output is demo-grade — see gate below) |
-| `stardust/replica/progress.json` | Stage 2 (`stardust:replica`) | orchestrator (Stage 2 artifact gate) | replica's own per-page/per-breakpoint ledger — the gate reads it |
+| `liftoff-done.json` | Stage 2 (`of1-liftoff`) | orchestrator | signals Stage 2 agent finished (NOT that output is demo-grade — see gate below) |
+| `stardust/liftoff/progress.json` | Stage 2 (`of1-liftoff`) | orchestrator (Stage 2 artifact gate) | liftoff's own per-page render/lint/JS-error/approval ledger — the gate reads it |
 | `of1-<skill>-status.json` | each dispatched skill | orchestrator | per-skill status (grammar below) |
 | `pipeline-audit.json` | orchestrator | `fill-demo-hub.mjs` | run telemetry (schema below) |
 
 State dir: `$OF1_STATE_DIR` on Claude Code; `/shared/of1-demo-orchestrator/` on SLICC. Same file
 names on both.
 
-## Stage 2 artifact gate — replica-done ≠ demo-grade
+## Stage 2 artifact gate — liftoff-done ≠ demo-grade
 
-`replica-done.json` means the Stage 2 agent **finished**, not that its output is usable. When the
-source is bot-protected (Akamai/Cloudflare — apple.com is the canonical case), `stardust:replica`
-cannot capture it: its source-fidelity gate records the breakpoint as `gate-blocked` with
-`pixelPct: null`, substitutes **placeholder/gradient imagery** for product photography, and (in the
-run that motivated this gate) still marked `pass: true`. The pipeline then deploys a chromeless,
-imageless demo and reports success. `stardust:replica` is out of scope to edit, so the of1 side
-enforces its own documented rule ("a gate that can't read the live source has no pass to report")
-at the pipeline boundary.
+`liftoff-done.json` means the Stage 2 agent **finished**, not that its output is usable. `of1-liftoff`
+gates on render/lint/no-JS-errors plus human approval — never a pixel diff — so the failure modes
+this gate exists to catch are structural, not visual: a page that never actually rendered, failed
+lint, threw a JS error, or was never approved by a human reviewer.
 
-**Contract:** after `replica-done.json` appears and **before** dispatching the Stage 3
+**Contract:** after `liftoff-done.json` appears and **before** dispatching the Stage 3
 site-integration track or deploying, the orchestrator runs:
 
 ```bash
-node "<orchestratorSkillDir>/assets/check-replica-artifacts.mjs" "<repoDir>"
+node "<orchestratorSkillDir>/assets/check-liftoff-artifacts.mjs" "<repoDir>"
 ```
 
-It reads `stardust/replica/progress.json` (whose `pages` is an object keyed by slug in
-stardust 0.18.1, or an array in older runs — the gate accepts both) and exits:
+It reads `stardust/liftoff/progress.json` (`pages[]`, each with `rendered`/`lint`/`jsErrors`/`approved`)
+and exits:
 
 | Exit | Meaning | Orchestrator action |
 |---|---|---|
-| 0 | Measured and demo-grade. May still print `⚠` warnings — honest `pass:false` breakpoints *under* the 10% pixel bar (documented height/font-fork residuals), or page types with no parseable measurement (legacy shape) — surface those but proceed. | Proceed to Stage 3 |
-| 2 | **NOT demo-grade** — any of: **BLOCKED-CAPTURE** (unmeasured gate marked pass), **placeholder/gradient imagery**, **FIDELITY FAIL** (a measured `pixelPct` above the 10% ship bar — the adobe.com case), or **VERDICT FAIL** (`verdict.overall === "fail"`). | **HARD STOP.** Do not dispatch Stage 3 or deploy. Escalate to the user: retry `--headed`, run a content-only demo, or abort. |
-| 1 | `progress.json` missing/empty | Treat as Stage 2 failure; re-dispatch replica |
+| 0 | All pages rendered, lint-clean, no JS errors, and human-approved. | Proceed to Stage 3 |
+| 2 | **NOT demo-grade** — one or more pages failed to render, failed lint, threw a JS error, or was never human-approved. | **HARD STOP.** Do not dispatch Stage 3 or deploy. Escalate to the user: retry liftoff, run a content-only demo, or abort. |
+| 1 | `progress.json` missing/empty | Treat as Stage 2 failure; re-dispatch `of1-liftoff` |
 
-**Why exit 2 is more than blocked-capture:** an earlier version only tripped on the
-"unmeasured gate claimed pass" trap, so a replica that *honestly measured and failed*
-fidelity (adobe.com: home 58.98% / cc 30.42% pixel diff, `verdict.overall: "fail"`) sailed
-through as "demo-grade" and shipped low-fidelity. The honest `pass:false` / above-bar
-`pixelPct` is the strongest signal available and now hard-stops too.
-
-This gate is the ONLY thing standing between a bot-blocked source and a shipped-but-broken demo —
-never skip it, never treat `replica-done.json` alone as permission to proceed.
+This gate is the ONLY thing standing between an unfinished/unapproved liftoff and a
+shipped-but-broken demo — never skip it, never treat `liftoff-done.json` alone as permission to
+proceed.
 
 ## Per-step status / output contract
 
@@ -120,7 +111,7 @@ as its final message. Canonical shape:
 {"stage": <0-3>, "skill": "<of1-skill-name>", "status": "done" | "review" | "failed", "summary": "<one sentence>", "deliverables": [{"url": "...", "label": "..."}]}
 ```
 
-- `stage` is the pipeline stage (0 Setup, 1 Discover, 2 Replica, 3 Integrate); `skill` is the exact
+- `stage` is the pipeline stage (0 Setup, 1 Discover, 2 Liftoff, 3 Integrate); `skill` is the exact
   of1-skill directory name. Skill-internal phases (`base`, `intent-*`, `assemble`) never appear here —
   they are visible only in the orchestrator's dispatch logs.
 - Status files are written to `$OF1_STATE_DIR/of1-<skill>-status.json` (SLICC: `/shared/of1-demo-orchestrator/`).
@@ -136,7 +127,7 @@ derive from these; a missing URL greys them out).
 | Stage/step | Deliverable URL |
 |---|---|
 | 1 — discovery | `https://{branch}--{repo}--{owner}.aem.page/deliverables/discovery.html` |
-| 2 — replica | `https://{branch}--{repo}--{owner}.aem.page/home` |
+| 2 — liftoff | `https://{branch}--{repo}--{owner}.aem.page/home` |
 | 3 — Integrate skills | each skill emits its own URLs in its status JSON (gallery, `/of1`, `config-review.html`, final deploy index) — pass them through as-is; do NOT invent one URL for the whole stage |
 
 ## Pipeline audit schema
@@ -167,8 +158,8 @@ individually** — there is no black-box Stage 3.
 | Field | Source |
 |---|---|
 | `stage` | Stage number (`0`, `1`, `2`, or `3`) |
-| `skill` | Skill id for stages 0/1/3 (`of1-build-templates`, `of1-publish`, …) or `stardust:replica`/`stardust:extract` for stage 2. Skill-internal phases (`base`, `intent-*`, `assemble`) may be appended as `skill#phase` for the multi-dispatch templates skill. |
-| `name` | Human label (`discovery`, `replica`, `templates-base`, `styling`, `content`, `deploy`, …) |
+| `skill` | Skill id for stages 0/1/3 (`of1-build-templates`, `of1-publish`, …) or `of1-liftoff` for stage 2. Skill-internal phases (`base`, `intent-*`, `assemble`) may be appended as `skill#phase` for the multi-dispatch templates skill. |
+| `name` | Human label (`discovery`, `liftoff`, `templates-base`, `styling`, `content`, `deploy`, …) |
 | `model` | Model used for this dispatch (`inline` for `config-review` and `of1-publish`, which run in the orchestrator's own context) |
 | `startedAt` | ISO timestamp when dispatched |
 | `durationMs` | Wall-clock for this dispatch |
@@ -232,9 +223,9 @@ retries, token spend >2× the expected range, duration >3× expected, or a recov
   "improvements": [
     {
       "stage": 2,
-      "skill": "stardust:replica",
-      "issue": "Replica took 22 min (2× expected) for 5 pages — stardust:replica's source-fidelity gate rejected the first render on 2 of 5 pages",
-      "suggestion": "Pass tighter page-selection guidance from Stage 1 (avoid heavy client-side pages) so the first render is likelier to pass the fidelity gate"
+      "skill": "of1-liftoff",
+      "issue": "Liftoff took 22 min (2× expected) for 5 pages — the human-approval gate rejected the first lift on 2 of 5 pages",
+      "suggestion": "Pass tighter page-selection guidance from Stage 1 (avoid heavy client-side pages) so the first lift is likelier to pass the approval gate"
     },
     {
       "stage": 3,

@@ -13,7 +13,7 @@ Use **TaskCreate** with one task per stage, plus one task per OF1-integration sk
 ```
 0. Setup            (done if you got here — deps + repo-config.json)
 1. Collect          — of1-discovery → narrative.json + demo story
-2. Replica          — stardust:replica <URL> --pages <slugs> → EDS site + DESIGN.json
+2. Liftoff          — of1-liftoff <URL> → EDS blocks + DESIGN.json + blocks-manifest
 3. OF1 integration  — Integrate skills, dispatched by THIS orchestrator:
    extraction · of1-build-templates(base) · of1-build-templates(intent-*) ·
    of1-build-templates(assemble) · of1-style-generative-block · of1-extract-brand-voice ·
@@ -26,9 +26,10 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
 ## Model assignment
 
 - Stage 1 (discovery): `opus` — narrative synthesis drives both later stages.
-- Stage 2 (replica): `opus`, `effort: "high"` — must follow a complex multi-phase skill precisely,
-  and the iterative pixel-diff/CSS-fixing loop benefits from deeper per-iteration reasoning (see
-  the Stage 2 dispatch template below for the wall-clock budget that goes with this).
+- Stage 2 (liftoff): `sonnet`, `effort: "medium"` — this is block composition and token-skinning
+  against a fixed palette, not pixel-precision reasoning; the opus/high rationale that used to
+  apply to replica's iterative pixel-diff/CSS-fixing loop no longer applies (see the Stage 2
+  dispatch template below).
 - Stage 3 (Integrate skills): **read the per-skill model from `of1-integration`'s model-assignment
   rule** (Opus only where output quality cascades — `of1-style-generative-block` and the extraction
   step; Sonnet for the rest). Do not maintain a second copy of that list here.
@@ -40,26 +41,26 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
    needs it). Await `done`. Read `narrative.json`;
    build `SLUGS=$(jq -r '.keyPages[].slug' <<<"$NARRATIVE" | paste -sd, -)`.
 2. **Kick off Stage 2 + the Stage 3 content track in ONE message:**
-   - **Stage 2 Agent** (`opus`, `effort: "high"`): invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>`; on
-     success write `<stateDir>/replica-done.json`. See the Stage 2 dispatch template below.
+   - **Stage 2 Agent** (`sonnet`, `effort: "medium"`): invoke `Skill: of1-liftoff` with
+     `Arguments: <DOMAIN>`; on success write `<stateDir>/liftoff-done.json`. See the Stage 2
+     dispatch template below.
    - **Stage 3 content-track Agents** (`of1-extract-brand-voice`, `of1-extract-content`): dispatch immediately with `OF1_PIPELINE_MODE=1`,
      `OF1_CONTENT_SOURCE=<DOMAIN>` — they need only the live external site.
-3. **When `replica-done.json` exists, run the Stage 2 artifact gate BEFORE dispatching the
-   site-integration track.** `replica-done.json` only means the Stage 2 agent finished — it does NOT
-   mean the replica is demo-grade. Run the gate against the repo:
+3. **When `liftoff-done.json` exists, run the Stage 2 artifact gate BEFORE dispatching the
+   site-integration track.** `liftoff-done.json` only means the Stage 2 agent finished — it does NOT
+   mean the liftoff is demo-grade. Run the gate against the repo:
 
    ```bash
-   node "<orchestratorSkillDir>/assets/check-replica-artifacts.mjs" "<repoDir>"
+   node "<orchestratorSkillDir>/assets/check-liftoff-artifacts.mjs" "<repoDir>"
    ```
 
-   - **exit 0** — proceed to the site-integration track. (The gate may still print `⚠` warnings for
-     documented under-bar residuals or legacy-shape pages; note them but proceed.)
-   - **exit 2** — HARD STOP: replica is NOT demo-grade. Cause is one of BLOCKED-CAPTURE (bot-protected
-     source, unmeasured "pass"), placeholder imagery, FIDELITY FAIL (measured pixel diff above the 10%
-     bar — the adobe.com case), or VERDICT FAIL (`verdict.overall: "fail"`). Do **not** dispatch Stage 3
-     or deploy. Surface the gate's escalation options to the user (retry `--headed`, content-only demo,
-     or abort) and wait for a decision. See `pipeline-contract.md` § "Stage 2 artifact gate".
-   - **exit 1** — replica's ledger is missing/empty; treat as a Stage 2 failure and re-dispatch it.
+   - **exit 0** — proceed to the site-integration track. (The gate may still print `⚠` warnings; note
+     them but proceed.)
+   - **exit 2** — HARD STOP: liftoff is NOT demo-grade — one or more pages failed to render, failed
+     lint, threw JS errors, or was never human-approved. Do **not** dispatch Stage 3 or deploy.
+     Surface the gate's failure list to the user and wait for a decision (retry liftoff, content-only
+     demo, or abort). See `pipeline-contract.md` § "Stage 2 artifact gate".
+   - **exit 1** — liftoff's ledger is missing/empty; treat as a Stage 2 failure and re-dispatch it.
 
    Only on exit 0, dispatch the Stage 3 site-integration track. **The dependency edges and the
    pipeline-mode start gates are defined once in `of1-integration` § "Pipeline-mode timing" — follow
@@ -69,69 +70,37 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
    `of1-build-cta-template`.)
 4. **Fan out in parallel at every eligible point** — dispatch all currently-eligible skills in one
    message with multiple Agent blocks (e.g. `of1-build-templates`(base) ∥ `of1-style-generative-block`
-   ∥ `of1-build-cta-template` once the replica is done; `of1-build-templates`(intent-*) in one
+   ∥ `of1-build-cta-template` once liftoff is done; `of1-build-templates`(intent-*) in one
    message once base returns). When `of1-publish` returns `done`, the pipeline is complete.
 
-## Stage 2 dispatch template (replica)
+## Stage 2 dispatch template (liftoff)
 
-Dispatch with `model: "opus"` and `effort: "high"` — this is careful, deliberate pixel-delta
-reasoning and CSS-precision fixing, not fast pattern-matching; more thinking per iteration should
-converge in fewer iterations rather than needing to repeat sloppy guesses.
+Dispatch with `model: "sonnet"` and `effort: "medium"` — this is block composition and
+brand-token skinning against a fixed palette, not pixel-precision reasoning. The opus/high
+rationale that used to apply to replica's iterative pixel-diff/CSS-fixing loop does not apply
+here: there is no pixel-diff loop, no per-breakpoint convergence, and no wall-clock/iteration-cap
+budget to manage — `of1-liftoff` gates on render/lint/JS-health plus human approval, not visual
+fidelity.
 
 ```
-You are executing Stage 2 (Replica) of the OF1 demo pipeline for `<DOMAIN>`.
+You are executing Stage 2 (Liftoff) of the OF1 demo pipeline for `<DOMAIN>`.
 
-Invoke the stardust replica skill:
-  Skill: stardust:replica
-Arguments: https://<DOMAIN> --pages <SLUGS>
-(bounded mode — recreate ONLY those pages; no site-wide rollout)
+Invoke the liftoff skill:
+  Skill: of1-liftoff
+Arguments: <DOMAIN>
 
-Follow stardust:replica exactly. It extracts, recreates, runs its source-fidelity gate,
-migrates and deploys those pages to the branch <BRANCH> on repo <OWNER>/<REPO>.
-
-## Wall-clock budget — on top of replica's own iteration cap
-
-replica's own "hard cap: 3 iterations per breakpoint" (source-fidelity-gate.md) is an *attempt*
-cap, not a time cap — it can still spend a very long time if convergence is slow. Layer this
-additional stop condition on top of it, evaluated **at the top of each iteration, never mid-probe**
-(so the single-live-navigation-per-instrument invariant stays intact):
-
-- Track elapsed wall-clock time since this Agent started.
-- If a single page+breakpoint's gate has spent more than **20 minutes** without both (a) the pixel
-  diff trending down between the last two iterations and (b) being on track to pass the ≤10% bar
-  by iteration 3, treat this exactly as if you'd exhausted the iteration cap: stop immediately, and
-  log it into `stardust/replica/progress.json`'s existing residual ledger (§ Residual logging in
-  source-fidelity-gate.md) using the same `residuals[]` shape you'd use for an ordinary iteration-3
-  residual — do not invent a new stop mechanism or a new file.
-- This is a backstop for slow convergence, not a replacement for replica's own discipline — if
-  replica's normal 3-iteration cap resolves faster, that takes precedence and this never triggers.
-
-## Maps and other third-party embeds — do not attempt to recreate
-
-A live Google/Apple/Bing Maps embed (store locators, "find a location" widgets, directions
-iframes) never renders in headless capture (it errors or stays blank), so the fidelity gate can
-never actually measure it, and no amount of CSS portation or re-authoring will make it converge —
-this burned ~40 minutes on a single demo (frescopa.coffee, 2026-08-14) chasing a Maps hydration
-band. The same applies to other third-party JS widgets that only render with live network/API
-access replica has no path to reproduce (chat widgets, live inventory/booking widgets, ad iframes).
-
-For any section whose content is one of these, skip stardust:replica's normal recreation procedure
-for that section entirely — do not re-author it, do not CSS-port it, do not iterate the fidelity
-gate against it. Replace it with a fixed-height static `<div>` sized to the source's layout
-geometry (same section height/margins so surrounding sections don't reflow), styled with the
-page's own background/border tokens so it reads as an intentional placeholder, not a bug. Log it
-in `stardust/replica/progress.json`'s residual ledger the same way a CSS portation is logged (note:
-"third-party embed, not recreated — replaced with static placeholder"), so `check-replica-artifacts.mjs`
-can classify it as a documented residual rather than an unexplained gap. Exclude that section's pixels
-from the breakpoint's fidelity measurement if the gate instrument supports region exclusion; otherwise
-document the expected hot band in the same residual note so it isn't mistaken for a real defect.
+Follow of1-liftoff exactly. It reads `keyPages` from `<stateDir>/narrative.json` itself, scaffolds/
+verifies the EDS repo against aem-boilerplate, adds the fixed Block Collection set, extracts brand
+tokens via `stardust:extract`, skins `styles/styles.css`, lifts each key page onto the standard
+block palette via page-import, and stabilizes via its own render/lint/no-JS-errors + human-approval
+gate — never a pixel diff — writing `stardust/liftoff/progress.json` and `blocks-manifest.json`.
 
 On success, write the done-file so Stage 3's site-integration track can proceed:
-  echo '{"stage":2,"status":"done"}' > <stateDir>/replica-done.json
+  echo '{"stage":2,"status":"done"}' > <stateDir>/liftoff-done.json
 
 End with the JSON status block:
 ```json
-{"stage": 2, "skill": "stardust:replica", "status": "done"|"failed", "summary": "...", "deliverables": [{"url":"...","label":"..."}]}
+{"stage": 2, "skill": "of1-liftoff", "status": "done"|"failed", "summary": "...", "deliverables": [{"url":"...","label":"..."}]}
 ```
 ```
 
