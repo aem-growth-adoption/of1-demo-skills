@@ -1,0 +1,2 @@
+{ "generatedAt": "2026-08-18T00:00:00Z", "source": { "domain": "example.com", "pages": [] },
+  "blocks": [ { "name": "hero", "usedOn": [], "slotRegions": [ { "selector": ".hero h1", "role": "headline", "slotType": "banner" } ] } ] }

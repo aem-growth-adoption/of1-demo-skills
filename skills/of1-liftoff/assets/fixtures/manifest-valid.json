@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-08-18T00:00:00Z",
+  "source": { "domain": "example.com", "pages": [ { "slug": "/", "role": "home" }, { "slug": "/product/x", "role": "product" } ] },
+  "tokensSource": "styles/styles.css",
+  "blocks": [
+    { "name": "hero", "collection": "aem-boilerplate", "variants": [""], "usedOn": ["home", "product"],
+      "slotRegions": [ { "selector": ".hero h1", "role": "headline", "slotType": "text" }, { "selector": ".hero picture img", "role": "image", "slotType": "image" } ] },
+    { "name": "cards", "collection": "aem-block-collection", "variants": ["", "dark"], "usedOn": ["home"],
+      "slotRegions": [ { "selector": ".cards li", "role": "item", "slotType": "text" } ] }
+  ]
+}
