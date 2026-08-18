@@ -3,14 +3,14 @@
 //
 // Why: EDS header/footer blocks fetch `/nav` and `/footer` fragments on every
 // page. If those documents don't exist, every page — /of1 included — renders
-// chromeless (no nav, no footer). stardust:replica is supposed to author them
-// but does NOT when the source was bot-blocked (it emits empty <header></header>
-// pages and never creates the fragments); the of1-integration flow runs
-// against a site that already has them. This guard makes the of1 side own the
-// invariant either way: if /nav or /footer is missing, author a minimal branded
-// one from the pages actually deployed on this branch.
+// chromeless (no nav, no footer). Stage 2 (`of1-liftoff`) is supposed to author
+// them via its page-import lift, but a failed or partial lift can skip the
+// fragments; the of1-integration flow (standalone adopt mode) runs against a
+// site that already has them. This guard makes the of1 side own the invariant
+// either way: if /nav or /footer is missing, author a minimal branded one from
+// the pages actually deployed on this branch.
 //
-// Idempotent: if both already return 200 (existing EDS site, or replica did its
+// Idempotent: if both already return 200 (existing EDS site, or liftoff did its
 // job), it changes nothing. It NEVER overwrites an existing chrome document.
 //
 // Usage:

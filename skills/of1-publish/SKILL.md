@@ -204,7 +204,7 @@ playwright-cli eval "() => (document.querySelector('footer .footer') ? 'footer O
 - At least one nav link is present inside the header block
 - `footer .footer` block renders with styled content (not empty)
 
-**If fails:** the site's `content/nav.html`/`content/footer.html` didn't push correctly, or the preview hasn't picked up the latest deploy yet — re-check `stardust:replica` (for the full e2e pipeline, which produces the replica site's nav/footer chrome) or the existing site's own chrome (for `of1-integration`, where nav/footer already existed before this pipeline ran).
+**If fails:** the site's `content/nav.html`/`content/footer.html` didn't push correctly, or the preview hasn't picked up the latest deploy yet — re-check Stage 2 `of1-liftoff` (for the full e2e pipeline, which lifts pages onto the standard header/footer blocks) or the existing site's own chrome (for `of1-integration`, where nav/footer already existed before this pipeline ran).
 
 ### Check 3: All products have ≥4 images
 

@@ -10,8 +10,11 @@ Read this when `of1-demo-orchestrator` detects it is running in **SLICC** (the `
 - `claude-opus-4-8` → Opus 4.8 (`us.anthropic.claude-opus-4-8`)
 - `claude-sonnet-5` → Sonnet 5 1M context (`us.anthropic.claude-sonnet-5`)
 
-Model per skill: Stage 1 + Stage 2 = `claude-opus-4-8`. Stage 3 = of1-integration's table — Opus for
-`of1-style-generative-block` and the extraction step when it runs; omit `model` (Sonnet) for the rest.
+Model per skill: Stage 1 = `claude-opus-4-8`. Stage 2 (liftoff) = `claude-sonnet-5` — block
+composition and token-skinning against a fixed palette, not pixel-precision reasoning; the
+opus rationale that used to apply to replica's iterative pixel-diff/CSS-fixing loop no longer
+applies. Stage 3 = of1-integration's table — Opus for `of1-style-generative-block` and the
+extraction step when it runs; omit `model` (Sonnet) for the rest.
 
 ## Setup — open the sprinkle
 
@@ -44,7 +47,7 @@ Licks arrive as a single `action` string with colon-delimited fields.
 
 ## Scoop naming
 
-`of1-s1-discovery`, `of1-s2-replica`, and one per Integrate-stage skill — `of1-s3-<skill>[-<phase>]`
+`of1-s1-discovery`, `of1-s2-liftoff`, and one per Integrate-stage skill — `of1-s3-<skill>[-<phase>]`
 (e.g. `of1-s3-brand`, `of1-s3-content`, `of1-s3-styling`, `of1-s3-suggest`, `of1-s3-cta`). The
 `of1-build-templates` phases become `of1-s3-templates-base`, `of1-s3-templates-intent-comparison`,
 … `of1-s3-templates-intent-discovery`, `of1-s3-templates-assemble`. The skill (and phase) keeps the
@@ -88,47 +91,42 @@ After Stage 1 returns:
 
 ```bash
 NARRATIVE=$(cat /shared/of1-demo-orchestrator/narrative.json)
-SLUGS=$(jq -r '.keyPages[].slug' <<<"$NARRATIVE" | paste -sd, -)
 DOMAIN=$(jq -r .domain <<<"$NARRATIVE")
 ```
+
+(`of1-liftoff` reads `keyPages[].slug` from `narrative.json` itself in Stage 2 — there is no slug
+list to build or pass on the command line.)
 
 ## Stage 2 + Stage 3 content track (same turn)
 
 ```
 scoop_scoop({
-  name: "of1-s2-replica",
-  model: "claude-opus-4-8",
-  writablePaths: ["/scoops/of1-s2-replica/", "/shared/", "/workspace/{REPO_NAME}/"]
+  name: "of1-s2-liftoff",
+  model: "claude-sonnet-5",
+  writablePaths: ["/scoops/of1-s2-liftoff/", "/shared/", "/workspace/{REPO_NAME}/"]
 })
 ```
 
-Stage 2 prompt: invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>` (bounded mode). Follow it
-exactly. On success: `echo '{"stage":2,"status":"done"}' > /shared/of1-demo-orchestrator/replica-done.json`.
-End with a `{"stage":2,"skill":"stardust:replica",...}` status block — the sprinkle renders it under the Replica stage.
+Stage 2 prompt: invoke the liftoff skill with `Arguments: <DOMAIN>` (it reads `keyPages` from
+`narrative.json` itself — do not pass a slug list on the command line):
 
-**Wall-clock budget on top of replica's own iteration cap** — replica's "hard cap: 3 iterations
-per breakpoint" (source-fidelity-gate.md) is an attempt cap, not a time cap, and can still run very
-long if convergence is slow. Add this instruction to the scoop's prompt: track elapsed wall-clock
-time since the scoop started; if a single page+breakpoint's gate has spent more than 20 minutes
-without the pixel diff trending down between the last two iterations and being on track to pass the
-≤10% bar by iteration 3, stop immediately (checked at the top of each iteration, never mid-probe, to
-keep the single-live-navigation-per-instrument invariant intact) and log it into
-`stardust/replica/progress.json`'s existing residual ledger (§ Residual logging in
-source-fidelity-gate.md) using the same `residuals[]` shape as an ordinary iteration-3 residual —
-do not invent a new stop mechanism. If replica's normal 3-iteration cap resolves faster, that takes
-precedence and this never triggers.
+```
+Skill: of1-liftoff
+Arguments: <DOMAIN>
+```
 
-**Maps and other third-party embeds — do not attempt to recreate.** Add this instruction to the
-scoop's prompt too: a live Google/Apple/Bing Maps embed (store locators, "find a location"
-widgets, directions iframes) never renders in headless capture, so the fidelity gate can never
-measure it and no amount of CSS portation will make it converge (burned ~40 minutes on a single
-demo, frescopa.coffee, 2026-08-14, chasing a Maps hydration band). Same for other third-party JS
-widgets needing live network/API access replica can't reproduce (chat widgets, live
-inventory/booking widgets, ad iframes). For any such section, skip the normal recreation procedure
-entirely — replace it with a fixed-height static `<div>` sized to the source's layout geometry, styled
-with the page's own background/border tokens, and log it in `progress.json`'s residual ledger
-("third-party embed, not recreated — replaced with static placeholder") so the artifact gate treats
-it as a documented residual rather than an unexplained gap.
+Follow `of1-liftoff` exactly — it scaffolds/verifies the EDS repo against aem-boilerplate, adds the
+fixed Block Collection set, extracts brand tokens via `stardust:extract`, skins
+`styles/styles.css`, lifts each key page onto the standard block palette via page-import, and
+stabilizes via its own render/lint/no-JS-errors + human-approval gate — never a pixel diff —
+writing `stardust/liftoff/progress.json` and `blocks-manifest.json`. On success:
+`echo '{"stage":2,"status":"done"}' > /shared/of1-demo-orchestrator/liftoff-done.json`.
+End with a `{"stage":2,"skill":"of1-liftoff",...}` status block — the sprinkle renders it under the
+Liftoff stage.
+
+There is no wall-clock budget, iteration cap, or third-party-embed placeholder guidance to add to
+this prompt — those applied to replica's iterative pixel-diff/CSS-fixing loop, which `of1-liftoff`
+does not have (it gates on render/lint/no-JS-errors + human approval, not a measured pixel diff).
 
 In the SAME turn, dispatch the two content-track scoops (need only the live site; omit `model`):
 
@@ -145,20 +143,19 @@ reference for what each skill does and its dependency edges — the cone is the 
 - Each Integrate-stage skill (and each `of1-build-templates` phase) is its own `scoop_scoop()`
   (writablePaths incl. repo + `/shared/`, env `OF1_PIPELINE_MODE=1`, plus
   `OF1_CONTENT_SOURCE=<DOMAIN>` for `of1-build-quick-suggestions`).
-- **When `replica-done.json` exists, run the Stage 2 artifact gate BEFORE fanning out the
-  site-integration track.** `replica-done.json` only means the Stage 2 scoop finished, not that the
-  replica is demo-grade. In the cone's own context run:
+- **When `liftoff-done.json` exists, run the Stage 2 artifact gate BEFORE fanning out the
+  site-integration track.** `liftoff-done.json` only means the Stage 2 scoop finished, not that the
+  liftoff is demo-grade. In the cone's own context run:
 
   ```bash
-  node "<orchestratorSkillDir>/assets/check-replica-artifacts.mjs" "/workspace/{REPO_NAME}"
+  node "<orchestratorSkillDir>/assets/check-liftoff-artifacts.mjs" "/workspace/{REPO_NAME}"
   ```
 
-  - **exit 0** — proceed (may print `⚠` warnings for under-bar residuals or legacy-shape pages; note
-    them but proceed). **exit 2** — HARD STOP: replica NOT demo-grade — BLOCKED-CAPTURE (bot-protected,
-    unmeasured "pass"), placeholder imagery, FIDELITY FAIL (measured pixel diff above the 10% bar), or
-    VERDICT FAIL (`verdict.overall: "fail"`). Do not dispatch Stage 3 or deploy; surface the gate's
-    escalation options via `sprinkle` and wait for the user. **exit 1** — replica ledger missing;
-    re-dispatch Stage 2. See `pipeline-contract.md` § "Stage 2 artifact gate".
+  - **exit 0** — proceed (may still print `⚠` warnings; note them but proceed). **exit 2** — HARD
+    STOP: liftoff NOT demo-grade — one or more pages failed to render, failed lint, threw a JS error,
+    or was never human-approved. Do not dispatch Stage 3 or deploy; surface the gate's failure list via
+    `sprinkle` and wait for the user. **exit 1** — liftoff ledger missing/empty; re-dispatch Stage 2.
+    See `pipeline-contract.md` § "Stage 2 artifact gate".
 
 - **Fan out at every eligible point** once the gate passes (exit 0), following the dependency edges
   in `of1-integration` § "Pipeline-mode timing" — do not re-derive them here. The site track's first
@@ -212,16 +209,16 @@ esac
 
 ## scoop_wait timeout policy
 
-For long-running scoops (Stage 2 replica, the OF1-styling `of1-style-generative-block`) set a generous timeout:
+For long-running scoops (Stage 2 liftoff, the OF1-styling `of1-style-generative-block`) set a generous timeout:
 
 ```
-scoop_wait({ scoop_names: ["of1-s2-replica"], timeout_ms: 1800000 })  // 30 minutes
+scoop_wait({ scoop_names: ["of1-s2-liftoff"], timeout_ms: 1800000 })  // 30 minutes
 ```
 
 `timeout_ms` does NOT kill the scoop — it only wakes the cone. When it fires:
 1. Do NOT immediately `drop_scoop` — the scoop is likely still working.
-2. Check whether expected output files exist (`ls stardust/current/` for Stage 2; `ls of1/config/`
-   for the content track).
+2. Check whether expected output files exist (`ls stardust/liftoff/` or `ls blocks-manifest.json`
+   for Stage 2; `ls of1/config/` for the content track).
 3. If files exist but the status file doesn't: it's in its final steps (commit/push/status-write) —
    wait another minute or let the notify lick arrive.
 4. Only `drop_scoop` if silent for 5+ minutes AND no output files.

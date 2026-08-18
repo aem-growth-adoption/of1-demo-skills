@@ -8,9 +8,10 @@ Claude Code skills for preparing OF1 generative web search demos. These skills a
 Stage 1 · Collect        of1-discovery → narrative.json (keyPages, focus)
                                    │
         ┌──────────────────────────┴──────────────────────────┐
-Stage 2 · Replica                              Stage 3 · OF1 integration
-stardust:replica --pages                       of1-integration (pipeline mode)
-→ EDS site + DESIGN.json                        content track ∥ replica; site track after
+Stage 2 · Liftoff                              Stage 3 · OF1 integration
+of1-liftoff <domain>                           of1-integration (pipeline mode)
+→ EDS blocks + DESIGN.json                      content track ∥ liftoff; site track after
+  + blocks-manifest.json
         └──────────────────────────┬──────────────────────────┘
                               (adopt-site owns deploy)
 ```
@@ -18,8 +19,8 @@ stardust:replica --pages                       of1-integration (pipeline mode)
 | Stage | Skill | Notes |
 |-------|-------|-------|
 | 1 Collect | `of1-discovery` | Emits `narrative.json` (keyPages drive Stage 2) |
-| 2 Replica | `stardust:replica --pages` | Bounded same-design migration; no site-wide rollout |
-| 3 OF1 integration | `of1-integration` | Pipeline mode: live content source + replica-done gate |
+| 2 Liftoff | `of1-liftoff` | Lifts key pages onto standard EDS blocks + brand-token skinning; no pixel-diff |
+| 3 OF1 integration | `of1-integration` | Pipeline mode: live content source + liftoff-done gate |
 
 Within Stage 3, `of1-integration` runs its own internal step graph — templates, OF1 styling, brand voice/content extraction, quick suggestions, CTA template, config review, and deploy — fanning out in parallel where dependencies allow (see that skill's own `SKILL.md` for the full step graph and dependency table).
 
@@ -30,6 +31,7 @@ Within Stage 3, `of1-integration` runs its own internal step graph — templates
 | `of1-demo-orchestrator` | Orchestrate full demo preparation — 3-stage pipeline; runs on both Claude Code and SLICC (detects the runtime, sprinkle UI on SLICC) |
 | `of1-check-dependencies` | Verify prerequisites — skills, tools, and repo state; verify EDS repo + prepare repo-config.json |
 | `of1-discovery` | Crawl a target website and propose a demo focus/narrative |
+| `of1-liftoff` | Stage 2 — lift key pages onto standard EDS blocks + brand-token skinning; gates on render/lint/no-JS-errors + human approval, no pixel-diff |
 | `of1-build-templates` | Generate 15 branded templates (5 intents × 3 variations) |
 | `of1-style-generative-block` | Generate CSS for dynamically-rendered generative sections |
 | `of1-extract-brand-voice` | Extract brand voice from a website and generate `brand-voice.json` |
@@ -59,7 +61,7 @@ Then run the orchestrator:
 
 The setup step (`of1-check-dependencies`) verifies all of the following:
 
-- **Skills installed** — OF1 demo skills + Adobe stardust skills (`adobe/skills`, includes `replica` for Stage 2 and `deploy`) + impeccable (`pbakaus/impeccable`)
+- **Skills installed** — OF1 demo skills (includes `of1-liftoff` for Stage 2) + Adobe stardust skills (`adobe/skills`, includes `extract` and `deploy`, used by `of1-liftoff`) + impeccable (`pbakaus/impeccable`)
 - **Playwright** — `playwright-cli` available on PATH
 - **Node.js** — `node` available on PATH
 - **Git credentials** — `~/.git-credentials` present for push access
