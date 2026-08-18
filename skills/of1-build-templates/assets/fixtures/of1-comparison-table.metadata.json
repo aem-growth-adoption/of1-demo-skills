@@ -1,0 +1,16 @@
+{
+  "name": "of1-comparison-table",
+  "intent": "comparison",
+  "description": "Side-by-side comparison built from hero + columns blocks.",
+  "minItems": 2,
+  "maxItems": 4,
+  "stylesheet": "/styles/styles.css",
+  "html": "/templates/of1-comparison-table.html",
+  "slots": [
+    { "key": "hero.title", "type": "text", "instruction": "Headline, <=8 words" },
+    { "key": "item-1.name", "type": "text", "instruction": "Option name" },
+    { "key": "item-1.cta", "type": "link", "instruction": "Link to option page" },
+    { "key": "item-2.name", "type": "text", "instruction": "Option name" },
+    { "key": "item-2.cta", "type": "link", "instruction": "Link to option page" }
+  ]
+}

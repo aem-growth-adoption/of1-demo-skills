@@ -102,14 +102,85 @@
 </div>
 
 <div class="gallery-footer">
-  <span class="gallery-tip">Tip: edit <code>templates/&lt;name&gt;.sample.json</code> and re-run <code>python3 tools/fill-template.py templates/&lt;name&gt;.html templates/&lt;name&gt;.sample.json drafts/&lt;name&gt;-sample.html</code> to refresh the preview.</span>
+  <span class="gallery-tip">Tip: edit <code>templates/&lt;name&gt;.sample.json</code> and re-run <code>node tools/fill-template.mjs templates/&lt;name&gt;.html templates/&lt;name&gt;.sample.json drafts/&lt;name&gt;-sample.html</code> to refresh the preview.</span>
   <a id="gallery-open-link" href="#" target="_blank" rel="noopener">Open preview in new tab ↗</a>
 </div>
 
+<!--
+  EDS decoration wiring (v6 — block-table templates)
+  ====================================================
+  Templates authored by of1-build-templates are now real EDS block-table
+  markup (<main> containing section/block/row/cell <div>s, e.g.
+  <div><div class="hero">...</div></div>), not a static styled shell. A
+  filled preview (drafts/<name>-sample.html, produced by fill-template.mjs)
+  therefore renders as UNSTYLED raw block markup until the EDS client
+  runtime decorates it — the same way any live EDS page needs
+  scripts/aem.js + scripts/scripts.js + styles/styles.css before it looks
+  right.
+
+  fill-template.mjs already wraps its output in a standalone
+  <html><head><link rel="stylesheet" href="/styles/styles.css">...
+  document (see its `stylesheet` var, sourced from metadata's
+  `_meta.stylesheet`, which is always /styles/styles.css for v6
+  templates) — so the CSS variables + base typography load. What's
+  still missing is BLOCK decoration: loadBlocks()/decorateBlock() have
+  to run so each block's own blocks/<name>/<name>.css loads and the
+  block's JS (if any) executes.
+
+  This gallery therefore injects the site's own EDS runtime scripts into
+  the preview iframe's document AFTER the drafts/*.html doc loads, so the
+  real decoration pipeline (decorateMain -> loadBlocks -> loadCSS +
+  block.js) runs against the filled markup exactly as it would on a live
+  page:
+    1. iframe loads /drafts/<name>-sample.html (served from the SAME
+       origin as scripts/aem.js + styles/styles.css so relative
+       /scripts/* and /styles/* references resolve).
+    2. on the iframe's `load` event, this script injects <script
+       type="module"> tags for /scripts/aem.js and /scripts/scripts.js
+       into the iframe's own document — those are the repo's real,
+       already-deployed EDS bootstrap scripts (loaded at the SAME path
+       a live page would use), which run decorateMain(document.body)
+       and loadBlocks(main) exactly as on a live page.
+    3. because the preview iframe is same-origin (served from the
+       gallery's own aem.page/aem.live host), this is a normal
+       same-document script injection — no postMessage/cross-origin
+       bridging required.
+
+  Verification is MANUAL, not automated here: open gallery/index.html on
+  a deployed preview URL (…--<repo>--<owner>.aem.page/gallery/index.html),
+  select a template tab, and visually confirm the iframe shows real block
+  styling (hero background, card grid, etc.) rather than unstyled
+  <div>s. There is no headless-browser check for this in the skill;
+  a human (or the pipeline's own screenshot/QA step) confirms it.
+-->
 <script nonce="aem">
   const CATALOG_URL = '/templates/templates-catalog.json';
   const INTENT_ORDER = ['comparison', 'recommendation', 'deep-dive', 'budget', 'discovery'];
   const previewUrlFor = (name) => `/drafts/${name}-sample.html`;
+
+  // Inject the repo's own EDS bootstrap scripts into the preview iframe so
+  // the filled block-table markup gets decorated (loadBlocks -> per-block
+  // CSS + JS) exactly as it would on a live page. Same-origin only — the
+  // gallery and the previews it embeds are always served from the same
+  // aem.page/aem.live host, so direct DOM/script injection into the
+  // iframe's document is safe (no cross-origin restrictions apply).
+  function decorateFrame(frame) {
+    const doc = frame.contentDocument;
+    if (!doc || doc.body?.dataset.of1Decorated) return;
+    try {
+      ['/scripts/aem.js', '/scripts/scripts.js'].forEach((src) => {
+        const s = doc.createElement('script');
+        s.type = 'module';
+        s.src = src;
+        doc.head.appendChild(s);
+      });
+      if (doc.body) doc.body.dataset.of1Decorated = 'true';
+    } catch (err) {
+      // Cross-origin or sandboxed iframe — decoration skipped, raw
+      // block-table markup still renders (unstyled).
+      console.warn('EDS decoration skipped for preview frame:', err.message);
+    }
+  }
 
   function parseHash() {
     const h = (location.hash || '').replace(/^#/, '');
@@ -204,6 +275,7 @@
 
     function selectVariant(intent, name) {
       const url = previewUrlFor(name);
+      frame.onload = () => decorateFrame(frame);
       frame.src = url;
       openLink.href = url;
       tabs.querySelectorAll('.gallery-tab').forEach((t) => {

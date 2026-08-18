@@ -1,0 +1,8 @@
+{
+  "_meta": { "stylesheet": "/styles/styles.css" },
+  "hero.title": "Compare our plans",
+  "item-1.name": "Starter",
+  "item-1.cta": { "label": "See Starter", "href": "/plans/starter" },
+  "item-2.name": "Pro",
+  "item-2.cta": { "label": "See Pro", "href": "/plans/pro" }
+}
