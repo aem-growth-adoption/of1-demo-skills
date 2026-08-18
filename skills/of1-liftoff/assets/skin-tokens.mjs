@@ -29,11 +29,13 @@ function upsert(css, block) {
     const re = new RegExp(START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[\\s\\S]*?' + END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     return css.replace(re, block);
   }
-  // insert just after the first `:root {`
+  // insert just before the closing `:root` brace to ensure OF1 tokens win the cascade
   const idx = css.indexOf(':root');
   if (idx === -1) return css + '\n:root {\n' + block + '\n}\n';
   const brace = css.indexOf('{', idx);
-  return css.slice(0, brace + 1) + '\n' + block + '\n' + css.slice(brace + 1);
+  const close = css.indexOf('}', brace);
+  if (close === -1) return css.slice(0, brace + 1) + '\n' + block + '\n' + css.slice(brace + 1); // malformed :root fallback
+  return css.slice(0, close) + block + '\n' + css.slice(close);
 }
 
 function main() {
