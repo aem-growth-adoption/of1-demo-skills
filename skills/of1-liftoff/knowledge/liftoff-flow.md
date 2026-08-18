@@ -8,17 +8,84 @@ out a further dispatch level, so this skill must do all of its sub-skill work it
 
 ## 1. Scaffold
 
-`OF1_DEMO_REPO` is already a validated EDS checkout by the time this skill runs —
-`of1-check-dependencies`'s `verify.sh` fails hard (no fallback clone) unless `scripts/aem.js` or
-`scripts/lib-franklin.js`, `scripts/scripts.js`, and `styles/styles.css` already exist. So "scaffold"
-here means **verify, then backfill gaps** — never clone a fresh repo over an existing checkout.
+`of1-check-dependencies`'s `verify.sh` is explicit that its EDS-repo check is **"structural check,
+not identity — any org/repo works"** (`skills/of1-check-dependencies/scripts/verify.sh:3-4`). It
+guarantees `OF1_DEMO_REPO` has the right *shape* (`scripts/aem.js`/`scripts/lib-franklin.js`,
+`scripts/scripts.js`, `styles/styles.css`) — it does **not** guarantee the repo actually descends
+from `aem-boilerplate`. A hand-rolled or third-party-derived EDS repo can pass that check. The
+product decision "every experiment starts from aem-boilerplate" is therefore `of1-liftoff`'s own
+job to enforce, not something it can inherit from `of1-check-dependencies` — do not skip straight
+to backfilling blocks on the strength of the six directory-name checks alone.
+
+**Step order:**
 
 ```bash
 cd "$OF1_DEMO_REPO"
+```
+
+### 1a. Empty/new repo → clone aem-boilerplate as the starting point
+
+```bash
+IS_EMPTY=false
+[ -z "$(git ls-files)" ] && IS_EMPTY=true   # no tracked files at all
+if [ "$IS_EMPTY" = "true" ]; then
+  echo "OF1_DEMO_REPO is empty — seeding from aem-boilerplate"
+  git clone --depth 1 https://github.com/adobe/aem-boilerplate.git /tmp/aem-boilerplate-seed
+  rsync -a --exclude='.git' /tmp/aem-boilerplate-seed/ ./
+  rm -rf /tmp/aem-boilerplate-seed
+fi
+```
+
+### 1b. Existing checkout → verify BOILERPLATE PROVENANCE, not just directory shape
+
+Directory-name presence (`blocks/columns`, `blocks/hero`, etc.) is necessary but not sufficient —
+any EDS repo can have similarly-named blocks without being boilerplate-derived. Check a concrete
+provenance marker instead:
+
+```bash
+PROVENANCE_OK=false
+if [ -f package.json ] && [ "$(node -p "require('./package.json').name" 2>/dev/null)" = "aem-boilerplate" ]; then
+  PROVENANCE_OK=true
+elif [ -f fstab.yaml ] && grep -q "aem-boilerplate" fstab.yaml 2>/dev/null; then
+  PROVENANCE_OK=true
+elif [ -f scripts/aem.js ] && grep -q "aem-boilerplate" scripts/aem.js 2>/dev/null; then
+  PROVENANCE_OK=true
+fi
+```
+
+`package.json`'s `name` field being exactly `aem-boilerplate` is the primary, most reliable marker
+(repos created via `create-site` or `degit`/clone from the boilerplate keep this unless explicitly
+renamed). `fstab.yaml` and a boilerplate-attributed `scripts/aem.js` are secondary, weaker markers —
+use them only when `package.json` itself doesn't resolve the question (e.g. `name` was legitimately
+renamed post-scaffold but the file still carries a boilerplate attribution comment or `fstab.yaml`
+still points at boilerplate mount config).
+
+### 1c. Provenance cannot be established → FAIL LOUDLY, do not backfill
+
+```bash
+if [ "$PROVENANCE_OK" != "true" ]; then
+  cat > "$OF1_STATE_DIR/liftoff-done.json" <<'EOF'
+{"stage":2,"status":"failed"}
+EOF
+  echo "FAIL: OF1_DEMO_REPO does not verify as aem-boilerplate-derived (checked package.json name, fstab.yaml, scripts/aem.js). Every OF1 experiment must start from https://github.com/adobe/aem-boilerplate — point OF1_DEMO_REPO at a boilerplate-derived checkout, or let step 1a seed a fresh one into an empty repo." >&2
+  exit 1
+fi
+```
+
+Report the final status block as `"status": "failed"` with that same message as the summary. Do
+**not** proceed to backfilling default blocks onto an arbitrary repo just because it happens to have
+similarly-named directories — that would silently drop the boilerplate-provenance requirement this
+step exists to enforce.
+
+### 1d. Provenance established → backfill any missing default block
+
+Only after 1a (seeded) or 1b+1c (verified) passes, check the six default blocks and backfill any
+that are genuinely missing:
+
+```bash
 for b in columns hero cards fragment header footer; do
   if [ ! -d "blocks/$b" ]; then
     echo "missing default block: $b — backfilling from aem-boilerplate"
-    # fetch just this block's js/css from the upstream aem-boilerplate repo
     mkdir -p "blocks/$b"
     curl -fsSL "https://raw.githubusercontent.com/adobe/aem-boilerplate/main/blocks/$b/$b.js"  -o "blocks/$b/$b.js"
     curl -fsSL "https://raw.githubusercontent.com/adobe/aem-boilerplate/main/blocks/$b/$b.css" -o "blocks/$b/$b.css"
@@ -31,11 +98,14 @@ done
 presence check as "the repo already renders nav/footer chrome", not literally "the directory
 exists"; only backfill if chrome is genuinely absent.
 
-**DONE_WITH_CONCERNS:** the curl-from-upstream backfill path is a reasonable default but unverified
-against every aem-boilerplate revision in the wild (block file layout has shifted across boilerplate
-versions). In the common case — a repo already created via `create-site` or an earlier OF1 demo —
-this branch never executes; only exercise it if a genuinely bare/partial checkout shows up, and treat
-a curl failure as "stop and report", not "silently skip the block."
+**DONE_WITH_CONCERNS:** the curl-from-upstream backfill path (1d) and the `package.json`/`fstab.yaml`/
+`scripts/aem.js` provenance markers (1b) are reasonable defaults but unverified against every
+aem-boilerplate revision in the wild — block file layout and the exact provenance-marker text have
+both shifted across boilerplate versions historically. Treat a curl failure in 1d, or an ambiguous
+provenance read in 1b, as "stop and report," not "silently skip/guess." This is a materially
+different risk from "backfill mechanics might need a revision" — the deeper risk this step now
+guards against is that the boilerplate-derived premise itself might not hold for a given repo at
+all, which is why 1b/1c exist as a hard gate rather than an optional check.
 
 ## 2. Add the fixed Block Collection set
 

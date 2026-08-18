@@ -33,10 +33,15 @@ than one non-home key page, lift all of them, each recorded with `role: "product
 
 Full detail for each step is in `knowledge/liftoff-flow.md`. Summary:
 
-1. **Scaffold** — verify `OF1_DEMO_REPO` already has the aem-boilerplate structural files and its
-   default blocks (`columns, hero, cards, fragment, header, footer`); backfill any missing default
-   block from upstream `aem-boilerplate` if absent. Do not clone a fresh repo — `OF1_DEMO_REPO` is
-   already a validated EDS checkout.
+1. **Scaffold** — `of1-check-dependencies`'s repo check is structural only ("any org/repo works" —
+   `skills/of1-check-dependencies/scripts/verify.sh:3-4`), so it does NOT guarantee `OF1_DEMO_REPO`
+   descends from `aem-boilerplate`; enforcing that is this skill's own job. If `OF1_DEMO_REPO` is
+   empty, seed it by cloning `https://github.com/adobe/aem-boilerplate`. If it's an existing
+   checkout, verify boilerplate PROVENANCE (`package.json` `name === "aem-boilerplate"`, or
+   `fstab.yaml`/`scripts/aem.js` attribution) — not just directory-name presence. If provenance
+   can't be established, FAIL LOUDLY and stop (never backfill blocks onto an arbitrary repo). Only
+   once provenance is established, backfill any missing default block
+   (`columns, hero, cards, fragment, header, footer`) from upstream `aem-boilerplate`.
 2. **Add Block Collection set** — pull `accordion, tabs, carousel, quote` (the fixed additive set)
    from the Block Collection/Block Party into `blocks/`, inline via the `block-collection-and-party`
    skill's search/get tooling.
