@@ -1,0 +1,3 @@
+{ "typography": { "heading": { "family": "Poppins, sans-serif" }, "body": { "family": "Inter, sans-serif" } },
+  "colors": { "primary": "#0a66ff", "secondary": "#003a99", "accent": "#ff5c00", "background": "#ffffff", "surface": "#f5f7fa", "text": "#111418", "muted": "#5b6370" },
+  "spacing": { "maxWidth": "1200px" }, "rounded": "8px" }
