@@ -78,6 +78,14 @@ Only use URLs that were extracted from the live DOM via Playwright and downloade
 ### 2.5 Image paths in committed HTML must be absolute from repo root
 HTML deliverables served on EDS need paths like `/deliverables/assets/screenshots/home.png`, not `assets/screenshots/...`. Relative paths break because the HTML is served at `/deliverables/config-review.html` while assets are at `/deliverables/assets/...`.
 
+### 2.6 Replica CONTENT-page images must ALSO be self-hosted on DA
+§2.1 covers `products.json`, but the same rule applies to the pages `stardust:replica` recreates (home, drivers, teams, and the `/nav` `/footer` chrome). Replica authors them as EDS content pages but leaves each `<img src>` pointing at the customer's own CDN (`media.formula1.com`, `flagcdn.com`, a CloudFront host, …). Two failure modes:
+
+- The EDS **content-bus fetches every `<img>` at page-preview time**. A src it can't fetch server-side fails the WHOLE page preview with `409 error from content-bus`, so the page 404s. Large flag SVGs with a coat of arms (e.g. flagcdn `es`/`mx`, ~150KB) are a repeat offender — the media bus rejects the oversized SVG; use a raster rendition (`flagcdn.com/w<width>/<code>.png`) instead.
+- Even when they render, hotlinking a customer CDN is fragile (CORS, referrer, token expiry, the CDN changing).
+
+**This is handled automatically:** the orchestrator's Stage 2 replica step runs `of1-demo-orchestrator/assets/rehost-page-images.mjs` after replica and before writing `replica-done.json` (see `dispatch-cc.md` / `dispatch-slicc.md`). It downloads every external content-page image, uploads it to DA media, previews it into the Media Bus, rewrites the `<img src>` to `https://{branch}--{repo}--{owner}.aem.page/media/page-{hash}.{ext}`, re-authors the pages, and exits non-zero if any image can't be self-hosted. `content.da.live` media URLs (chrome assets replica already put on DA) are left as-is — they are not a customer CDN and the content-bus ingests them server-side.
+
 ---
 
 ## 3. Brand logo

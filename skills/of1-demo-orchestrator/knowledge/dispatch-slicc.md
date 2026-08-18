@@ -103,7 +103,15 @@ scoop_scoop({
 ```
 
 Stage 2 prompt: invoke `stardust:replica https://<DOMAIN> --pages <SLUGS>` (bounded mode). Follow it
-exactly. On success: `echo '{"stage":2,"status":"done"}' > /shared/of1-demo-orchestrator/replica-done.json`.
+exactly. Then, before writing the done-file, self-host the page images: replica leaves each
+`<img src>` pointing at the customer CDN, which fragilely hotlinks and can fail the EDS content-bus
+preview with `409 error from content-bus` (see `dispatch-cc.md` § "Rehost the replica pages'
+images" and `common-pitfalls.md` §2.6). From inside the repo run
+`node "$SKILL_DIR/assets/rehost-page-images.mjs" --owner "$OWNER" --repo "$REPO" --branch "$BRANCH"`
+(SKILL_DIR = the of1-demo-orchestrator skill dir); it rehosts every external content-page image to
+DA media, rewrites the srcs, and re-authors the pages. It exits non-zero if any image can't be
+self-hosted — treat that as a Stage 2 failure and do NOT write replica-done.json until it exits 0.
+On success: `echo '{"stage":2,"status":"done"}' > /shared/of1-demo-orchestrator/replica-done.json`.
 End with a `{"stage":2,"skill":"stardust:replica",...}` status block — the sprinkle renders it under the Replica stage.
 
 **Wall-clock budget on top of replica's own iteration cap** — replica's "hard cap: 3 iterations

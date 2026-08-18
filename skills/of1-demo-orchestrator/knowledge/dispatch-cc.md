@@ -126,7 +126,36 @@ can classify it as a documented residual rather than an unexplained gap. Exclude
 from the breakpoint's fidelity measurement if the gate instrument supports region exclusion; otherwise
 document the expected hot band in the same residual note so it isn't mistaken for a real defect.
 
-On success, write the done-file so Stage 3's site-integration track can proceed:
+Before you write the done-file, self-host the page images (see below).
+
+## Rehost the replica pages' images onto DA — REQUIRED before replica-done
+
+stardust:replica recreates the customer's pages as EDS content pages but leaves each `<img src>`
+pointing at the customer's own CDN (e.g. `media.formula1.com`, `flagcdn.com`, a CloudFront host).
+The EDS content-bus fetches every `<img>` at preview time, so a src it can't fetch server-side
+fails the WHOLE page preview with `409 error from content-bus` (large flag-SVG coats of arms from
+flagcdn are a repeat offender) — and even when they render, hotlinking a customer CDN is fragile.
+This is the same rule of1-extract-content enforces for product images (`common-pitfalls.md` §2),
+applied to content pages.
+
+Run the rehoster from inside the repo (`$OF1_DEMO_REPO`); with no file args it processes every
+`*.html` under `content/`, downloads each external image, uploads it to DA media, previews it into
+the Media Bus, rewrites the `<img src>` to the site's own `/media/` URL, and re-authors each touched
+page to DA:
+
+```bash
+cd "$OF1_DEMO_REPO"
+node "$SKILL_DIR/assets/rehost-page-images.mjs" \
+  --owner "$OWNER" --repo "$REPO" --branch "$BRANCH"
+```
+
+`SKILL_DIR` here is the of1-demo-orchestrator skill dir. It exits non-zero if any external image
+could not be self-hosted (or a page failed to re-author) — treat that as a Stage 2 failure and do
+NOT write replica-done.json until it exits 0. It resolves the DA token the same way every other
+step does (`ADOBE_IMS_TOKEN` / `OF1_TOKEN_FILE` / `.hlx/.da-token.json`). It is idempotent — a
+re-run finds nothing left to rehost.
+
+On success (rehoster exited 0), write the done-file so Stage 3's site-integration track can proceed:
   echo '{"stage":2,"status":"done"}' > <stateDir>/replica-done.json
 
 End with the JSON status block:
