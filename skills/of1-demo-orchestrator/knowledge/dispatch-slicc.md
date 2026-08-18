@@ -70,6 +70,9 @@ Licks arrive as a single `action` string with colon-delimited fields.
 - **`set-domain:<domain>`** — store the domain. Setting a new domain resets ALL step states
   client-side (the sprinkle wipes steps/deliverables when `data.domain` ≠ `state.domain`). So always
   send `set-domain` FIRST before pushing any step status for a new run; no manual per-step reset needed.
+  This domain-change reset is a fallback, though — the runId guard (see "Run identity (runId)"
+  above) is checked FIRST in `applyUpdate` and takes precedence whenever an update carries a
+  `runId`, including a same-domain re-run where this domain check alone would not fire.
 - **`run:<domain>`** — dispatch Stage 1.
 - **`approve:<skill>:<domain>`** — the user approved a review-gated Stage 3 skill; the sprinkle
   auto-marks it done. If it unblocks downstream skills (per of1-integration's dependency table), dispatch
@@ -168,7 +171,7 @@ and the CC no-op guard):
 
 ```
 You are running under SLICC. As you complete each internal phase, push your own sub-step progress:
-`sprinkle send of1-demo-orchestrator '{"stage":2,"subStep":"<key>","status":"active|done","runId":"$OF1_RUN_ID"}'`
+`sprinkle send of1-demo-orchestrator "{\"stage\":2,\"subStep\":\"<key>\",\"status\":\"active|done\",\"runId\":\"$OF1_RUN_ID\"}"`
 per your SLICC sub-progress note (read `OF1_RUN_ID` from your env — the cone passed it above). Do
 NOT push the top-level {"stage":2,...} status — the cone still owns that.
 ```
@@ -235,7 +238,7 @@ the cone cannot see inside of1-liftoff's single long-running scoop the way it ca
 Integrate-stage skill completions. of1-liftoff pushes:
 
 ```
-sprinkle send of1-demo-orchestrator '{"stage":2,"subStep":"<key>","status":"active|done","runId":"$OF1_RUN_ID"}'
+sprinkle send of1-demo-orchestrator "{\"stage\":2,\"subStep\":\"<key>\",\"status\":\"active|done\",\"runId\":\"$OF1_RUN_ID\"}"
 ```
 
 reading `$OF1_RUN_ID` from the env the cone passed to the `of1-s2-liftoff` scoop (see "Run identity
