@@ -748,7 +748,7 @@
     return s;
   }
 
-  var state = { domain: '', steps: [] };
+  var state = { domain: '', runId: null, steps: [] };
   for (var i = 0; i < STEPS.length; i++) {
     state.steps.push(freshStepState(STEPS[i]));
   }
@@ -963,7 +963,18 @@
     // Handle full reset action
     if (data.action === 'reset') {
       state.domain = '';
+      state.runId = null;
       resetAllSteps();
+      stopTimer();
+      slicc.setState(state);
+      render();
+      return;
+    }
+    // A new run carries a fresh runId; discard any restored cross-run state.
+    if (data.runId && data.runId !== state.runId) {
+      resetAllSteps();
+      state.runId = data.runId;
+      if (data.domain) state.domain = data.domain;
       stopTimer();
       slicc.setState(state);
       render();
@@ -998,6 +1009,7 @@
   var saved = slicc.getState();
   if (saved && saved.steps && saved.steps.length === STEPS.length) {
     state = saved;
+    if (!('runId' in state)) state.runId = null;
     for (var i = 0; i < state.steps.length; i++) {
       if (!state.steps[i]) state.steps[i] = freshStepState(STEPS[i]);
       if (!('startedAt' in state.steps[i])) state.steps[i].startedAt = null;

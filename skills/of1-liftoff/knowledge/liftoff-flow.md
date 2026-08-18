@@ -8,9 +8,11 @@ out a further dispatch level, so this skill must do all of its sub-skill work it
 
 **SLICC sub-progress:** on SLICC (sprinkle/scoop primitives present — see `SKILL.md` §
 "SLICC sub-progress" for the exact push command, phase→key mapping, and statuses), push
-`{"stage":2,"subStep":"<key>","status":"active"}` at the start of each step below and `"done"` at
-its end: steps 1–2 → `scaffold`, step 3 → `extract`, step 4 → `skin`, step 5 → `lift`, step 6 →
-`stabilize`. On Claude Code (no sprinkle primitive) this is a no-op — skip it entirely, never error.
+`{"stage":2,"subStep":"<key>","status":"active","runId":"$OF1_RUN_ID"}` at the start of each step
+below and `"done"` at its end: steps 1–2 → `scaffold`, step 3 → `extract`, step 4 → `skin`, step 5 →
+`lift`, step 6 → `stabilize`. Read `$OF1_RUN_ID` from the env the cone passed this scoop; if unset,
+omit the `runId` field rather than sending it literally. On Claude Code (no sprinkle primitive) this
+is a no-op — skip it entirely, never error.
 
 ## 1. Scaffold
 

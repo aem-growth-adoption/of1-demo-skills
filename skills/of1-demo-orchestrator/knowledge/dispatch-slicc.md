@@ -34,6 +34,35 @@ the cone cannot observe of1-liftoff's internal phases since Stage 2 is a single 
 All other scoops still only write files; the cone still owns the Stage-2 top-level status, the
 artifact gate, and approve/revise.
 
+## Run identity (runId)
+
+SLICC gives sprinkles no leader/follower flag and no run/session id — a follower's
+`localStorage`-restored state can be from a PRIOR run (e.g. a different domain, or the same domain
+re-run) and nothing but a domain change would dislodge it. To fix this deterministically, the cone
+mints ONE `RUN_ID` per run when it begins dispatching (on the `run:<domain>` lick), e.g.:
+
+```bash
+RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+```
+
+(any unique string is fine). The cone MUST include `"runId":"$RUN_ID"` in EVERY `sprinkle send`
+payload for that run — the first domain push, every stage/subStep status push, and the audit event.
+The sprinkle hard-resets whenever an incoming update's `runId` differs from its restored/current
+one, discarding stale cross-run state even when the domain is unchanged (a same-domain re-run).
+
+The FIRST push of a run carries domain + runId together, sent BEFORE any step status so followers
+reset to the new run immediately:
+
+```bash
+sprinkle send of1-demo-orchestrator "{\"domain\":\"$DOMAIN\",\"runId\":\"$RUN_ID\"}"
+```
+
+The cone MUST also pass `OF1_RUN_ID=$RUN_ID` in the env of the `of1-s2-liftoff` scoop so
+`of1-liftoff`'s own Stage-2 sub-step pushes carry the same runId (see "Stage 2 sub-progress" below).
+
+The runId is an extra field, not a status — valid statuses are unchanged (`pending, active, done,
+review, failed`).
+
 ## Lick events (sprinkle → cone)
 
 Licks arrive as a single `action` string with colon-delimited fields.
@@ -107,9 +136,13 @@ list to build or pass on the command line.)
 scoop_scoop({
   name: "of1-s2-liftoff",
   model: "claude-sonnet-5",
-  writablePaths: ["/scoops/of1-s2-liftoff/", "/shared/", "/workspace/{REPO_NAME}/"]
+  writablePaths: ["/scoops/of1-s2-liftoff/", "/shared/", "/workspace/{REPO_NAME}/"],
+  env: { OF1_RUN_ID: "<RUN_ID>" }
 })
 ```
+
+`OF1_RUN_ID` carries this run's cone-minted `RUN_ID` (see "Run identity (runId)" above) so
+`of1-liftoff`'s own Stage-2 sub-step pushes stamp the same runId the sprinkle is guarding on.
 
 Stage 2 prompt: invoke the liftoff skill with `Arguments: <DOMAIN>` (it reads `keyPages` from
 `narrative.json` itself — do not pass a slug list on the command line):
@@ -135,9 +168,9 @@ and the CC no-op guard):
 
 ```
 You are running under SLICC. As you complete each internal phase, push your own sub-step progress:
-`sprinkle send of1-demo-orchestrator '{"stage":2,"subStep":"<key>","status":"active|done"}'`
-per your SLICC sub-progress note. Do NOT push the top-level {"stage":2,...} status — the cone still
-owns that.
+`sprinkle send of1-demo-orchestrator '{"stage":2,"subStep":"<key>","status":"active|done","runId":"$OF1_RUN_ID"}'`
+per your SLICC sub-progress note (read `OF1_RUN_ID` from your env — the cone passed it above). Do
+NOT push the top-level {"stage":2,...} status — the cone still owns that.
 ```
 
 There is no wall-clock budget, iteration cap, or third-party-embed placeholder guidance to add to
@@ -202,13 +235,15 @@ the cone cannot see inside of1-liftoff's single long-running scoop the way it ca
 Integrate-stage skill completions. of1-liftoff pushes:
 
 ```
-sprinkle send of1-demo-orchestrator '{"stage":2,"subStep":"<key>","status":"active|done"}'
+sprinkle send of1-demo-orchestrator '{"stage":2,"subStep":"<key>","status":"active|done","runId":"$OF1_RUN_ID"}'
 ```
 
-at each phase boundary — `active` when the phase starts, `done` when it completes. Keys are
-EXACTLY `scaffold, extract, skin, lift, stabilize` — they must match the sprinkle's Stage-2
-`subSteps[]` keys or the row won't update. Valid statuses are only `pending, active, done, review,
-failed` (same set as everywhere else in this doc).
+reading `$OF1_RUN_ID` from the env the cone passed to the `of1-s2-liftoff` scoop (see "Run identity
+(runId)" above) — this keeps of1-liftoff's own pushes from being discarded as stale by a follower
+that has since started a newer run. At each phase boundary — `active` when the phase starts, `done`
+when it completes. Keys are EXACTLY `scaffold, extract, skin, lift, stabilize` — they must match the
+sprinkle's Stage-2 `subSteps[]` keys or the row won't update. Valid statuses are only `pending,
+active, done, review, failed` (same set as everywhere else in this doc).
 
 The cone still pushes the TOP-LEVEL `{"stage":2,"status":...}` itself (`active` on dispatch,
 `review`/`done` from of1-liftoff's final status block) and still owns the Stage-2 artifact gate and
@@ -232,13 +267,13 @@ case "$SKILL_OR_PHASE" in
   of1-publish)                 KEY=deploy ;;
   *)                           KEY="" ;;
 esac
-[ -n "$KEY" ] && sprinkle send of1-demo-orchestrator "{\"stage\":3,\"subStep\":\"$KEY\",\"status\":\"$S\"}"
+[ -n "$KEY" ] && sprinkle send of1-demo-orchestrator "{\"stage\":3,\"subStep\":\"$KEY\",\"status\":\"$S\",\"runId\":\"$RUN_ID\"}"
 ```
 
-- When the cone dispatches a skill, push `{"stage":3,"subStep":"$KEY","status":"active"}` so the row
-  animates; on completion push the terminal status.
-- Keep pushing the top-level `{"stage":3,"status":...}` (active when the first skill starts, done when
-  `of1-publish` returns).
+- When the cone dispatches a skill, push `{"stage":3,"subStep":"$KEY","status":"active","runId":"$RUN_ID"}`
+  so the row animates; on completion push the terminal status (also carrying `runId`).
+- Keep pushing the top-level `{"stage":3,"status":...,"runId":"$RUN_ID"}` (active when the first skill
+  starts, done when `of1-publish` returns).
 - **subStep keys are EXACTLY** `brand, content, suggest, templates, styling, cta, config, deploy` —
   they must match the sprinkle's `subSteps[]` keys or the row won't update.
 
@@ -295,7 +330,7 @@ section; writing it later means the hub was already generated without it). SLICC
 
 Push the audit as a final sprinkle event:
 ```bash
-sprinkle send of1-demo-orchestrator '{"type":"audit","file":"/shared/of1-demo-orchestrator/pipeline-audit.json"}'
+sprinkle send of1-demo-orchestrator "{\"type\":\"audit\",\"file\":\"/shared/of1-demo-orchestrator/pipeline-audit.json\",\"runId\":\"$RUN_ID\"}"
 ```
 
 ## SLICC inline-execution gotchas

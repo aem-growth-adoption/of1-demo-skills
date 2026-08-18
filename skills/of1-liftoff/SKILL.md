@@ -66,8 +66,14 @@ long-running scoop the cone can't see inside, this skill pushes its OWN sub-step
 `of1-demo-orchestrator` sprinkle at each phase boundary:
 
 ```
-sprinkle send of1-demo-orchestrator '{"stage":2,"subStep":"<key>","status":"active|done"}'
+sprinkle send of1-demo-orchestrator "{\"stage\":2,\"subStep\":\"<key>\",\"status\":\"active|done\",\"runId\":\"$OF1_RUN_ID\"}"
 ```
+
+Read `$OF1_RUN_ID` from the env — the cone passes `OF1_RUN_ID` in this scoop's env (see
+`of1-demo-orchestrator/knowledge/dispatch-slicc.md` § "Run identity (runId)"); it's the cone-minted
+runId that lets a follower sprinkle discard stale state from a prior run, including a same-domain
+re-run. If `OF1_RUN_ID` is unset, omit the `runId` field entirely rather than sending the literal
+string `"$OF1_RUN_ID"` — never error or block on its absence.
 
 Push `active` when a phase starts and `done` when it completes. Map the 6 steps above to the 5
 sprinkle sub-step keys exactly like this (steps 4–5 share the `lift` key):
@@ -87,7 +93,9 @@ the `stabilize` sub-step.
 
 **CC no-op guard:** on Claude Code there is no sprinkle and no `sprinkle send` tool. This section
 applies ONLY when the SLICC primitives are detected present — on Claude Code, skip all of the above
-entirely; do not attempt the call, and do not error or block on its absence.
+entirely; do not attempt the call, and do not error or block on its absence. This also covers the
+case where SLICC primitives are present but `OF1_RUN_ID` is unset (e.g. an older cone) — send the
+sub-step push without the `runId` field rather than failing.
 
 ## `blocks-manifest.json` schema
 
