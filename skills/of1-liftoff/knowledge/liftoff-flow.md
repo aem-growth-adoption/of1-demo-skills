@@ -170,6 +170,16 @@ its `assemble` step-1 recheck) explicitly accepts the repo's existing `styles/st
 (core vars `--heading-font-family`/`--text-color`/`--background-color`) as the token source when no
 `OF1-TOKENS` marker was written, so no `DESIGN.json` fallback is needed there either.
 
+**Font loading is not implied by the token write.** `skin-tokens.mjs` only sets `:root` custom
+properties (e.g. `--heading-font-family`, `--text-font-family`) — it does NOT load the actual
+web-font files those properties name. If the brand's real fonts aren't already available in the
+repo (system fonts, or fonts the boilerplate already bundles), the `--*-font-family` vars resolve
+to an unavailable family and the browser silently falls back to its default serif/sans-serif.
+Loading the font files themselves is a separate action this step must also take when the DESIGN
+tokens name a non-system font: add the font `<link>`s to `head.html` (Google Fonts or similar CDN)
+or add `@font-face` rules to `styles/styles.css`/a dedicated fonts partial. Do not treat skinning as
+complete after just the token write — verify the named font families are actually loadable.
+
 ## 5. Lift — home + product pages
 
 For `home` and every key page whose derived role is `product` (see SKILL.md § Env), invoke
@@ -195,6 +205,14 @@ map cleanly onto that palette. When a page genuinely needs a shape none of those
 Whichever path you took, record it in `blocks-manifest.json` with `collection: "block-party"` or
 `collection: "custom"` respectively.
 
+**Brand logo — use the EDS icon system, never a text-bearing SVG `<img>`.** When lifting the header/
+footer chrome, the brand logo must be authored as an icon-shape SVG served from the code bus through
+the standard EDS icon system (`<span class="icon icon-{name}">`, resolved by `scripts/scripts.js`'s
+icon-decoration pass to `icons/{name}.svg`) placed next to real text (the brand name as an actual
+text node, not baked into the SVG). Do NOT drop in a single SVG `<img>` that bakes the wordmark as
+paths/text inside the SVG itself — that's invisible to text-based fidelity/SEO checks, doesn't
+recolor via CSS tokens, and breaks the icon system's caching/sprite conventions.
+
 ## 6. Build the manifest, then stabilize
 
 **Build `blocks-manifest.json`:** after lifting, enumerate — per page — which blocks actually got
@@ -209,27 +227,45 @@ node "$SKILL_DIR/assets/validate-blocks-manifest.mjs" blocks-manifest.json
 Fail loudly (stop, do not report success) on any validator error — fix the manifest, not the
 validator.
 
-**Stabilize gate — render + lint + no-JS-errors + human approval, never a pixel diff:**
+**Stabilize gate — render + lint + no-JS-errors + render-integrity + human approval, never a pixel
+diff:**
 
 1. Run `page-import`'s own `preview-import` flow per lifted page: does it render locally, does lint
    pass (repo's own `npm run lint` / block-collection conventions), are there any console/JS errors
    on load.
-2. Write one entry per page into `stardust/liftoff/progress.json` (schema in `SKILL.md` §
-   "Ledger schema") — **every one of `rendered`, `lint`, `jsErrors`, `approved` must be set
-   explicitly**; an omitted `jsErrors` silently reads as zero to the gate (see the CRITICAL
-   PRODUCER RULE in `SKILL.md`), so never skip a field because a check didn't run — record the
-   check as failed/unknown instead of leaving the field out.
-3. Emit a human-approval gate (config-review style: surface each lifted page for the user to look
+2. **Render-integrity checks**, per lifted page, after lifting and before human approval:
+   1. **Preview polling:** load the page's EDS preview URL and bounded-poll until it returns HTTP
+      200 (fail the page if it never reaches 200 within the bound). Record `previewOk: true|false`.
+   2. **Broken-image / media warming:** enumerate the rendered page's `<img>`s, warm each (fetch/
+      request) until it returns 200, and count any that never load as `brokenImages: <int>`. Verify
+      a real image by activation + screenshot, NOT `naturalWidth` alone — `naturalWidth` can be
+      truthy for a broken-image placeholder or a same-size error response, so it does not prove the
+      real asset loaded.
+   3. **Envelope assertion:** assert the delivered DA `.plain.html` for the page is >= 100 bytes (a
+      smaller file signals a missing `<main>` envelope — the page didn't actually get content).
+      Record `plainHtmlBytes: <int>`.
+
+   The page's existing `rendered` field stays as-is; these are additional signals layered on top,
+   not a replacement.
+3. Write one entry per page into `stardust/liftoff/progress.json` (schema in `SKILL.md` §
+   "Ledger schema") — **every one of `rendered`, `lint`, `jsErrors`, `approved`, `previewOk`,
+   `brokenImages`, `plainHtmlBytes` must be set explicitly**; an omitted `jsErrors`,
+   `brokenImages`, or `plainHtmlBytes` silently reads as passing to the gate (see the CRITICAL
+   PRODUCER RULE in `SKILL.md`) — `previewOk` is the one field where omission fails instead. Never
+   skip a field because a check didn't run — record the check as failed/unknown instead of leaving
+   the field out.
+4. Emit a human-approval gate (config-review style: surface each lifted page for the user to look
    at, then set that page's `approved: true` in the ledger once accepted — do not set `approved`
    before an actual human look, and do not default it to `true`).
-4. Only after every page's ledger entry has all four fields set and `approved: true`, self-verify
+5. Only after every page's ledger entry has all seven fields set and `approved: true`, self-verify
    against the ledger you just wrote — `of1-liftoff` has no env var resolving the orchestrator's
    asset dir (`SKILL_DIR` here points at `of1-liftoff`'s own dir, not the orchestrator's), so do not
    invent a path to the orchestrator's `check-liftoff-artifacts.mjs`. Instead, read back
    `stardust/liftoff/progress.json` and confirm every page entry has `rendered: true`, `lint: "pass"`,
-   `jsErrors: 0`, and `approved: true`. All pages passing → write `liftoff-done.json` and report the
-   final status block as `done`. Any page missing or failing a field → do not write
-   `liftoff-done.json`; report `failed` naming the offending page(s) and field(s) as the summary. The
-   orchestrator re-runs `check-liftoff-artifacts.mjs` itself once `liftoff-done.json` appears — that
-   is the authoritative gate call; this self-check only prevents `of1-liftoff` from claiming success
-   on an incomplete ledger.
+   `jsErrors: 0`, `approved: true`, `previewOk: true`, `brokenImages: 0`, and `plainHtmlBytes >= 100`.
+   All pages passing → write `liftoff-done.json` and report the final status block as `done`. Any
+   page missing or failing a field → do not write `liftoff-done.json`; report `failed` naming the
+   offending page(s) and field(s) as the summary. The orchestrator re-runs
+   `check-liftoff-artifacts.mjs` itself once `liftoff-done.json` appears — that is the authoritative
+   gate call; this self-check only prevents `of1-liftoff` from claiming success on an incomplete
+   ledger.

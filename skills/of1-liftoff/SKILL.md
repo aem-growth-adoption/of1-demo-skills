@@ -108,27 +108,47 @@ orchestrator skill is a verbatim valid example):
 ```json
 {
   "pages": [
-    { "slug": "/", "role": "home", "rendered": true, "lint": "pass", "jsErrors": 0, "approved": true },
-    { "slug": "/product/x", "role": "product", "rendered": true, "lint": "pass", "jsErrors": 0, "approved": true }
+    { "slug": "/", "role": "home", "rendered": true, "lint": "pass", "jsErrors": 0, "approved": true,
+      "previewOk": true, "brokenImages": 0, "plainHtmlBytes": 2048 },
+    { "slug": "/product/x", "role": "product", "rendered": true, "lint": "pass", "jsErrors": 0, "approved": true,
+      "previewOk": true, "brokenImages": 0, "plainHtmlBytes": 2048 }
   ],
   "blocksManifest": "blocks-manifest.json"
 }
 ```
 
-**CRITICAL PRODUCER RULE:** every page object MUST set all four of `rendered`, `lint`, `jsErrors`,
-and `approved` explicitly. The gate's checks are:
+Per-page fields:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `rendered` | bool | page rendered locally via `page-import`'s preview flow |
+| `lint` | string (`pass`/`fail`) | repo's own lint conventions |
+| `jsErrors` | int | console/JS errors on load |
+| `approved` | bool | human looked at the rendered page and accepted it |
+| `previewOk` | bool | the page's EDS preview URL was bounded-polled to HTTP 200 |
+| `brokenImages` | int | count of images that never warmed to HTTP 200 (verified by activation + screenshot, not `naturalWidth` alone) |
+| `plainHtmlBytes` | int | byte size of the delivered DA `.plain.html` (a `<main>` envelope should be well over 100 bytes) |
+
+**CRITICAL PRODUCER RULE:** every page object MUST set all seven of `rendered`, `lint`, `jsErrors`,
+`approved`, `previewOk`, `brokenImages`, and `plainHtmlBytes` explicitly. The gate's checks are:
 
 ```js
 if (p.rendered !== true) fail;
 if (String(p.lint) === 'fail') fail;
 if (Number(p.jsErrors) > 0) fail;
 if (p.approved !== true) fail;
+if (p.previewOk !== true) fail;
+if (Number(p.brokenImages) > 0) fail;
+if (Number(p.plainHtmlBytes) < 100) fail;
 ```
 
 An **omitted `jsErrors`** field passes silently: `Number(undefined)` is `NaN`, and `NaN > 0` is
-`false` — the gate treats a page with unknown JS-error status as clean. Never leave `jsErrors`
-(or any of the four fields) unset "because it defaults to fine" — it doesn't default to fine, it
-defaults to unchecked, and the gate cannot tell the difference from your side.
+`false` — the gate treats a page with unknown JS-error status as clean. The same coercion applies
+to `brokenImages` and `plainHtmlBytes` — an omitted `plainHtmlBytes` reads as `NaN < 100`, which is
+`false`, so it passes silently too. `previewOk` is the one exception: it's checked with `!== true`,
+so an omitted or falsy `previewOk` FAILS the page (missing = fail, not missing = pass). Never leave
+any of the seven fields unset "because it defaults to fine" — none of them default to fine, they
+default to unchecked, and the gate cannot tell the difference from your side.
 
 ## Outputs & handoff
 

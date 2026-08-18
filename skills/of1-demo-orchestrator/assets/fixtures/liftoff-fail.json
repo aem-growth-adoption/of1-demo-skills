@@ -1,1 +1,1 @@
-{ "pages": [ { "slug": "/", "role": "home", "rendered": true, "lint": "fail", "jsErrors": 2, "approved": false } ] }
+{ "pages": [ { "slug": "/", "role": "home", "rendered": true, "lint": "fail", "jsErrors": 2, "approved": false, "previewOk": false, "brokenImages": 3, "plainHtmlBytes": 40 } ] }
