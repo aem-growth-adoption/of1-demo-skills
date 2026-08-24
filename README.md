@@ -5,59 +5,41 @@ Claude Code skills for preparing OF1 generative web search demos. These skills a
 ## Pipeline Flow
 
 ```
-Steps 1→2→3→4→5 (sequential)
-                 ↓
-         ┌───────┴───────┐
-         ↓               ↓
-    Track A          Track B
-         ↓               ↓
-    Step 6          Steps 9,10,11
-    (Snowflake)     (all parallel)
-         ↓               ↓
-    Steps 7+8       Step 12
-    (parallel)      (Config review)
-         ↓               ↓
-         └───────┬───────┘
-                 ↓
-            Step 13 (Deploy)
+Stage 1 · Collect        of1-discovery → narrative.json (keyPages, focus)
+                                   │
+        ┌──────────────────────────┴──────────────────────────┐
+Stage 2 · Replica                              Stage 3 · OF1 integration
+stardust:replica --pages                       of1-integration (pipeline mode)
+→ EDS site + DESIGN.json                        content track ∥ replica; site track after
+        └──────────────────────────┬──────────────────────────┘
+                              (adopt-site owns deploy)
 ```
 
-| Step | Name | Skill | Depends on |
-|------|------|-------|------------|
-| 1 | Install dependencies | `of1-setup` | — |
-| 2 | Repo setup | `of1-repo-setup` | Step 1 |
-| 3 | Discovery | `of1-discovery` | Step 2 |
-| 4 | Extraction | `of1-extraction` | Step 3 |
-| 5 | Prototype | `of1-prototype` | Step 4 |
-| 6 | Snowflake | `of1-snowflake` | Step 5 |
-| 7 | Templates | `of1-template-generation` | Step 6 |
-| 8 | OF1 styling | `of1-generative-block-styler` | Step 6 |
-| 9 | Brand & content | `of1-brand-voice-extractor` + `of1-content-metadata` | Step 5 |
-| 10 | Suggestions | `of1-quick-suggestions` | Step 5 |
-| 11 | CTA template | `of1-cta-template-builder` | Step 5 |
-| 12 | Config review | `of1-config-review` | Steps 9+10+11 |
-| 13 | Deploy | `of1-deploy` | Steps 7+8+12 |
+| Stage | Skill | Notes |
+|-------|-------|-------|
+| 1 Collect | `of1-discovery` | Emits `narrative.json` (keyPages drive Stage 2) |
+| 2 Replica | `stardust:replica --pages` | Bounded same-design migration; no site-wide rollout |
+| 3 OF1 integration | `of1-integration` | Pipeline mode: live content source + replica-done gate |
+
+Within Stage 3, `of1-integration` runs its own internal step graph — templates, OF1 styling, brand voice/content extraction, quick suggestions, CTA template, config review, and deploy — fanning out in parallel where dependencies allow (see that skill's own `SKILL.md` for the full step graph and dependency table).
 
 ## Skills
 
 | Skill | Description |
 |-------|-------------|
-| `of1-demo` | Orchestrate full demo preparation — user-driven step pipeline via sprinkle UI |
-| `of1-setup` | Verify prerequisites — skills, tools, and repo state |
-| `of1-repo-setup` | Set up EDS repo (existing or new from boilerplate) + create demo branch |
+| `of1-demo-orchestrator` | Orchestrate full demo preparation — 3-stage pipeline; runs on both Claude Code and SLICC (detects the runtime, sprinkle UI on SLICC) |
+| `of1-check-dependencies` | Verify prerequisites — skills, tools, and repo state; verify EDS repo + prepare repo-config.json |
 | `of1-discovery` | Crawl a target website and propose a demo focus/narrative |
-| `of1-extraction` | Extract design tokens, brand identity, and page structure from a live site |
-| `of1-prototype` | Generate pixel-perfect HTML prototypes of key pages |
-| `of1-snowflake` | Convert stardust prototypes to EDS pages and install the OF1 block |
-| `of1-template-generation` | Generate 25 branded templates (5 intents × 5 variations) |
-| `of1-generative-block-styler` | Generate CSS for dynamically-rendered generative sections |
-| `of1-brand-voice-extractor` | Extract brand voice from a website and generate `brand-voice.json` |
-| `of1-content-metadata` | Scrape product data, personas, use cases, features, and FAQs |
-| `of1-quick-suggestions` | Generate suggestion chips and search UI copy |
-| `of1-cta-template-builder` | Extract site design system and generate a branded CTA template |
-| `of1-config-review` | Generate the config-review.html deliverable from tenant config |
-| `of1-deploy` | Commit config, sync to OF1 worker, generate demo hub, and verify |
+| `of1-build-templates` | Generate 15 branded templates (5 intents × 3 variations) |
+| `of1-style-generative-block` | Generate CSS for dynamically-rendered generative sections |
+| `of1-extract-brand-voice` | Extract brand voice from a website and generate `brand-voice.json` |
+| `of1-extract-content` | Scrape product data, personas, use cases, features, and FAQs |
+| `of1-build-quick-suggestions` | Generate suggestion chips and search UI copy |
+| `of1-build-cta-template` | Extract site design system and generate a branded CTA template |
+| `of1-generate-config-review` | Generate the config-review.html deliverable from tenant config |
+| `of1-publish` | Commit config, sync to OF1 worker, generate demo hub, and verify |
 | `of1-signals` | Standalone (not a pipeline step) — author `signals.json`, the OF1 **preview extension's** own config for simulating how a demo visitor arrived (fake email/ads/LLM referrals) |
+| `of1-integration` | Stage 3 of the `of1-demo-orchestrator` pipeline (pipeline mode) — also runs standalone against an existing EDS/Stardust site, reusing whatever design tokens/blocks/pages already exist instead of crawling an external domain. Works on both Claude Code and SLICC with no sprinkle/scoop UI. |
 
 ## Usage
 
@@ -70,24 +52,23 @@ claude plugins install /path/to/of1-demo-skills
 Then run the orchestrator:
 
 ```
-/of1-demo
+/of1-demo-orchestrator
 ```
 
 ## Prerequisites
 
-The setup step (`of1-setup`) verifies all of the following:
+The setup step (`of1-check-dependencies`) verifies all of the following:
 
-- **Skills installed** — OF1 demo skills + Adobe EDS/snowflake skills (`adobe/skills`) + stardust (`adobe/skills`) + impeccable (`pbakaus/impeccable`)
+- **Skills installed** — OF1 demo skills + Adobe stardust skills (`adobe/skills`, includes `replica` for Stage 2 and `deploy`) + impeccable (`pbakaus/impeccable`)
 - **Playwright** — `playwright-cli` available on PATH
 - **Node.js** — `node` available on PATH
 - **Git credentials** — `~/.git-credentials` present for push access
-- **of1-demo repo** — cloned at `/workspace/of1-demo` (the shared AEM EDS repository where demo sites are built)
+- **EDS repo** — a valid Edge Delivery Services checkout at `OF1_DEMO_REPO` (any org/repo; verified structurally, not by identity)
 
 The following plugins are also required by the pipeline:
 
 ```bash
 upskill aem-growth-adoption/of1-demo-skills --all --branch skills-v3 --force
-upskill adobe/skills --path plugins/aem/edge-delivery-services --all
 upskill adobe/skills --path plugins/stardust --all
 upskill pbakaus/impeccable --all
 ```

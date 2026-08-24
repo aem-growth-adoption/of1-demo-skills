@@ -1,20 +1,21 @@
 ---
 name: of1-snowflake
-description: Convert the step-5 prototypes into EDS overlay pages by invoking the adobe `snowflake` skill once per prototype. Thin wrapper — snowflake owns the methodology; this skill orchestrates the per-prototype loop and overrides snowflake's branch handling so artifacts land on the demo branch.
+description: Convert of1-prototype's prototypes into EDS overlay pages by invoking the adobe `snowflake` skill once per prototype. Thin wrapper — snowflake owns the methodology; this skill orchestrates the per-prototype loop and overrides snowflake's branch handling so artifacts land on the demo branch.
 user-invocable: false
 ---
 
 # OF1 Snowflake
 
-Pure delegation to the `snowflake` skill (`aem-edge-delivery-services` plugin). For each prototype committed by step 5, invoke snowflake to produce the EDS overlay artifacts — `templates/<slug>.html`, `fragments/<slug>/{header,footer}.html`, `styles/<slug>.css`, and the DA-source body — and push them to the demo branch.
+Pure delegation to the `snowflake` skill (`aem-edge-delivery-services` plugin). For each prototype committed by `of1-prototype`, invoke snowflake to produce the EDS overlay artifacts — `templates/<slug>.html`, `fragments/<slug>/{header,footer}.html`, `styles/<slug>.css`, and the DA-source body — and push them to the demo branch.
 
-The OF1-specific extension to the overlay engine (the `data-slot-passthrough` mechanism needed by the `/of1` page) is owned by **step 8**, not here. Step 6 stays a pure snowflake wrapper.
+The OF1-specific extension to the overlay engine (the `data-slot-passthrough` mechanism needed by the `/of1` page) is owned by a later stage-3 skill, not here. `of1-snowflake` stays a pure snowflake wrapper.
 
 ## Env — orchestrator exports these (see `of1-setup`)
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-6-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `of1-snowflake-status.json` |
+| `OF1_STAGE2_DONE_FILE` | path to the Stage-2 done file the orchestrator exports; Stage-3 site-integration waits on this |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 | `ADOBE_IMS_TOKEN` | raw DA token (preferred — snowflake reads this from env automatically) |
 | `OF1_TOKEN_FILE` | path to a `{"access_token":"…"}` JSON (fallback) |
@@ -46,7 +47,7 @@ echo "Converting: $PROTOTYPES"
 
 ### 2. For each prototype, invoke the `snowflake` skill
 
-Invoke the `snowflake` skill once per prototype. Snowflake runs its 7 phases (Phase 0 substrate install runs only on the first invocation — subsequent runs are no-ops). The prototypes from step 5 are already hosted on EDS preview (static HTML in `/deliverables/*` is served directly from the code bus), so pass that URL as `SOURCE_URL`.
+Invoke the `snowflake` skill once per prototype. Snowflake runs its 7 phases (Phase 0 substrate install runs only on the first invocation — subsequent runs are no-ops). The prototypes from `of1-prototype` are already hosted on EDS preview (static HTML in `/deliverables/*` is served directly from the code bus), so pass that URL as `SOURCE_URL`.
 
 **How to invoke in each runtime:**
 
@@ -72,7 +73,7 @@ Snowflake gathers prerequisites at the start of each run. Supply these values (d
 | Target EDS repo | `${OWNER}/${REPO}` (local clone at `$OF1_DEMO_REPO`) |
 | `DA_ROOT` | `/` |
 | `PAGE_SLUG` | `${SLUG}` (e.g. `prototype-home`) |
-| `TEMPLATE_NAME` | `${SLUG}` (matches the fragment path step 8 reads) |
+| `TEMPLATE_NAME` | `${SLUG}` (matches the fragment path a later stage-3 skill reads) |
 | `level` | `page` (overlay — preserves the prototype DOM byte-for-byte) |
 | `assetStrategy` | `da-media` (binaries uploaded to DA media bus; URLs branch-independent and reusable across runs) |
 | DA token | snowflake reads `$DA_TOKEN` from env automatically |
@@ -98,18 +99,18 @@ Loop over all prototypes, applying this override on every invocation.
 
 ### 3. Verify critical artifacts exist (hard gate)
 
-After snowflake completes for every prototype, verify the most important outputs exist. **Step 7 (template generation) depends on `templates/prototype-*.html`** — if these are missing, step 7 has no reference for how `data-slot` markers work and will produce degraded templates.
+After snowflake completes for every prototype, verify the most important outputs exist. **The stage-3 template-generation skill depends on `templates/prototype-*.html`** — if these are missing, it has no reference for how `data-slot` markers work and will produce degraded templates.
 
 ```bash
 cd "$OF1_DEMO_REPO"
 FAIL=false
 
 for SLUG in $PROTOTYPES; do
-  # Slot-marked overlay template — THE critical output for step 7
+  # Slot-marked overlay template — THE critical output for the stage-3 template skill
   [ -f "templates/${SLUG}.html" ] || { echo "✗ MISSING: templates/${SLUG}.html"; FAIL=true; }
   # Per-template CSS
   [ -f "styles/${SLUG}.css" ] || { echo "✗ MISSING: styles/${SLUG}.css"; FAIL=true; }
-  # Header/footer fragments — step 8 reads these for /of1 page chrome
+  # Header/footer fragments — a later stage-3 skill reads these for /of1 page chrome
   [ -f "fragments/${SLUG}/header.html" ] || { echo "✗ MISSING: fragments/${SLUG}/header.html"; FAIL=true; }
   [ -f "fragments/${SLUG}/footer.html" ] || { echo "✗ MISSING: fragments/${SLUG}/footer.html"; FAIL=true; }
 done
@@ -161,14 +162,18 @@ PYEOF
 
 COUNT=$(echo "$PROTOTYPES" | wc -w | tr -d ' ')
 
-cat > "$OF1_STATE_DIR/step-6-status.json" <<EOF
+cat > "$OF1_STATE_DIR/of1-snowflake-status.json" <<EOF
 {
-  "step": 6,
+  "stage": 2,
+  "skill": "of1-snowflake",
   "status": "review",
   "deliverables": ${DELIVERABLES},
   "summary": "Snowflake overlay conversion complete: ${COUNT} EDS page(s) on demo branch, with branded chrome + slot-keyed text content."
 }
 EOF
+
+# Stage-2 done file — the Stage-3 site-integration track gates on this.
+printf '{"stage":2,"status":"done"}' > "${OF1_STAGE2_DONE_FILE:?OF1_STAGE2_DONE_FILE unset}"
 ```
 
 The orchestrator (CC: agent-return parsing; SLICC: sprinkle polling) handles the approve/done transition.

@@ -6,13 +6,13 @@ user-invocable: false
 
 # OF1 Prototype
 
-Generate pixel-perfect, self-contained HTML reproductions of key pages from the target website by invoking the `stardust:prototype` skill. These prototypes are the source-of-truth for the snowflake overlay conversion in step 6.
+Generate pixel-perfect, self-contained HTML reproductions of key pages from the target website by invoking the `stardust:prototype` skill. These prototypes are the source-of-truth for the snowflake overlay conversion (`of1-snowflake`).
 
 ## Env — orchestrator exports these (see `of1-setup`)
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-5-status.json` |
+| `OF1_STATE_DIR` | state + IPC dir; receives `of1-prototype-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 
 `playwright-cli` calls use `open` + `--fullPage=true` + `--filename` (SLICC-native syntax; CC shim passes through unchanged).
@@ -20,7 +20,7 @@ Generate pixel-perfect, self-contained HTML reproductions of key pages from the 
 ## Inputs
 
 - `DOMAIN` (e.g. `frescopa.coffee`)
-- Extraction outputs at `stardust/current/` (DESIGN.json, logo.svg, screenshots, per-page JSON — from step 4)
+- Extraction outputs at `stardust/current/` (DESIGN.json, logo.svg, screenshots, per-page JSON — from `of1-extract-design`)
 - Discovery key pages (typically homepage + 2 category/product pages)
 - `repo-config.json` (from step 2)
 
@@ -179,7 +179,7 @@ done
 
 #### 5b. CSS class naming — avoid EDS collisions
 
-EDS wraps content in `<div class="header-wrapper"><div class="header block">…</div></div>`. If a prototype uses `<header class="header">`, snowflake (step 6) inherits the collision and the nav renders wrong. Rename:
+EDS wraps content in `<div class="header-wrapper"><div class="header block">…</div></div>`. If a prototype uses `<header class="header">`, snowflake (`of1-snowflake`) inherits the collision and the nav renders wrong. Rename:
 
 | If prototype uses | Rename to |
 |---|---|
@@ -192,7 +192,7 @@ EDS wraps content in `<div class="header-wrapper"><div class="header block">…<
 
 When fixing card images that stardust:prototype left blank or wrong, pull the URL from the captured page JSON — **never construct it from a path pattern**.
 
-Step 4 wrote one JSON file per crawled page at `stardust/current/pages/<page>.json`, each listing the `images` array with the exact URLs as they appeared in the live DOM. That's the canonical source.
+`of1-extract-design` wrote one JSON file per crawled page at `stardust/current/pages/<page>.json`, each listing the `images` array with the exact URLs as they appeared in the live DOM. That's the canonical source.
 
 ```bash
 # ✅ CORRECT — look up the captured URL
@@ -268,7 +268,7 @@ $OF1_DEMO_REPO/
 
 Build a `deliverables` array — one entry per prototype, so the orchestrator can render one Open button per page (e.g. Open Home, Open Adventures, Open Magazine). The static HTML files committed in step 5 are served directly from the code bus at `/deliverables/*` — no EDS preview trigger needed.
 
-URLs MUST point at `/deliverables/prototype-*.html` (standalone HTML committed above), NOT `/${BRANCH}/prototype-*` (the EDS overlay URL produced later by step 6 — snowflake).
+URLs MUST point at `/deliverables/prototype-*.html` (standalone HTML committed above), NOT `/${BRANCH}/prototype-*` (the EDS overlay URL produced later by `of1-snowflake`).
 
 ```bash
 DELIVERABLES=$(python3 - <<PYEOF
@@ -288,9 +288,10 @@ PYEOF
 
 COUNT=$(ls deliverables/prototype-*.html 2>/dev/null | wc -l | tr -d ' ')
 
-cat > "$OF1_STATE_DIR/step-5-status.json" <<EOF
+cat > "$OF1_STATE_DIR/of1-prototype-status.json" <<EOF
 {
-  "step": 5,
+  "stage": 2,
+  "skill": "of1-prototype",
   "status": "review",
   "deliverables": ${DELIVERABLES},
   "summary": "Generated ${COUNT} pixel-perfect HTML prototypes with real images, correct tokens, and matching layout."

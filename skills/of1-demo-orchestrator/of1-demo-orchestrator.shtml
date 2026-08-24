@@ -1,0 +1,1091 @@
+<title>OF1 Demo</title>
+<link rel="icon" href="rocket" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<style>
+  :host, :root {
+    --of1-bg: #1C1917;
+    --of1-fg: #F5F0E8;
+    --of1-accent: #FF3D00;
+    --of1-secondary: #1A1AFF;
+    --of1-teal: #00E5A0;
+    --of1-fg-dim: rgba(245, 240, 232, 0.78);
+    --of1-fg-faint: rgba(245, 240, 232, 0.08);
+    --of1-fg-muted: rgba(245, 240, 232, 0.7);
+    --of1-review: rgba(255, 200, 50, 0.9);
+    --of1-failed: #FF2D2D;
+    --of1-border: rgba(245, 240, 232, 0.1);
+    --of1-border-subtle: rgba(245, 240, 232, 0.06);
+    --of1-heading-font: 'Cormorant Garamond', serif;
+    --of1-body-font: 'JetBrains Mono', monospace;
+    --of1-radius-card: 10px;
+    --of1-radius-pill: 100px;
+  }
+
+  .of1-root {
+    background: var(--of1-bg);
+    color: var(--of1-fg);
+    font-family: var(--of1-body-font);
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 16px 14px;
+    min-height: 100%;
+    box-sizing: border-box;
+  }
+
+  .of1-root *, .of1-root *::before, .of1-root *::after {
+    box-sizing: border-box;
+  }
+
+  /* ─── Header ─────────────────────────────────────────────── */
+
+  .of1-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--of1-border);
+  }
+
+  .of1-header__left {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .of1-header__brand {
+    font-family: var(--of1-body-font);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--of1-fg);
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .of1-header__brand-accent {
+    color: var(--of1-accent);
+  }
+
+  .of1-header__domain {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--of1-fg-dim);
+    background: var(--of1-fg-faint);
+    border: 1px solid var(--of1-border);
+    border-radius: var(--of1-radius-pill);
+    padding: 3px 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .of1-header__domain:empty { display: none; }
+
+  .of1-header__reset {
+    font-family: var(--of1-body-font);
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    background: transparent;
+    border: 1px solid var(--of1-border);
+    color: var(--of1-fg-dim);
+    border-radius: var(--of1-radius-pill);
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    line-height: 1;
+  }
+
+  .of1-header__reset:hover {
+    border-color: rgba(255, 61, 0, 0.5);
+    color: var(--of1-accent);
+    background: rgba(255, 61, 0, 0.06);
+  }
+
+  /* ─── Domain Input ───────────────────────────────────────── */
+
+  .of1-domain-input {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--of1-border);
+  }
+
+  .of1-domain-input input {
+    flex: 1;
+    font-family: var(--of1-body-font);
+    font-size: 13px;
+    background: var(--of1-fg-faint);
+    border: 1px solid var(--of1-border);
+    border-radius: var(--of1-radius-pill);
+    padding: 6px 14px;
+    color: var(--of1-fg);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .of1-domain-input input:focus {
+    border-color: var(--of1-accent);
+  }
+
+  .of1-domain-input input::placeholder {
+    color: var(--of1-fg-muted);
+  }
+
+  .of1-domain-input button {
+    font-family: var(--of1-body-font);
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    background: var(--of1-accent);
+    border: none;
+    color: #fff;
+    border-radius: var(--of1-radius-pill);
+    padding: 6px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .of1-domain-input button:hover {
+    filter: brightness(1.15);
+  }
+
+  .of1-domain-input--hidden { display: none; }
+
+  /* ─── Steps Container ────────────────────────────────────── */
+
+  .of1-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* ─── Step Card ──────────────────────────────────────────── */
+
+  .of1-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--of1-radius-card);
+    font-size: 13px;
+    color: var(--of1-fg);
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid transparent;
+  }
+
+  .of1-card--pending {
+    border: 1px dashed var(--of1-border);
+    color: var(--of1-fg-dim);
+  }
+
+  .of1-card--pending .of1-card__icon { opacity: 0.35; }
+
+  .of1-card--ready {
+    border: 1px solid rgba(245, 240, 232, 0.15);
+    color: var(--of1-fg);
+  }
+
+  .of1-card--active {
+    border: 1px solid rgba(255, 61, 0, 0.5);
+    border-left: 3px solid var(--of1-accent);
+    color: var(--of1-fg);
+    font-weight: 500;
+    padding: 12px 12px;
+    box-shadow: 0 0 20px rgba(255, 61, 0, 0.08), inset 0 0 20px rgba(255, 61, 0, 0.03);
+    background: linear-gradient(90deg, transparent 25%, rgba(255, 61, 0, 0.06) 50%, transparent 75%);
+    background-size: 200% 100%;
+    animation: of1-shimmer 2s ease-in-out infinite;
+  }
+
+  .of1-card--active .of1-card__icon { color: var(--of1-accent); }
+  .of1-card--active .of1-card__name span { color: var(--of1-accent); }
+
+  @keyframes of1-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .of1-card--done {
+    border: 1px solid rgba(0, 229, 160, 0.15);
+    background: rgba(0, 229, 160, 0.04);
+    color: var(--of1-teal);
+  }
+
+  .of1-card--review {
+    border: 1px solid rgba(255, 200, 50, 0.2);
+    background: rgba(255, 200, 50, 0.04);
+    color: var(--of1-review);
+    padding: 12px 12px;
+  }
+
+  .of1-card--failed {
+    border: 1px solid rgba(255, 45, 45, 0.2);
+    background: rgba(255, 45, 45, 0.04);
+    color: var(--of1-failed);
+  }
+
+  /* ─── Card Icon ──────────────────────────────────────────── */
+
+  .of1-card__icon {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+  }
+
+  .of1-card__icon svg { width: 14px; height: 14px; }
+
+  /* ─── Card Body ──────────────────────────────────────────── */
+
+  .of1-card__body { flex: 1; min-width: 0; }
+
+  .of1-card__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .of1-card__name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+  }
+
+  .of1-card__name span { letter-spacing: 0.02em; }
+
+  .of1-card__num {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--of1-fg-muted);
+    letter-spacing: 0.05em;
+    min-width: 14px;
+  }
+
+  .of1-card--active .of1-card__num { color: var(--of1-accent); }
+  .of1-card--done .of1-card__num { color: var(--of1-teal); }
+  .of1-card--review .of1-card__num { color: var(--of1-review); }
+  .of1-card--failed .of1-card__num { color: var(--of1-failed); }
+
+  /* ─── Run Button ─────────────────────────────────────────── */
+
+  .of1-card__run {
+    font-family: var(--of1-body-font);
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    background: transparent;
+    border: 1px solid var(--of1-accent);
+    color: var(--of1-accent);
+    border-radius: var(--of1-radius-pill);
+    padding: 3px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .of1-card__run:hover {
+    background: var(--of1-accent);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(255, 61, 0, 0.3);
+  }
+
+  .of1-card__run:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    border-color: var(--of1-border);
+    color: var(--of1-fg-dim);
+  }
+
+  .of1-card__run:disabled:hover {
+    background: transparent;
+    box-shadow: none;
+    color: var(--of1-fg-dim);
+  }
+
+  a.of1-card__open {
+    border-color: var(--of1-teal);
+    color: var(--of1-teal);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  a.of1-card__open:hover {
+    background: var(--of1-teal);
+    color: var(--of1-bg);
+    box-shadow: 0 0 12px rgba(0, 229, 160, 0.3);
+  }
+
+  .of1-card__open-icon {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+  }
+
+  /* ─── Retry Button ───────────────────────────────────────── */
+
+  .of1-card__retry {
+    font-family: var(--of1-body-font);
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    background: transparent;
+    border: 1px solid var(--of1-failed);
+    color: var(--of1-failed);
+    border-radius: var(--of1-radius-pill);
+    padding: 3px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    line-height: 1;
+  }
+
+  .of1-card__retry:hover {
+    background: var(--of1-failed);
+    color: #fff;
+  }
+
+  /* ─── Elapsed Time Badge ─────────────────────────────────── */
+
+  .of1-card__elapsed {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--of1-fg-muted);
+    background: var(--of1-fg-faint);
+    border-radius: var(--of1-radius-pill);
+    padding: 2px 7px;
+    white-space: nowrap;
+    letter-spacing: 0.03em;
+  }
+
+  .of1-card--active .of1-card__elapsed {
+    color: var(--of1-accent);
+    background: rgba(255, 61, 0, 0.1);
+  }
+
+  .of1-card--done .of1-card__elapsed {
+    color: rgba(0, 229, 160, 0.7);
+    background: rgba(0, 229, 160, 0.08);
+  }
+
+  .of1-card--review .of1-card__elapsed {
+    color: rgba(255, 200, 50, 0.7);
+    background: rgba(255, 200, 50, 0.08);
+  }
+
+  /* ─── Deliverable Link ──────────────────────────────────── */
+
+  .of1-card__deliverable {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--of1-review);
+    background: transparent;
+    border: 1px solid rgba(255, 200, 50, 0.25);
+    border-radius: var(--of1-radius-pill);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    max-width: 100%;
+    overflow: hidden;
+    letter-spacing: 0.02em;
+  }
+
+  .of1-card__deliverable:hover {
+    background: rgba(255, 200, 50, 0.12);
+    border-color: rgba(255, 200, 50, 0.5);
+    color: #fff;
+  }
+
+  .of1-card__deliverable-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .of1-card__deliverable-icon {
+    flex-shrink: 0;
+    width: 11px;
+    height: 11px;
+  }
+
+  /* ─── Review Actions ─────────────────────────────────────── */
+
+  .of1-card__actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .of1-card__btn {
+    padding: 5px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--of1-body-font);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    border-radius: var(--of1-radius-pill);
+    border: 1px solid;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .of1-card__btn--approve {
+    background: var(--of1-teal);
+    border-color: var(--of1-teal);
+    color: var(--of1-bg);
+  }
+
+  .of1-card__btn--approve:hover {
+    filter: brightness(1.15);
+    box-shadow: 0 0 12px rgba(0, 229, 160, 0.3);
+  }
+
+  .of1-card__btn--revise {
+    background: transparent;
+    border-color: rgba(255, 200, 50, 0.4);
+    color: var(--of1-review);
+  }
+
+  .of1-card__btn--revise:hover {
+    background: rgba(255, 200, 50, 0.1);
+    border-color: var(--of1-review);
+  }
+
+  /* ─── Review Summary ─────────────────────────────────────── */
+
+  .of1-card__summary {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--of1-fg);
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(255, 200, 50, 0.04);
+    border: 1px solid rgba(255, 200, 50, 0.12);
+    border-radius: 6px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+
+  /* ─── Error Detail ──────────────────────────────────────── */
+
+  .of1-card__error {
+    font-size: 12px;
+    color: var(--of1-failed);
+    margin-top: 6px;
+    word-break: break-word;
+    opacity: 0.9;
+  }
+
+  /* ─── Step Description ─────────────────────────────────────── */
+
+  .of1-card__desc {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--of1-fg-muted);
+    margin-top: 3px;
+    line-height: 1.4;
+    letter-spacing: 0.01em;
+  }
+
+  .of1-card--active .of1-card__desc { color: rgba(255, 61, 0, 0.6); }
+  .of1-card--done .of1-card__desc { color: rgba(0, 229, 160, 0.5); }
+  .of1-card--review .of1-card__desc { color: rgba(255, 200, 50, 0.6); }
+
+  /* ─── Flow Connector ──────────────────────────────────────── */
+
+  .of1-connector {
+    display: flex;
+    justify-content: center;
+    height: 16px;
+    position: relative;
+  }
+
+  .of1-connector::after {
+    content: '';
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(to bottom, var(--of1-border), rgba(245, 240, 232, 0.2));
+  }
+
+  .of1-connector--done::after {
+    background: linear-gradient(to bottom, rgba(0, 229, 160, 0.3), rgba(0, 229, 160, 0.15));
+  }
+
+  .of1-connector--active::after {
+    background: linear-gradient(to bottom, rgba(255, 61, 0, 0.4), rgba(255, 61, 0, 0.15));
+  }
+
+  /* ─── Sub-steps (Stage 3) ─────────────────────────────────── */
+
+  .of1-substeps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+    padding-left: 14px;
+    border-left: 1px dashed var(--of1-border);
+  }
+
+  .of1-card--sub {
+    padding: 6px 10px;
+  }
+
+  .of1-card--sub .of1-card__num { display: none; }
+
+  .of1-card--sub .of1-card__name span { font-size: 12px; }
+
+  /* ─── Group Label ────────────────────────────────────────── */
+
+  .of1-group-label {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--of1-fg-muted);
+    margin: 12px 0 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .of1-group-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--of1-border);
+  }
+
+  /* ─── Badges ─────────────────────────────────────────────── */
+
+  .of1-badge {
+    font-size: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    padding: 2px 6px;
+    border-radius: var(--of1-radius-pill);
+    border: 1px solid var(--of1-border);
+    color: var(--of1-fg-dim);
+    background: var(--of1-fg-faint);
+    line-height: 1;
+  }
+
+  /* ─── Spinner ────────────────────────────────────────────── */
+
+  @keyframes of1-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .of1-spinner { animation: of1-spin 0.8s linear infinite; }
+
+  /* ─── Scrollbar ──────────────────────────────────────────── */
+
+  .of1-root::-webkit-scrollbar { width: 4px; }
+  .of1-root::-webkit-scrollbar-track { background: transparent; }
+  .of1-root::-webkit-scrollbar-thumb { background: var(--of1-border); border-radius: 4px; }
+
+  /* ─── Quick Links ───────────────────────────────────────── */
+
+  .of1-quicklinks {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--of1-border);
+  }
+
+  .of1-quicklinks__title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--of1-fg-muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .of1-quicklinks__title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--of1-border);
+  }
+
+  .of1-quicklinks__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .of1-quicklink {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--of1-body-font);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    padding: 4px 10px;
+    border-radius: var(--of1-radius-pill);
+    border: 1px solid var(--of1-border);
+    background: transparent;
+    color: var(--of1-fg-dim);
+    text-decoration: none;
+    cursor: default;
+    transition: all 0.2s ease;
+    opacity: 0.35;
+  }
+
+  .of1-quicklink--available {
+    opacity: 1;
+    cursor: pointer;
+    border-color: rgba(0, 229, 160, 0.25);
+    color: var(--of1-teal);
+  }
+
+  .of1-quicklink--available:hover {
+    border-color: rgba(0, 229, 160, 0.5);
+    background: rgba(0, 229, 160, 0.06);
+    color: #fff;
+  }
+
+  .of1-quicklink__icon {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+  }
+</style>
+
+<div class="of1-root">
+  <div class="of1-header">
+    <div class="of1-header__left">
+      <div class="of1-header__brand">of<span class="of1-header__brand-accent">1</span></div>
+      <div class="of1-header__domain" id="of1-domain"></div>
+    </div>
+    <button class="of1-header__reset" id="of1-reset">Reset</button>
+  </div>
+  <div class="of1-domain-input" id="of1-domain-input">
+    <input type="text" id="of1-domain-field" placeholder="example.com" />
+    <button id="of1-domain-go">Start</button>
+  </div>
+  <div class="of1-steps" id="of1-steps"></div>
+  <div class="of1-quicklinks" id="of1-quicklinks"></div>
+</div>
+
+<script>
+(function () {
+  var STEPS = [
+    { id: 1, name: 'Collect', key: 'collect',
+      desc: 'Discover site narrative, key pages, and focus persona', reviewNote: 'Demo focus and narrative',
+      openLabel: 'Discovery', requires: [] },
+    { id: 2, name: 'Extract → Prototype → Snowflake', key: 'stage2',
+      desc: 'Recreate key pages as a branded EDS site: extract design tokens, prototype, then convert via snowflake', reviewNote: 'EDS site preview',
+      openLabel: 'Preview', requires: [0],
+      subSteps: [
+        { key: 'extract',   name: 'Extract design' },
+        { key: 'prototype', name: 'Prototype' },
+        { key: 'snowflake', name: 'Snowflake' }
+      ] },
+    { id: 3, name: 'OF1 integration', key: 'of1',
+      desc: 'Delegate content, styling, config review, and deploy to of1-integration', reviewNote: 'Config review page',
+      openLabel: 'Config Review', requires: [0],
+      subSteps: [
+        { key: 'brand',     name: 'Brand voice' },
+        { key: 'content',   name: 'Content' },
+        { key: 'suggest',   name: 'Suggestions' },
+        { key: 'templates', name: 'Templates' },
+        { key: 'styling',   name: 'OF1 styling' },
+        { key: 'cta',       name: 'CTA' },
+        { key: 'config',    name: 'Config review' },
+        { key: 'deploy',    name: 'Deploy' }
+      ] }
+  ];
+
+  var OPEN_LINK_ICON = '<svg class="of1-card__open-icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  var ICONS = {
+    pending: '<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" opacity="0.4"/></svg>',
+    ready: '<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M6 8l2 2 2-3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg>',
+    active: '<svg class="of1-spinner" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" opacity="0.2"/><path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    done: '<svg viewBox="0 0 16 16" fill="none"><path d="M4 8.5l2.5 2.5L12 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    review: '<svg viewBox="0 0 16 16" fill="none"><rect x="5" y="4" width="2.5" height="8" rx="1" fill="currentColor"/><rect x="8.5" y="4" width="2.5" height="8" rx="1" fill="currentColor"/></svg>',
+    failed: '<svg viewBox="0 0 16 16" fill="none"><path d="M5 5l6 6M11 5l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
+  };
+
+  var EXTERNAL_ICON = '<svg class="of1-card__deliverable-icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  function freshStepState(step) {
+    var s = { status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
+    if (step.subSteps) {
+      s.subSteps = step.subSteps.map(function (ss) {
+        return { key: ss.key, status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
+      });
+    }
+    return s;
+  }
+
+  var state = { domain: '', steps: [] };
+  for (var i = 0; i < STEPS.length; i++) {
+    state.steps.push(freshStepState(STEPS[i]));
+  }
+
+  var timerInterval = null;
+
+  function formatElapsed(ms) {
+    var seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return seconds + 's';
+    var minutes = Math.floor(seconds / 60);
+    return minutes + 'm ' + (seconds % 60) + 's';
+  }
+
+  function truncateUrl(url, max) {
+    if (!url || url.length <= max) return url || '';
+    return url.substring(0, max - 1) + '\u2026';
+  }
+
+  function canRun(idx) {
+    if (!state.domain) return false;
+    var st = state.steps[idx];
+    if (st.status === 'active') return false;
+
+    // Check all required stages are done
+    var reqs = STEPS[idx].requires || [];
+    for (var i = 0; i < reqs.length; i++) {
+      if (state.steps[reqs[i]].status !== 'done') return false;
+    }
+    return true;
+  }
+
+  function render() {
+    var domainEl = document.getElementById('of1-domain');
+    domainEl.textContent = state.domain || '';
+
+    var inputSection = document.getElementById('of1-domain-input');
+    inputSection.className = state.domain ? 'of1-domain-input of1-domain-input--hidden' : 'of1-domain-input';
+
+    var container = document.getElementById('of1-steps');
+    var html = '';
+    var now = Date.now();
+
+    // Renders a top-level stage card. `sub` is a sub-step definition when rendering a
+    // Stage-3 sub-progress row (nested, non-interactive besides Approve/Revise).
+    function renderCard(i, sub, subIdx) {
+      var step = sub || STEPS[i];
+      var st = sub ? (state.steps[i].subSteps && state.steps[i].subSteps[subIdx]) : state.steps[i];
+      if (!st) st = { status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
+      var status = st.status || 'pending';
+      var num = (i + 1 < 10 ? '0' : '') + (i + 1);
+      var runnable = sub ? false : canRun(i);
+      var displayStatus = status;
+      if ((status === 'pending' || status === 'failed') && runnable) displayStatus = 'ready';
+
+      var cardClass = 'of1-card of1-card--' + displayStatus + (sub ? ' of1-card--sub' : '');
+      var h = '<div class="' + cardClass + '">';
+      h += '<div class="of1-card__icon">' + (ICONS[displayStatus] || ICONS.pending) + '</div>';
+      h += '<div class="of1-card__body">';
+      h += '<div class="of1-card__row">';
+      h += '<div class="of1-card__name">' + (sub ? '' : '<span class="of1-card__num">' + num + '</span>') + '<span>' + step.name + '</span></div>';
+
+      if (status === 'active' && st.startedAt) {
+        h += '<span class="of1-card__elapsed">' + formatElapsed(now - st.startedAt) + '</span>';
+      } else if ((status === 'done' || status === 'review' || status === 'failed') && st.startedAt && st.completedAt) {
+        h += '<span class="of1-card__elapsed">' + formatElapsed(st.completedAt - st.startedAt) + '</span>';
+      } else if (!sub && runnable && status !== 'active' && status !== 'done' && status !== 'review') {
+        h += '<button class="of1-card__run" data-step="' + (i + 1) + '">Run</button>';
+      }
+
+      h += '</div>';
+      if (!sub && step.desc) h += '<div class="of1-card__desc">' + step.desc + '</div>';
+      if (!sub && step.reviewNote && (status === 'pending' || displayStatus === 'ready')) {
+        h += '<div class="of1-card__desc" style="color:rgba(255,200,50,0.5);margin-top:2px">Review: ' + step.reviewNote + '</div>';
+      }
+
+      if (status === 'failed') {
+        if (st.error) h += '<div class="of1-card__error">' + st.error + '</div>';
+        if (!sub && runnable) h += '<div class="of1-card__actions"><button class="of1-card__retry" data-step="' + (i + 1) + '">Retry</button></div>';
+      }
+
+      if (status === 'review') {
+        if (st.summary) {
+          h += '<div class="of1-card__summary">' + st.summary + '</div>';
+        }
+        if (st.deliverables && st.deliverables.length) {
+          st.deliverables.forEach(function (d) {
+            h += '<a class="of1-card__deliverable" href="' + d.url + '" target="_blank" rel="noopener">';
+            h += '<span class="of1-card__deliverable-text">' + (d.label || truncateUrl(d.url, 35)) + '</span>';
+            h += EXTERNAL_ICON + '</a>';
+          });
+        } else if (st.deliverable) {
+          h += '<a class="of1-card__deliverable" href="' + st.deliverable + '" target="_blank" rel="noopener">';
+          h += '<span class="of1-card__deliverable-text">' + (step.reviewNote || truncateUrl(st.deliverable, 35)) + '</span>';
+          h += EXTERNAL_ICON + '</a>';
+        }
+        h += '<div class="of1-card__actions">';
+        var actionArg = sub ? ((i + 1) + ',\'' + step.key + '\'') : (i + 1);
+        h += '<button class="of1-card__btn of1-card__btn--approve" onclick="window.__of1action(\'approve\',' + actionArg + ')">Approve</button>';
+        h += '<button class="of1-card__btn of1-card__btn--revise" onclick="window.__of1action(\'revise\',' + actionArg + ')">Revise</button>';
+        h += '</div>';
+      }
+
+      if (status === 'done') {
+        h += '<div class="of1-card__actions">';
+        if (st.deliverables && st.deliverables.length) {
+          st.deliverables.forEach(function (d) {
+            var label = d.label ? 'Open ' + d.label : (step.openLabel ? 'Open ' + step.openLabel : 'Open');
+            h += '<a class="of1-card__run of1-card__open" href="' + d.url + '" target="_blank" rel="noopener" style="font-size:8px">' + label + OPEN_LINK_ICON + '</a>';
+          });
+        } else if (st.deliverable) {
+          var openText = step.openLabel ? 'Open ' + step.openLabel : 'Open';
+          h += '<a class="of1-card__run of1-card__open" href="' + st.deliverable + '" target="_blank" rel="noopener" style="font-size:8px">' + openText + OPEN_LINK_ICON + '</a>';
+        }
+        if (!sub) h += '<button class="of1-card__run" data-step="' + (i + 1) + '" style="opacity:0.5;font-size:8px">Re-run</button>';
+        h += '</div>';
+      }
+
+      h += '</div></div>';
+      return h;
+    }
+
+    // Render 3 top-level stages, linearly. Stage 3 nests its sub-steps beneath it.
+    for (var i = 0; i < STEPS.length; i++) {
+      html += renderCard(i);
+
+      if (STEPS[i].subSteps) {
+        html += '<div class="of1-substeps">';
+        for (var s = 0; s < STEPS[i].subSteps.length; s++) {
+          html += renderCard(i, STEPS[i].subSteps[s], s);
+        }
+        html += '</div>';
+      }
+
+      if (i + 1 < STEPS.length) {
+        var connClass = 'of1-connector';
+        if (state.steps[i].status === 'done') connClass += ' of1-connector--done';
+        else if (state.steps[i].status === 'active') connClass += ' of1-connector--active';
+        html += '<div class="' + connClass + '"></div>';
+      }
+    }
+
+    container.innerHTML = html;
+
+    // Quick Links
+    var QUICKLINKS = [
+      { label: 'Discovery', step: 1 },
+      { label: 'Preview', step: 2 },
+      { label: 'Config Review', step: 3 }
+    ];
+
+    var linkIcon = '<svg class="of1-quicklink__icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var qlHtml = '<div class="of1-quicklinks__title">Quick Links</div><div class="of1-quicklinks__list">';
+    for (var q = 0; q < QUICKLINKS.length; q++) {
+      var ql = QUICKLINKS[q];
+      var idx = ql.step - 1;
+      var st = state.steps[idx] || {};
+      var hasLink = st.deliverable || (st.deliverables && st.deliverables.length);
+      var availClass = hasLink ? ' of1-quicklink--available' : '';
+      if (hasLink) {
+        var url = st.deliverable || (st.deliverables && st.deliverables[0] && st.deliverables[0].url) || '';
+        qlHtml += '<a class="of1-quicklink' + availClass + '" href="' + url + '" target="_blank" rel="noopener">' + ql.label + linkIcon + '</a>';
+      } else {
+        qlHtml += '<span class="of1-quicklink">' + ql.label + linkIcon + '</span>';
+      }
+    }
+    qlHtml += '</div>';
+    document.getElementById('of1-quicklinks').innerHTML = qlHtml;
+  }
+
+  function startTimer() { stopTimer(); timerInterval = setInterval(render, 1000); }
+  function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
+  function hasActiveStep() {
+    return state.steps.some(function (s) {
+      if (s.status === 'active') return true;
+      return !!(s.subSteps && s.subSteps.some(function (ss) { return ss.status === 'active'; }));
+    });
+  }
+
+  function resetAllSteps() {
+    for (var r = 0; r < state.steps.length; r++) {
+      state.steps[r] = freshStepState(STEPS[r]);
+    }
+  }
+
+  // Applies status changes carried by a field-set (used by both status objects and
+  // the sub-step target found on a Stage-3 sub-step).
+  function applyStatusFields(target, data) {
+    if (data.status) {
+      target.status = data.status;
+      if (data.status === 'pending') {
+        target.deliverable = null;
+        target.deliverables = null;
+        target.summary = null;
+        target.error = null;
+        target.startedAt = null;
+        target.completedAt = null;
+      }
+      if (data.status === 'active') {
+        target.startedAt = Date.now();
+        target.completedAt = null;
+      } else if (data.status === 'done' || data.status === 'review' || data.status === 'failed') {
+        if (!target.completedAt) target.completedAt = Date.now();
+      }
+    }
+    if (data.deliverable) target.deliverable = data.deliverable;
+    if (data.deliverables) target.deliverables = data.deliverables;
+    if (data.summary) target.summary = data.summary;
+    if (data.error) target.error = data.error;
+  }
+
+  function applyUpdate(data) {
+    // Handle full reset action
+    if (data.action === 'reset') {
+      state.domain = '';
+      resetAllSteps();
+      stopTimer();
+      slicc.setState(state);
+      render();
+      return;
+    }
+    // Auto-reset all steps when a NEW domain is set (different from current)
+    if (data.domain && data.domain !== state.domain) {
+      resetAllSteps();
+      state.domain = data.domain;
+      stopTimer();
+      slicc.setState(state);
+      render();
+      return;
+    }
+    if (data.domain) state.domain = data.domain;
+
+    // Top-level: {stage, status, deliverables?}. Stage-3 sub-progress: {stage:3, subStep:"templates", status}.
+    if (typeof data.stage === 'number' && data.stage >= 1 && data.stage <= STEPS.length) {
+      var s = state.steps[data.stage - 1];
+      if (data.subStep && s.subSteps) {
+        var ss = s.subSteps.find(function (x) { return x.key === data.subStep; });
+        if (ss) applyStatusFields(ss, data);
+      } else {
+        applyStatusFields(s, data);
+      }
+    }
+    render();
+    hasActiveStep() ? startTimer() : stopTimer();
+  }
+
+  // Restore state
+  var saved = slicc.getState();
+  if (saved && saved.steps && saved.steps.length === STEPS.length) {
+    state = saved;
+    for (var i = 0; i < state.steps.length; i++) {
+      if (!state.steps[i]) state.steps[i] = freshStepState(STEPS[i]);
+      if (!('startedAt' in state.steps[i])) state.steps[i].startedAt = null;
+      if (!('completedAt' in state.steps[i])) state.steps[i].completedAt = null;
+      if (!('summary' in state.steps[i])) state.steps[i].summary = null;
+      if (!('deliverable' in state.steps[i])) state.steps[i].deliverable = null;
+      if (!('deliverables' in state.steps[i])) state.steps[i].deliverables = null;
+      if (STEPS[i].subSteps && !state.steps[i].subSteps) {
+        state.steps[i].subSteps = STEPS[i].subSteps.map(function (ss) {
+          return { key: ss.key, status: 'pending', deliverable: null, deliverables: null, summary: null, error: null, startedAt: null, completedAt: null };
+        });
+      }
+    }
+  }
+  render();
+  if (hasActiveStep()) startTimer();
+
+  // Domain input
+  document.getElementById('of1-domain-go').addEventListener('click', function () {
+    var val = document.getElementById('of1-domain-field').value.trim();
+    if (!val) return;
+    state.domain = val;
+    slicc.setState(state);
+    render();
+    slicc.lick({ action: 'set-domain:' + val });
+  });
+
+  document.getElementById('of1-domain-field').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('of1-domain-go').click();
+  });
+
+  // Reset
+  document.getElementById('of1-reset').addEventListener('click', function () {
+    state.domain = '';
+    resetAllSteps();
+    stopTimer();
+    slicc.setState(state);
+    render();
+    slicc.lick({ action: 'reset' });
+  });
+
+  // Step buttons (run, retry) — dispatch the pipeline for the current domain
+  document.getElementById('of1-steps').addEventListener('click', function (e) {
+    var runBtn = e.target.closest('.of1-card__run');
+    var retryBtn = e.target.closest('.of1-card__retry');
+    var btn = runBtn || retryBtn;
+    if (!btn) return; // approve/revise handled by window.__of1action
+
+    var step = parseInt(btn.getAttribute('data-step'), 10);
+    var idx = step - 1;
+    state.steps[idx].status = 'active';
+    state.steps[idx].startedAt = Date.now();
+    state.steps[idx].completedAt = null;
+    state.steps[idx].error = null;
+    slicc.setState(state);
+    render();
+    startTimer();
+    slicc.lick({ action: 'run:' + (state.domain || '') });
+  });
+
+  // Action handler for approve/revise buttons (top-level stage or a Stage-3 sub-step)
+  var lastAction = 0;
+  window.__of1action = function (action, step, subStepKey) {
+    var now = Date.now();
+    if (now - lastAction < 1000) return;
+    lastAction = now;
+    var idx = step - 1;
+    if (action === 'approve') {
+      var target = subStepKey && state.steps[idx].subSteps
+        ? state.steps[idx].subSteps.find(function (x) { return x.key === subStepKey; })
+        : state.steps[idx];
+      if (target) {
+        target.status = 'done';
+        target.completedAt = Date.now();
+        slicc.setState(state);
+        render();
+      }
+    }
+    var actionStr = action + ':' + step + ':' + (state.domain || '');
+    if (subStepKey) actionStr += ':' + subStepKey;
+    slicc.lick({ action: actionStr });
+    if (action === 'revise' && slicc.focus) {
+      slicc.focus();
+    }
+  };
+
+  // Updates from cone
+  slicc.on('update', function (data) {
+    applyUpdate(data);
+    slicc.setState(state);
+  });
+})();
+</script>

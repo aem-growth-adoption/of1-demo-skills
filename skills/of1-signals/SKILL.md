@@ -6,6 +6,11 @@ user-invocable: true
 
 # OF1 Signals Configurator
 
+**Standalone operator tool — NOT part of the demo pipeline.** Invoke it directly; no orchestrator
+dispatches it, no step graph includes it, and `of1-check-dependencies`/`verify.sh` intentionally
+does not check for it. It authors extension-only config that neither the sync/deploy pipeline nor
+the OF1 worker ever reads. Being off the step graph is deliberate — do not wire it in.
+
 Author and verify `of1/config/signals.json` — a config file read directly by the **OF1 preview
 extension** (not the OF1 worker) that lets a demo operator fake how a visitor "arrived" at the
 site, without a real email campaign, ad click, or LLM referral ever happening.
@@ -20,7 +25,7 @@ JSON file on the EDS site — no code change, no real ad campaign needed.
 This is **extension-only config**. It is fetched directly by the extension's background service
 worker from `https://<branch>--<repo>--<owner>.aem.page/of1/config/signals.json` — it is never
 synced to the OF1 worker/R2, never read by `/api/generate` or `/api/personalize` server-side, and
-does not appear in `of1-demo`'s worker-config-schemas.md.
+does not appear in `of1-demo-orchestrator`'s worker-config-schemas.md.
 
 ## Priority order (highest wins)
 
@@ -105,7 +110,16 @@ When a user wants to simulate a new arrival scenario:
    the new entry (don't clobber existing entries — list more specific/narrower entries first if
    overlap is possible), and write it back with `python3 -m json.tool <file> > /dev/null` to
    confirm valid JSON before committing.
-5. Commit and push. Confirm live with:
+5. Commit and push — stage ONLY `signals.json` (never `git add .`/`-A`; see
+   `of1-demo-orchestrator/knowledge/common-pitfalls.md` § 6). It rides the code bus (git), so no
+   DA upload or preview trigger is needed — it's served statically once EDS builds the push.
+   ```bash
+   cd "${REPO_DIR:-<repo path>}"
+   git add of1/config/signals.json
+   git commit -m "chore: add demo acquisition signal"
+   git push origin "$(git branch --show-current)"
+   ```
+   Confirm live:
    ```bash
    curl -s https://<branch>--<repo>--<owner>.aem.page/of1/config/signals.json
    ```
@@ -116,7 +130,7 @@ When a user wants to simulate a new arrival scenario:
    `mkt_tok` value, purely for narrative realism — the extension only checks the configured
    `param`/`value`, not surrounding params).
 
-If `$OF1_STATE_DIR/repo-config.json` exists (this skill is running inside an `of1-demo` pipeline
+If `$OF1_STATE_DIR/repo-config.json` exists (this skill is running inside an `of1-demo-orchestrator` pipeline
 session), read `previewUrl`/`repoDir` from it instead of asking the user for the repo/branch/owner:
 ```bash
 REPO_CONFIG=$(cat "$OF1_STATE_DIR/repo-config.json" 2>/dev/null)

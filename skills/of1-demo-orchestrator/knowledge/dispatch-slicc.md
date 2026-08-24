@@ -1,0 +1,314 @@
+# Dispatch mechanics — SLICC runtime
+
+Read this when `of1-demo-orchestrator` detects it is running in **SLICC** (the `scoop_scoop` /
+`sprinkle` primitives are available; `Agent`/`TaskCreate` are not). It supplies the SLICC-specific
+*how*; the runtime-agnostic *what* (stage model, step graph, nesting cap, audit schema) lives in
+`SKILL.md` and `pipeline-contract.md`.
+
+## Required model versions
+
+- `claude-opus-4-8` → Opus 4.8 (`us.anthropic.claude-opus-4-8`)
+- `claude-sonnet-5` → Sonnet 5 1M context (`us.anthropic.claude-sonnet-5`)
+
+Model per skill: Stage 1 and Stage 2's three substeps (2a `of1-extract-design`, 2b `of1-prototype`,
+2c `of1-snowflake`) = `claude-opus-4-8`. Stage 3 = of1-integration's table — Opus for
+`of1-style-generative-block` and the extraction step when it runs; omit `model` (Sonnet) for the rest.
+
+## Setup — open the sprinkle
+
+```
+scoop_scoop({
+  name: "of1-demo-orchestrator",
+  writablePaths: ["/scoops/of1-demo-orchestrator/", "/shared/sprinkles/of1-demo-orchestrator/"],
+  prompt: "You own the sprinkle 'of1-demo-orchestrator'. Copy /workspace/skills/of1-demo-orchestrator/of1-demo-orchestrator.shtml to /shared/sprinkles/of1-demo-orchestrator/of1-demo-orchestrator.shtml, then run: sprinkle open of1-demo-orchestrator. Stay ready for feed_scoop updates."
+})
+```
+
+The sprinkle must stay open and receiving updates throughout. After each step completes, push its
+status via `sprinkle send of1-demo-orchestrator '<json>'`. **Only this cone calls `sprinkle send`** —
+step scoops write files; the cone reads them and pushes.
+
+## Lick events (sprinkle → cone)
+
+Licks arrive as a single `action` string with colon-delimited fields.
+
+- **`set-domain:<domain>`** — store the domain. Setting a new domain resets ALL step states
+  client-side (the sprinkle wipes steps/deliverables when `data.domain` ≠ `state.domain`). So always
+  send `set-domain` FIRST before pushing any step status for a new run; no manual per-step reset needed.
+- **`run:<domain>`** — dispatch Stage 1.
+- **`approve:<skill>:<domain>`** — the user approved a review-gated Stage 3 skill; the sprinkle
+  auto-marks it done. If it unblocks downstream skills (per of1-integration's dependency table), dispatch
+  the next eligible batch now.
+- **`revise:<skill>:<domain>`** — ask in chat what to change, then re-dispatch just that skill's scoop
+  with feedback appended.
+- **`reset`** — clean up any running scoops.
+
+## Scoop naming
+
+`of1-s1-discovery`, `of1-s2a-extract-design`, `of1-s2b-prototype`, `of1-s2c-snowflake`, and one per
+Integrate-stage skill — `of1-s3-<skill>[-<phase>]`
+(e.g. `of1-s3-brand`, `of1-s3-content`, `of1-s3-styling`, `of1-s3-suggest`, `of1-s3-cta`). The
+`of1-build-templates` phases become `of1-s3-templates-base`, `of1-s3-templates-intent-comparison`,
+… `of1-s3-templates-intent-discovery`, `of1-s3-templates-assemble`. The skill (and phase) keeps the
+sprinkle subStep mapping unambiguous.
+
+## Stage 1 dispatch
+
+```
+scoop_scoop({
+  name: "of1-s1-discovery",
+  model: "claude-opus-4-8",
+  writablePaths: ["/scoops/of1-s1-discovery/", "/shared/", "/workspace/{REPO_NAME}/"],
+  env: { SKILL_DIR: "/workspace/skills/of1-discovery" }
+})
+```
+
+System prompt MUST include, in this order:
+
+```
+## FIRST — MANDATORY (do this before anything else)
+Run: read_file /workspace/skills/of1-discovery/SKILL.md
+Then follow those instructions EXACTLY. Do NOT improvise your own implementation.
+
+## Project context
+- Domain: {DOMAIN}
+- Branch: {BRANCH}
+- Repo: /workspace/of1-demo-orchestrator (owner and repo read from repo-config.json)
+- State dir: /shared/of1-demo-orchestrator
+- SKILL_DIR: /workspace/skills/of1-discovery (its assets/fill-discovery.mjs + discovery-report.html — also passed as an env var)
+- repo-config.json: /shared/of1-demo-orchestrator/repo-config.json (read it for all paths)
+
+## Output contract
+Write status to /shared/of1-demo-orchestrator/of1-discovery-status.json (the skill's own Completion
+section documents this exact filename/shape):
+{"stage":1,"skill":"of1-discovery","status":"review","deliverables":[{"url":"...","label":"..."}],"summary":"..."}
+Also write /shared/of1-demo-orchestrator/narrative.json per the skill's §4b.
+Do NOT call sprinkle send — only the orchestrator cone does that.
+```
+
+After Stage 1 returns:
+
+```bash
+NARRATIVE=$(cat /shared/of1-demo-orchestrator/narrative.json)
+SLUGS=$(jq -r '.keyPages[].slug' <<<"$NARRATIVE" | paste -sd, -)
+DOMAIN=$(jq -r .domain <<<"$NARRATIVE")
+```
+
+## Stage 2 (three sequential scoops) + Stage 3 content track (same turn as 2a)
+
+Stage 2's substeps run sequentially — dispatch 2a, await it, dispatch 2b, await it, dispatch 2c.
+Kick off the Stage 3 content-track scoops alongside 2a since they need only the live site.
+
+```
+scoop_scoop({
+  name: "of1-s2a-extract-design",
+  model: "claude-opus-4-8",
+  writablePaths: ["/scoops/of1-s2a-extract-design/", "/shared/", "/workspace/{REPO_NAME}/"]
+})
+```
+
+2a prompt: read `/workspace/skills/of1-extract-design/SKILL.md` and follow it exactly for
+`https://<DOMAIN>` and Stage 1's key pages. It writes `stardust/current/DESIGN.json`,
+`deliverables/brand-review.html`, and `of1-extract-design-status.json`, and **fails loud**
+(`status: "failed"`) rather than substituting placeholder imagery when the source is bot-protected.
+End with a `{"stage":2,"skill":"of1-extract-design",...}` status block — the sprinkle renders it
+under the Stage 2 row. On `failed`, do NOT dispatch 2b; surface the failure and wait per "Handling
+completions" below.
+
+In the SAME turn, dispatch the two content-track scoops (need only the live site; omit `model`):
+
+```
+scoop_scoop({ name: "of1-s3-brand",   writablePaths: ["/scoops/of1-s3-brand/", "/shared/", "/workspace/{REPO_NAME}/"],   env: { OF1_PIPELINE_MODE: "1", OF1_CONTENT_SOURCE: "<DOMAIN>" } })
+scoop_scoop({ name: "of1-s3-content", writablePaths: ["/scoops/of1-s3-content/", "/shared/", "/workspace/{REPO_NAME}/"], env: { OF1_PIPELINE_MODE: "1", OF1_CONTENT_SOURCE: "<DOMAIN>" } })
+```
+
+On 2a `done`, dispatch 2b:
+
+```
+scoop_scoop({
+  name: "of1-s2b-prototype",
+  model: "claude-opus-4-8",
+  writablePaths: ["/scoops/of1-s2b-prototype/", "/shared/", "/workspace/{REPO_NAME}/"]
+})
+```
+
+2b prompt: read `/workspace/skills/of1-prototype/SKILL.md` and follow it exactly. It wraps
+`stardust:prototype` per key page, running its own visual-diff/fix loop against the live site, and
+writes `stardust/prototypes/prototype-*.html` + `of1-prototype-status.json`.
+
+**Wall-clock budget on top of the visual-diff loop's own iteration cap** — the loop's iteration cap
+is an attempt cap, not a time cap, and can still run very long if convergence is slow. Add this
+instruction to the scoop's prompt: track elapsed wall-clock time since the scoop started; if a
+single page's diff loop has spent more than 20 minutes without the visual diff trending down
+between the last two iterations, stop immediately (checked at the top of each iteration, never
+mid-probe, to keep the single-live-navigation-per-instrument invariant intact) and log the residual
+using the skill's own residual-logging convention — do not invent a new stop mechanism. If the
+skill's normal iteration cap resolves faster, that takes precedence and this never triggers.
+
+**Maps and other third-party embeds — do not attempt to recreate.** Add this instruction to the
+scoop's prompt too: a live Google/Apple/Bing Maps embed (store locators, "find a location"
+widgets, directions iframes) never renders in headless capture, so the visual-diff loop can never
+measure it and no amount of CSS portation will make it converge (burned ~40 minutes on a single
+demo, frescopa.coffee, 2026-08-14, chasing a Maps hydration band). Same for other third-party JS
+widgets needing live network/API access the prototype can't reproduce (chat widgets, live
+inventory/booking widgets, ad iframes). For any such section, skip the normal recreation procedure
+entirely — replace it with a fixed-height static `<div>` sized to the source's layout geometry,
+styled with the page's own background/border tokens, and log it as a documented residual
+("third-party embed, not recreated — replaced with static placeholder") so it reads as an
+intentional residual rather than an unexplained gap.
+
+On 2b `done`, dispatch 2c:
+
+```
+scoop_scoop({
+  name: "of1-s2c-snowflake",
+  model: "claude-opus-4-8",
+  writablePaths: ["/scoops/of1-s2c-snowflake/", "/shared/", "/workspace/{REPO_NAME}/"],
+  env: { OF1_STAGE2_DONE_FILE: "/shared/of1-demo-orchestrator/stage2-done.json" }
+})
+```
+
+2c prompt: read `/workspace/skills/of1-snowflake/SKILL.md` and follow it exactly. It loops
+`snowflake` over every prototype from 2b, writes `of1-snowflake-status.json`, and on success writes
+`$OF1_STAGE2_DONE_FILE` (`{"stage":2,"status":"done"}`) — the gate the Stage 3 site-integration
+track waits on. End with a `{"stage":2,"skill":"of1-snowflake",...}` status block.
+
+## Stage 3 dispatch (Integrate skills)
+
+Use `of1-integration` (its "Dispatch → SLICC" column + dependency-trigger table) as the
+reference for what each skill does and its dependency edges — the cone is the dispatcher.
+
+- Each Integrate-stage skill (and each `of1-build-templates` phase) is its own `scoop_scoop()`
+  (writablePaths incl. repo + `/shared/`, env `OF1_PIPELINE_MODE=1`, plus
+  `OF1_CONTENT_SOURCE=<DOMAIN>` for `of1-build-quick-suggestions`).
+- **When `$OF1_STAGE2_DONE_FILE` exists, run the Stage 2 artifact-existence check BEFORE fanning out
+  the site-integration track.** This replaces the old replica fidelity gate — 2a/2b/2c each fail
+  loud on their own problems, so this only confirms Stage 2's outputs actually landed. In the cone's
+  own context:
+
+  - Confirm `$OF1_STAGE2_DONE_FILE` parses as `{"stage":2,"status":"done"}`.
+  - Confirm the EDS overlay pages 2c reported in `of1-snowflake-status.json` exist in
+    `/workspace/{REPO_NAME}`.
+  - If both hold, proceed to the site-integration track. If either is missing/malformed, treat it
+    as a Stage 2 failure, identify which substep didn't complete, surface it via `sprinkle`, and
+    wait for the user (retry that substep / abort). See `pipeline-contract.md` § "Stage 2 completion
+    check".
+
+- **Fan out at every eligible point** once the check passes, following the dependency edges
+  in `of1-integration` § "Pipeline-mode timing" — do not re-derive them here. The site track's first
+  fan-out is the extraction step (if `DESIGN.json` absent) → `of1-build-templates`(base) ∥
+  `of1-style-generative-block` ∥ `of1-build-cta-template`; the content track (`of1-extract-brand-voice`
+  ∥ `of1-extract-content` → `of1-build-quick-suggestions`) was already dispatched in the 2a turn
+  above. `config-review` and `of1-publish` run inline.
+- Each scoop reads its own skill first and writes `of1-<skill>-status.json` (phase scoops of
+  `of1-build-templates` write `of1-build-templates-<phase>-status.json`); does NOT call
+  `sprinkle send`.
+
+## Handling completions (event-driven, NOT polling)
+
+Every scoop notifies the cone on completion. On each notification:
+1. Read the scoop's `of1-<skill>-status.json` / deliverable output.
+2. Push it to the sprinkle immediately (do NOT batch completions).
+3. Check whether it unblocks the next dispatch (per of1-integration's dependency table) and fan out the
+   next eligible batch in the same turn.
+4. The pipeline is complete when `of1-publish` (deploy) returns `done`.
+
+**Do NOT use `while/sleep` polling loops** — they block your turn and prevent you from receiving
+other licks. The platform notifies you; yield and wait.
+
+## Stage 3 sub-progress (cone → sprinkle)
+
+The cone owns the step scoops, so it drives the sprinkle's Stage-3 sub-step rows directly. On each
+completion, read `$SKILL_OR_PHASE` from the status file's `.skill` field (`jq -r .skill <of1-<skill>-status.json>`
+— NOT the scoop slug, which is shortened) and status S, then map it to the subStep key and push:
+
+```bash
+case "$SKILL_OR_PHASE" in
+  of1-build-templates*)        KEY=templates ;;   # base | intent-* | assemble | main
+  of1-style-generative-block)  KEY=styling ;;
+  of1-extract-brand-voice)     KEY=brand ;;
+  of1-extract-content)         KEY=content ;;
+  of1-build-quick-suggestions) KEY=suggest ;;
+  of1-build-cta-template)      KEY=cta ;;
+  config-review)  KEY=config ;;
+  of1-publish)                 KEY=deploy ;;
+  *)                           KEY="" ;;
+esac
+[ -n "$KEY" ] && sprinkle send of1-demo-orchestrator "{\"stage\":3,\"subStep\":\"$KEY\",\"status\":\"$S\"}"
+```
+
+- When the cone dispatches a skill, push `{"stage":3,"subStep":"$KEY","status":"active"}` so the row
+  animates; on completion push the terminal status.
+- Keep pushing the top-level `{"stage":3,"status":...}` (active when the first skill starts, done when
+  `of1-publish` returns).
+- **subStep keys are EXACTLY** `brand, content, suggest, templates, styling, cta, config, deploy` —
+  they must match the sprinkle's `subSteps[]` keys or the row won't update.
+
+## scoop_wait timeout policy
+
+For long-running scoops (Stage 2b `of1-prototype`, the OF1-styling `of1-style-generative-block`) set a generous timeout:
+
+```
+scoop_wait({ scoop_names: ["of1-s2b-prototype"], timeout_ms: 1800000 })  // 30 minutes
+```
+
+`timeout_ms` does NOT kill the scoop — it only wakes the cone. When it fires:
+1. Do NOT immediately `drop_scoop` — the scoop is likely still working.
+2. Check whether expected output files exist (`ls stardust/current/` for 2a, `ls stardust/prototypes/`
+   for 2b; `ls of1/config/` for the content track).
+3. If files exist but the status file doesn't: it's in its final steps (commit/push/status-write) —
+   wait another minute or let the notify lick arrive.
+4. Only `drop_scoop` if silent for 5+ minutes AND no output files.
+
+There is no hard scoop execution timeout in SLICC; the 30-minute wait is just the cone's patience.
+
+## One-shot mode / auto-approve
+
+Default is auto-approve: on `"status":"review"`, push the review status (so the user CAN review),
+immediately treat it as approved, and proceed. If the user later clicks "Revise", handle reactively.
+"One shot" (triggered by "one shot a demo of X" etc.) is the same behavior made explicit — zero
+approval gates, all deliverables still generated/committed (`of1-publish`'s checklist still runs), sprinkle
+still updated with every step status + deliverable URLs, Stage 2's 2a and the content track
+concurrent (2b/2c follow sequentially after 2a). Only pause between steps if the user explicitly
+says "pause"/"wait for my review".
+
+## State files (SLICC)
+
+The complete state-file inventory lives in `pipeline-contract.md` § "State files". On SLICC they
+sit under `/shared/of1-demo-orchestrator/` (same file names as CC). Do not write
+`stage-<N>-summary.json` or `pipeline.log` — those were never real; the audit + per-step status
+files are the only run records.
+
+## Audit capture (SLICC-specific)
+
+Write the audit per `pipeline-contract.md` § "Pipeline audit schema" — **before dispatching
+`of1-publish`, not after it returns** (its own step 3 reads this file to render the hub's audit
+section; writing it later means the hub was already generated without it). SLICC has no
+`<usage>` block:
+- Timing: stamp start at `scoop_scoop()`, end when the status file appears.
+  ```bash
+  STAGE_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  # …on completion notification:
+  STAGE_END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  STAGE_DURATION_MS=$(( $(date +%s -d "$STAGE_END") - $(date +%s -d "$STAGE_START") ))
+  ```
+- Token counts: from `list_scoops` if available, else `null`.
+- Skill version: `SKILL_PLUGIN_DIR="/workspace/skills"`, then `git rev-parse --short HEAD` /
+  `git branch --show-current`.
+
+Push the audit as a final sprinkle event:
+```bash
+sprinkle send of1-demo-orchestrator '{"type":"audit","file":"/shared/of1-demo-orchestrator/pipeline-audit.json"}'
+```
+
+## SLICC inline-execution gotchas
+
+The cone itself runs little inline (reading `narrative.json`, building the slug list, pushing
+sprinkle status, inline `config-review`/`of1-publish`). For those:
+1. **`set -o pipefail` is not supported** — execute commands manually.
+2. **`python3` heredocs must use a quoted delimiter** (`python3 << 'EOF'`) — see `common-pitfalls.md` §7.4; `node`/`jq` are also fine. The shipped build tools are `.mjs` run via `node` (§7.1). Don't rely on synchronous subprocess calls inside a script.
+3. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else
+   corrupts the UI state.
+
+For the IMS token, DA upload commands, and preview-trigger curls, follow `common-pitfalls.md`
+§5, §7, §8 (they carry both `[SLICC]` and `[CC]` variants).

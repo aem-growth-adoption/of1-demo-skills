@@ -1,21 +1,22 @@
 ---
 name: of1-discovery
 description: Crawl a target website and propose a demo focus and narrative for the OF1 demo.
-user-invocable: false
+user-invocable: true
 ---
 
 # OF1 Discovery
 
 Crawl the target site to understand what it offers, then propose a demo focus and narrative.
 
-## Env — orchestrator exports these (see `of1-setup`)
+## Env — orchestrator exports these (see `of1-check-dependencies`)
 
 | Var | Purpose |
 |-----|---------|
-| `OF1_STATE_DIR` | state + IPC dir; receives `step-3-output.md`, screenshots, and `step-3-status.json` |
-| `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
+| `OF1_STATE_DIR` | state + IPC dir; receives `of1-discovery-output.md`, screenshots, and `of1-discovery-status.json` |
+| `OF1_DEMO_REPO` | absolute path to the local `of1-demo-orchestrator` git clone |
+| `SKILL_DIR` | absolute path to this skill's directory (used to find `assets/fill-discovery.mjs` + `assets/discovery-report.html`) |
 
-Read `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` from the contract `of1-repo-setup` wrote:
+Read `$OWNER`, `$REPO`, `$BRANCH`, `$DOMAIN` from the contract `of1-check-dependencies` wrote:
 
 ```bash
 REPO_CONFIG=$(cat "$OF1_STATE_DIR/repo-config.json")
@@ -25,7 +26,7 @@ BRANCH=$(jq -r .branch <<<"$REPO_CONFIG")
 DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 ```
 
-`playwright-cli` calls below use `open` + `--fullPage=true` + `--filename` — the native SLICC syntax. CC environments with the shim at `of1-setup/scripts/playwright-cli-shim.sh` also accept this syntax (shim passes it through unchanged).
+`playwright-cli` calls below follow `of1-demo-orchestrator/knowledge/common-pitfalls.md` § 9 "playwright-cli syntax" (`open`, `--full-page` bare, `--filename`, `eval` as a function form). Works on both SLICC-native and CC binaries.
 
 ## Process
 
@@ -36,7 +37,7 @@ The crawl is bounded to ~4 pages: homepage + at most 3 nav pages. Don't visit pr
 ```bash
 playwright-cli open "https://${DOMAIN}"
 sleep 3
-playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/discovery-home.png"
+playwright-cli screenshot --full-page --filename "$OF1_STATE_DIR/discovery-home.png"
 playwright-cli tab-close "$(playwright-cli tab-list | grep -oE '[0-9]+' | tail -1)"
 ```
 
@@ -54,7 +55,7 @@ Follow top-nav links to the most visual/product-rich pages. Pick the 2–3 best 
 ```bash
 playwright-cli open "https://${DOMAIN}/{path}"
 sleep 3
-playwright-cli screenshot --fullPage=true --filename "$OF1_STATE_DIR/discovery-{slug}.png"
+playwright-cli screenshot --full-page --filename "$OF1_STATE_DIR/discovery-{slug}.png"
 playwright-cli tab-close "$(playwright-cli tab-list | grep -oE '[0-9]+' | tail -1)"
 ```
 
@@ -68,14 +69,16 @@ For each page, note:
 
 - **Demo focus**: which product line or category to feature (pick the richest/most visual one)
 - **Demo narrative**: a user persona and their journey (e.g. "a coffee enthusiast researching their next espresso machine")
-- **Key pages to reproduce**: 2–3 pages that best represent the site, with full URLs
+- **Key pages to reproduce**: 2–3 pages that best represent the site, with full URLs. These are mirrored into `narrative.json` (§4b) as `keyPages[]` — Stage 2 recreates exactly these.
 - **Rationale**: why this focus works for a compelling demo
 
 ## Deliverables
 
 ### 4. Structured output for downstream steps
 
-Write `$OF1_STATE_DIR/step-3-output.md` — consumed by steps 4, 5, and 7:
+Write `$OF1_STATE_DIR/of1-discovery-output.md` — read by `of1-extract-brand-voice`,
+`of1-extract-content`, `of1-build-templates`, `of1-build-quick-suggestions`, and
+`of1-publish` (`fill-demo-hub.mjs`):
 
 ```markdown
 # Discovery: {DOMAIN}
@@ -107,37 +110,41 @@ Write `$OF1_STATE_DIR/step-3-output.md` — consumed by steps 4, 5, and 7:
 - ...
 ```
 
-### 5. Discovery report HTML
+### 4b. Machine-readable narrative for the orchestrator
 
-Generate a self-contained HTML report at `$OF1_DEMO_REPO/deliverables/discovery.html` using the OF1 dark theme:
-
-```css
---bg: #1C1917;
---fg: #F5F0E8;
---accent: #FF3D00;
---teal: #00E5A0;
---fg-dim: rgba(245, 240, 232, 0.55);
---border: rgba(245, 240, 232, 0.1);
---font: 'JetBrains Mono', monospace;
---heading-font: 'Cormorant Garamond', serif;
-```
-
-Include the site overview, proposed demo, key pages, page-structure analysis, and the screenshots from `$OF1_STATE_DIR/discovery-*.png` — **always embed as base64** (absolute file paths don't resolve on the EDS preview URL):
+Also write `$OF1_STATE_DIR/narrative.json` — the orchestrator reads `keyPages[].slug`
+to build Stage 2a's `of1-extract-design --pages` argument (wraps `stardust:extract --pages`),
+and `focus`/`persona` to steer Stage 3's product focus:
 
 ```bash
-SCREENSHOT_B64=$(base64 < "$OF1_STATE_DIR/discovery-home.png")
-# In the HTML: <img src="data:image/png;base64,${SCREENSHOT_B64}">
+cat > "$OF1_STATE_DIR/narrative.json" <<EOF
+{
+  "domain": "${DOMAIN}",
+  "focus": "<the demo focus you proposed above>",
+  "persona": "<persona + one-line journey>",
+  "keyPages": [
+    { "slug": "home", "url": "https://${DOMAIN}/", "description": "homepage" }
+    <, one object per additional key page — slug is the URL path segment, no leading slash>
+  ]
+}
+EOF
 ```
 
-Load Google Fonts (JetBrains Mono + Cormorant Garamond) from CDN.
+**Slug rules:** the homepage is always `slug: "home"`. For other pages, the slug is the
+last non-empty path segment (e.g. `https://${DOMAIN}/shop/coffee` → `coffee`). Keep 2–3
+key pages total — these become the ONLY pages Stage 2 recreates.
 
-Commit and push:
+### 5. Discovery report HTML
+
+**Generate the report with the fill script — do NOT hand-write the HTML.** `fill-discovery.mjs` reads `of1-discovery-output.md` (Step 4) and the `discovery-*.png` screenshots from `$OF1_STATE_DIR`, copies the screenshots into `deliverables/assets/screenshots/` (referenced by absolute path — they resolve on the EDS preview and avoid base64 bloat), renders the markdown, and writes a themed self-contained `deliverables/discovery.html`.
+
+Precondition: Step 4 wrote `of1-discovery-output.md` and Steps 1–2 captured `discovery-*.png` (both in `$OF1_STATE_DIR`).
 
 ```bash
 cd "$OF1_DEMO_REPO"
-mkdir -p deliverables
-# ... write discovery.html ...
-git add deliverables/discovery.html
+OF1_STATE_DIR="$OF1_STATE_DIR" node "$SKILL_DIR/assets/fill-discovery.mjs" . "$DOMAIN"
+
+git add deliverables/
 git commit -m "docs: discovery report for ${DOMAIN}"
 git push origin "$BRANCH"
 ```
@@ -170,9 +177,10 @@ Then ask the user:
 
 ```bash
 REPORT_URL="https://${BRANCH}--${REPO}--${OWNER}.aem.page/deliverables/discovery.html"
-cat > "$OF1_STATE_DIR/step-3-status.json" <<EOF
+cat > "$OF1_STATE_DIR/of1-discovery-status.json" <<EOF
 {
-  "step": 3,
+  "stage": 1,
+  "skill": "of1-discovery",
   "status": "review",
   "deliverables": [
     { "url": "${REPORT_URL}", "label": "Discovery report" }
@@ -182,6 +190,6 @@ cat > "$OF1_STATE_DIR/step-3-status.json" <<EOF
 EOF
 ```
 
-The `deliverables` field is an array of `{url, label?}` objects so steps that produce multiple artifacts (prototypes, snowflake pages) can list them all. `label` is optional but recommended.
+The `deliverables` field is an array of `{url, label?}` objects so steps that produce multiple artifacts (prototypes, EDS pages) can list them all. `label` is optional but recommended.
 
 The orchestrator (CC: agent-return parsing; SLICC: sprinkle polling) handles the approve/revise flow and the eventual `done` transition.
