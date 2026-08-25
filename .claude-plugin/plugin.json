@@ -13,7 +13,7 @@
     ]
   },
   "dependencies": [
-    "of1-skills@aem-growth-adoption",
+    "of1-skills@of1-skills",
     "stardust@adobe-skills",
     "aem-edge-delivery-services@adobe-skills",
     "impeccable@impeccable"
