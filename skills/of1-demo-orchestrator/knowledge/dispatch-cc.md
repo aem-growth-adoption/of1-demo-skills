@@ -15,7 +15,7 @@ Use **TaskCreate** with one task per stage, plus one task per OF1-integration sk
 1. Collect          — of1-discovery → narrative.json + demo story
 2a. Extract design  — of1-extract-design <URL> → stardust/current/DESIGN.json + brand-review.html
 2b. Prototype       — of1-prototype → stardust/prototypes/prototype-*.html
-2c. Snowflake       — of1-snowflake → EDS overlay pages + $OF1_STAGE2_DONE_FILE
+2c. Deploy          — of1-deploy → block-based EDS pages + $OF1_STAGE2_DONE_FILE
 3. OF1 integration  — Integrate skills, dispatched by THIS orchestrator:
    extraction · of1-build-templates(base) · of1-build-templates(intent-*) ·
    of1-build-templates(assemble) · of1-style-generative-block · of1-extract-brand-voice ·
@@ -30,7 +30,7 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
 - Stage 1 (discovery): `opus` — narrative synthesis drives both later stages.
 - Stage 2 (2a/2b/2c): `opus`, `effort: "high"` for 2b (`of1-prototype`) — its iterative visual-diff
   fix loop benefits from deeper per-iteration reasoning (see the Stage 2 dispatch template below
-  for the wall-clock budget that goes with it). 2a (`of1-extract-design`) and 2c (`of1-snowflake`)
+  for the wall-clock budget that goes with it). 2a (`of1-extract-design`) and 2c (`of1-deploy`)
   run `opus` at default effort.
 - Stage 3 (Integrate skills): **read the per-skill model from `of1-integration`'s model-assignment
   rule** (Opus only where output quality cascades — `of1-style-generative-block` and the extraction
@@ -50,16 +50,16 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
      `OF1_CONTENT_SOURCE=<DOMAIN>` — they need only the live external site.
 3. **On 2a `done`, dispatch Stage 2b** (`of1-prototype`, `opus`, `effort: "high"` — see the Stage 2b
    dispatch template below for the wall-clock budget). Await `done`.
-4. **On 2b `done`, dispatch Stage 2c** (`of1-snowflake`, `opus`). It loops `snowflake` over every
-   prototype from 2b and, on success, writes `$OF1_STAGE2_DONE_FILE`. Await `done`.
+4. **On 2b `done`, dispatch Stage 2c** (`of1-deploy`, `opus`). It invokes `stardust:deploy` once
+   over the whole prototype set from 2b and, on success, writes `$OF1_STAGE2_DONE_FILE`. Await `done`.
 5. **When `$OF1_STAGE2_DONE_FILE` exists, run the Stage 2 artifact-existence check BEFORE
    dispatching the site-integration track.** This replaces the old replica fidelity gate — 2a/2b/2c
    each fail loud on their own problems, so this check only confirms Stage 2's outputs actually
    landed:
    - Confirm `$OF1_STAGE2_DONE_FILE` parses as `{"stage":2,"status":"done"}`.
-   - Confirm the EDS overlay pages 2c reported in `of1-snowflake-status.json` exist in the repo.
+   - Confirm the block-based EDS pages 2c reported in `of1-deploy-status.json` exist in the repo.
    - If both hold, proceed to the site-integration track. If `$OF1_STAGE2_DONE_FILE` is missing or
-     malformed, or an expected overlay page is absent, treat it as a Stage 2 failure — identify
+     malformed, or an expected page is absent, treat it as a Stage 2 failure — identify
      which substep (2a/2b/2c) didn't complete and re-dispatch it. See `pipeline-contract.md`
      § "Stage 2 completion check".
 

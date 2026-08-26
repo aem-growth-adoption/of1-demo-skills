@@ -93,7 +93,7 @@ best-effort deliverables), so a content-only demo with no prototypes is not a ha
 
 ### 3. Generate demo hub page
 
-**You MUST create `/tmp/da-pages.txt` before calling the fill script** — it reads this file to list the EDS overlay pages in the hub. Without it, the hub shows prototypes but no live EDS pages.
+**You MUST create `/tmp/da-pages.txt` before calling the fill script** — it reads this file to list the deployed EDS pages in the hub. Without it, the hub shows prototypes but no live EDS pages.
 
 ```bash
 curl -s -H "Authorization: Bearer $DA_TOKEN" \
@@ -199,7 +199,7 @@ playwright-cli eval "() => (document.querySelector('footer .footer') ? 'footer O
 - At least one nav link is present inside the header block
 - `footer .footer` block renders with styled content (not empty)
 
-**If fails:** the site's `content/nav.html`/`content/footer.html` didn't push correctly, or the preview hasn't picked up the latest deploy yet — re-check Stage 2c (`of1-snowflake`, for the full e2e pipeline, which produces the converted site's nav/footer chrome) or the existing site's own chrome (for `of1-integration`, where nav/footer already existed before this pipeline ran).
+**If fails:** the site's `content/nav.html`/`content/footer.html` didn't push correctly, or the preview hasn't picked up the latest deploy yet — re-check Stage 2c (`of1-deploy`, for the full e2e pipeline, which produces the converted site's nav/footer chrome) or the existing site's own chrome (for `of1-integration`, where nav/footer already existed before this pipeline ran).
 
 ### Check 3: All products have ≥4 images
 

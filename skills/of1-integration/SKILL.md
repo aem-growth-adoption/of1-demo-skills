@@ -19,7 +19,7 @@ Two modes, decided by `OF1_PIPELINE_MODE`:
 - **Standalone (default, `OF1_PIPELINE_MODE` unset):** everything below behaves exactly as
   documented today. Content is extracted from the existing EDS site's own preview URL.
 - **Pipeline (`OF1_PIPELINE_MODE=1`):** invoked by the full demo orchestrator alongside its
-  running Stage 2 (the sequential `of1-extract-design` → `of1-prototype` → `of1-snowflake` chain).
+  running Stage 2 (the sequential `of1-extract-design` → `of1-prototype` → `of1-deploy` chain).
   Two differences only:
   1. The content track (`of1-extract-brand-voice`/`of1-extract-content`/`of1-build-quick-suggestions`)
      extracts from the real external domain — the orchestrator passes `OF1_CONTENT_SOURCE=<domain>`,
@@ -112,7 +112,7 @@ of1-build-templates(assemble)           │
 
 The step graph's DEPENDENCIES are unchanged; only the START GATE differs:
 
-- **Content track — dispatch immediately on entry** (parallel with Stage 2's extract→prototype→snowflake
+- **Content track — dispatch immediately on entry** (parallel with Stage 2's extract→prototype→deploy
   chain): `of1-extract-brand-voice`, `of1-extract-content` → `of1-build-quick-suggestions`.
   These need only the live external site (`OF1_CONTENT_SOURCE`) + the narrative focus.
 - **Site-integration track — dispatch only after `OF1_STAGE2_DONE_FILE` exists**:
@@ -124,7 +124,7 @@ The step graph's DEPENDENCIES are unchanged; only the START GATE differs:
 ```bash
 # Site-integration gate (pipeline mode only)
 if [ -n "$OF1_PIPELINE_MODE" ]; then
-  echo "Waiting for Stage 2 (extract->prototype->snowflake) to finish: $OF1_STAGE2_DONE_FILE"
+  echo "Waiting for Stage 2 (extract->prototype->deploy) to finish: $OF1_STAGE2_DONE_FILE"
   # Event-driven on SLICC (scoop-notify) / sequential await on CC. Do NOT sleep-poll on SLICC.
   until [ -f "$OF1_STAGE2_DONE_FILE" ]; do :; done   # CC inline fallback only
 fi

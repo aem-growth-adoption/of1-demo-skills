@@ -11,7 +11,7 @@ Read this when `of1-demo-orchestrator` detects it is running in **SLICC** (the `
 - `claude-sonnet-5` → Sonnet 5 1M context (`us.anthropic.claude-sonnet-5`)
 
 Model per skill: Stage 1 and Stage 2's three substeps (2a `of1-extract-design`, 2b `of1-prototype`,
-2c `of1-snowflake`) = `claude-opus-4-8`. Stage 3 = of1-integration's table — Opus for
+2c `of1-deploy`) = `claude-opus-4-8`. Stage 3 = of1-integration's table — Opus for
 `of1-style-generative-block` and the extraction step when it runs; omit `model` (Sonnet) for the rest.
 
 ## Setup — open the sprinkle
@@ -45,7 +45,7 @@ Licks arrive as a single `action` string with colon-delimited fields.
 
 ## Scoop naming
 
-`of1-s1-discovery`, `of1-s2a-extract-design`, `of1-s2b-prototype`, `of1-s2c-snowflake`, and one per
+`of1-s1-discovery`, `of1-s2a-extract-design`, `of1-s2b-prototype`, `of1-s2c-deploy`, and one per
 Integrate-stage skill — `of1-s3-<skill>[-<phase>]`
 (e.g. `of1-s3-brand`, `of1-s3-content`, `of1-s3-styling`, `of1-s3-suggest`, `of1-s3-cta`). The
 `of1-build-templates` phases become `of1-s3-templates-base`, `of1-s3-templates-intent-comparison`,
@@ -161,17 +161,17 @@ On 2b `done`, dispatch 2c:
 
 ```
 scoop_scoop({
-  name: "of1-s2c-snowflake",
+  name: "of1-s2c-deploy",
   model: "claude-opus-4-8",
-  writablePaths: ["/scoops/of1-s2c-snowflake/", "/shared/", "/workspace/{REPO_NAME}/"],
+  writablePaths: ["/scoops/of1-s2c-deploy/", "/shared/", "/workspace/{REPO_NAME}/"],
   env: { OF1_STAGE2_DONE_FILE: "/shared/of1-demo-orchestrator/stage2-done.json" }
 })
 ```
 
-2c prompt: read `/workspace/skills/of1-snowflake/SKILL.md` and follow it exactly. It loops
-`snowflake` over every prototype from 2b, writes `of1-snowflake-status.json`, and on success writes
+2c prompt: read `/workspace/skills/of1-deploy/SKILL.md` and follow it exactly. It invokes
+`stardust:deploy` once over the whole prototype set from 2b, writes `of1-deploy-status.json`, and on success writes
 `$OF1_STAGE2_DONE_FILE` (`{"stage":2,"status":"done"}`) — the gate the Stage 3 site-integration
-track waits on. End with a `{"stage":2,"skill":"of1-snowflake",...}` status block.
+track waits on. End with a `{"stage":2,"skill":"of1-deploy",...}` status block.
 
 ## Stage 3 dispatch (Integrate skills)
 
@@ -187,7 +187,7 @@ reference for what each skill does and its dependency edges — the cone is the 
   own context:
 
   - Confirm `$OF1_STAGE2_DONE_FILE` parses as `{"stage":2,"status":"done"}`.
-  - Confirm the EDS overlay pages 2c reported in `of1-snowflake-status.json` exist in
+  - Confirm the block-based EDS pages 2c reported in `of1-deploy-status.json` exist in
     `/workspace/{REPO_NAME}`.
   - If both hold, proceed to the site-integration track. If either is missing/malformed, treat it
     as a Stage 2 failure, identify which substep didn't complete, surface it via `sprinkle`, and

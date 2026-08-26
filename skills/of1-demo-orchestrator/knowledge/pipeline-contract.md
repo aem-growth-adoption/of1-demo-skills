@@ -20,7 +20,7 @@ One name per thing. Skills must use these names and not invent synonyms.
 | `OF1_TOKEN_FILE` | user / environment | `of1-check-dependencies`, `of1-publish`, `download-images.mjs` | Alternative to `ADOBE_IMS_TOKEN`: a path to a JSON file `{"access_token":"..."}`. Second in the resolution order. |
 | `OF1_PIPELINE_MODE` | orchestrator (Stage 3) | `of1-integration` + content-track skills | `1` when of1-integration runs inside the full pipeline (vs standalone). |
 | `OF1_CONTENT_SOURCE` | orchestrator (Stage 3) | content-track skills (`of1-extract-brand-voice`, `of1-extract-content`, `of1-build-quick-suggestions`) | The external domain to extract content from, in pipeline mode. |
-| `OF1_STAGE2_DONE_FILE` | orchestrator (Stage 2) | `of1-snowflake` (writes it), orchestrator's site-track gate (reads it) | Path to `stage2-done.json` (default basename) — written by 2c (`of1-snowflake`) on completion; the gate, not passed to Stage-3 step agents. |
+| `OF1_STAGE2_DONE_FILE` | orchestrator (Stage 2) | `of1-deploy` (writes it), orchestrator's site-track gate (reads it) | Path to `stage2-done.json` (default basename) — written by 2c (`of1-deploy`) on completion; the gate, not passed to Stage-3 step agents. |
 | `STRICT` | user / environment | `of1-check-dependencies` | Optional: makes dependency warnings fatal. |
 
 **`DA_TOKEN` is NOT an input env var.** It is a **shell local** that `of1-publish` and
@@ -37,14 +37,14 @@ Never document `DA_TOKEN` as a credential to set — set `ADOBE_IMS_TOKEN` (or `
 | 1 | Discovery — narrative + key pages | `of1-discovery` → `narrative.json` |
 | 2a | Extract design — capture the live site's design tokens/brand surface | `of1-extract-design <URL>` (wraps `stardust:extract`) |
 | 2b | Prototype — render redesigned key pages | `of1-prototype` (wraps `stardust:prototype`) |
-| 2c | Snowflake — convert each prototype to an EDS overlay page | `of1-snowflake` (wraps `snowflake`, one invocation per prototype) |
+| 2c | Deploy — convert the prototypes into a block-based EDS site | `of1-deploy` (wraps `stardust:deploy`, one invocation for the whole site) |
 | 3 | OF1 integration — the of1-integration skills (Integrate stage) | defined by `of1-integration` |
 
 Stage 2's three substeps run **sequentially** — 2a → 2b → 2c — since each consumes the prior
 substep's output (2b needs 2a's `DESIGN.json`; 2c needs 2b's prototypes). Stage 2 (as a whole) and
 the Stage 3 **content track** (`of1-extract-brand-voice` ∥ `of1-extract-content` → `of1-build-quick-suggestions`) dispatch concurrently after Stage 1.
 The Stage 3 **site-integration track** (`of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` → `of1-build-templates`(assemble) → `config-review` → `of1-publish`) gates on Stage 2's
-`$OF1_STAGE2_DONE_FILE` (written by 2c/`of1-snowflake`). **The Integrate-stage skill graph, dependency edges, and pipeline-mode
+`$OF1_STAGE2_DONE_FILE` (written by 2c/`of1-deploy`). **The Integrate-stage skill graph, dependency edges, and pipeline-mode
 timing are defined once in `of1-integration`** — the orchestrator reads them there on both
 runtimes.
 
@@ -76,8 +76,8 @@ have been removed; cross-session resume is not implemented, so nothing depends o
 | `of1-extract-design-status.json` | Stage 2a | orchestrator | per-skill status (fails loud on a blocked capture — see below) |
 | `stardust/prototypes/prototype-*.html` | Stage 2b (`of1-prototype`) | 2c, orchestrator | rendered redesign prototypes per key page |
 | `of1-prototype-status.json` | Stage 2b | orchestrator | per-skill status |
-| `of1-snowflake-status.json` | Stage 2c (`of1-snowflake`) | orchestrator | per-skill status |
-| `$OF1_STAGE2_DONE_FILE` (default `stage2-done.json`) | Stage 2c (`of1-snowflake`) | orchestrator's site-track gate | `{"stage":2,"status":"done"}` — signals ALL of Stage 2 (2a→2b→2c) finished |
+| `of1-deploy-status.json` | Stage 2c (`of1-deploy`) | orchestrator | per-skill status |
+| `$OF1_STAGE2_DONE_FILE` (default `stage2-done.json`) | Stage 2c (`of1-deploy`) | orchestrator's site-track gate | `{"stage":2,"status":"done"}` — signals ALL of Stage 2 (2a→2b→2c) finished |
 | `of1-<skill>-status.json` | each dispatched skill | orchestrator | per-skill status (grammar below) |
 | `pipeline-audit.json` | orchestrator | `fill-demo-hub.mjs` | run telemetry (schema below) |
 
@@ -96,12 +96,12 @@ instead:
   pause, surface the message, ask the user to retry/skip/abort. Do not dispatch 2b.
 - **2b (`of1-prototype`)** runs its own visual-diff/fix loop (wrapping `stardust:prototype`)
   against the live site before returning `done`.
-- **2c (`of1-snowflake`)** runs `snowflake`'s own per-prototype content checks, and only writes
-  `$OF1_STAGE2_DONE_FILE` after every prototype has been converted.
+- **2c (`of1-deploy`)** runs `stardust:deploy`'s own per-page delivery checks, and only writes
+  `$OF1_STAGE2_DONE_FILE` after every page has been deployed.
 
 **Contract:** once `$OF1_STAGE2_DONE_FILE` exists, the orchestrator does a lightweight
 artifact-existence check before dispatching the Stage 3 site-integration track or deploying —
-confirm the expected EDS overlay pages exist (per-prototype output listed in `of1-snowflake-status.json`)
+confirm the expected block-based EDS pages exist (per-page output listed in `of1-deploy-status.json`)
 and that `$OF1_STAGE2_DONE_FILE`'s JSON is `{"stage":2,"status":"done"}`. There is no separate
 `.mjs` gate script for this — 2a/2b/2c's own fail-loud behavior already covers the failure modes
 the old replica gate existed to catch (blocked capture, unmeasured "pass", placeholder imagery).
@@ -134,7 +134,7 @@ derive from these; a missing URL greys them out).
 |---|---|
 | 1 — discovery | `https://{branch}--{repo}--{owner}.aem.page/deliverables/discovery.html` |
 | 2a — extract design | `https://{branch}--{repo}--{owner}.aem.page/deliverables/brand-review.html` |
-| 2b/2c — prototype/snowflake | each skill emits its own URLs in its status JSON (prototype previews, converted EDS overlay pages) — pass them through as-is |
+| 2b/2c — prototype/deploy | each skill emits its own URLs in its status JSON (prototype previews, converted block-based EDS pages) — pass them through as-is |
 | 3 — Integrate skills | each skill emits its own URLs in its status JSON (gallery, `/of1`, `config-review.html`, final deploy index) — pass them through as-is; do NOT invent one URL for the whole stage |
 
 ## Pipeline audit schema
@@ -165,8 +165,8 @@ individually** — there is no black-box Stage 3.
 | Field | Source |
 |---|---|
 | `stage` | Stage number (`0`, `1`, `2`, or `3`) |
-| `skill` | Skill id for stages 0/1/3 (`of1-build-templates`, `of1-publish`, …) or `of1-extract-design`/`of1-prototype`/`of1-snowflake` for stage 2's three substeps. Skill-internal phases (`base`, `intent-*`, `assemble`) may be appended as `skill#phase` for the multi-dispatch templates skill. |
-| `name` | Human label (`discovery`, `extract-design`, `prototype`, `snowflake`, `templates-base`, `styling`, `content`, `deploy`, …) |
+| `skill` | Skill id for stages 0/1/3 (`of1-build-templates`, `of1-publish`, …) or `of1-extract-design`/`of1-prototype`/`of1-deploy` for stage 2's three substeps. Skill-internal phases (`base`, `intent-*`, `assemble`) may be appended as `skill#phase` for the multi-dispatch templates skill. |
+| `name` | Human label (`discovery`, `extract-design`, `prototype`, `deploy`, `templates-base`, `styling`, `content`, …) |
 | `model` | Model used for this dispatch (`inline` for `config-review` and `of1-publish`, which run in the orchestrator's own context) |
 | `startedAt` | ISO timestamp when dispatched |
 | `durationMs` | Wall-clock for this dispatch |

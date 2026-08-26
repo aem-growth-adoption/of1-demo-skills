@@ -122,7 +122,7 @@ Do NOT add rules that target generated-section internals (`.generated-section .h
 
 The header/footer blocks fetch `/nav` and `/footer` on every page; if either is missing, **every page
 renders chromeless** — no nav, no footer, including `/of1`. These docs are *supposed* to exist by now
-(Stage 2c, `of1-snowflake`, authors them for the e2e pipeline; the existing site already has them for
+(Stage 2c, `of1-deploy`, authors them for the e2e pipeline; the existing site already has them for
 `of1-integration`). A bot-blocked source is now caught upstream — Stage 2a (`of1-extract-design`)
 fails loud on a blocked capture rather than letting an unmeasurable site flow downstream to an empty
 `<header></header>` — but guarantee the fragments regardless of provenance rather than assume. This guard is
@@ -139,7 +139,7 @@ live — a chromeless demo must not proceed silently.
 
 ### Step 5 — Upload OF1 DA content
 
-The `/of1` page is an ordinary EDS content page: a `metadata` block (Title/Description) plus a section containing the `of1` block table. The site's existing `blocks/header`/`blocks/footer` pick up the real `/nav` and `/footer` documents automatically — guaranteed to exist by Step 4 above (whether from Stage 2c's `of1-snowflake`, the existing site, or the Step 4 fallback).
+The `/of1` page is an ordinary EDS content page: a `metadata` block (Title/Description) plus a section containing the `of1` block table. The site's existing `blocks/header`/`blocks/footer` pick up the real `/nav` and `/footer` documents automatically — guaranteed to exist by Step 4 above (whether from Stage 2c's `of1-deploy`, the existing site, or the Step 4 fallback).
 
 ```bash
 OF1_HTML='<body><header></header><main><div><div class="metadata"><div><div>Title</div><div>'${DOMAIN}' — Ask Anything</div></div><div><div>Description</div><div>Search and get personalized results.</div></div></div></div><div><div class="of1"><table><tr><th colspan="2">of1</th></tr><tr><td><p>api-endpoint</p></td><td><p>https://of1-gen-web-service.franklin-prod.workers.dev</p></td></tr><tr><td><p>domain</p></td><td><p>'${BRANCH}'--'${REPO}'--'${OWNER}'</p></td></tr></table></div></div></main><footer></footer></body>'
@@ -248,7 +248,7 @@ Common failures:
 |---|---|
 | `HEADER MISSING` / `FOOTER MISSING` | `/nav` or `/footer` doc is missing — re-run Step 4 (`ensure-nav-footer.mjs`); it authors a minimal branded fragment when Stage 2c/the existing site didn't provide one |
 | `OF1 BLOCK MISSING` | `blocks/of1/of1.js` wasn't pushed, or the `of1` block table's `th` cell doesn't read exactly `of1` |
-| Screenshot shows unstyled links / system font | `styles/styles.css` (the site's own foundation CSS) didn't get pushed by Stage 2c's (`of1-snowflake`) deploy phase, or the preview hasn't picked up the latest push yet |
+| Screenshot shows unstyled links / system font | `styles/styles.css` (the site's own foundation CSS) didn't get pushed by Stage 2c's (`of1-deploy`) deploy phase, or the preview hasn't picked up the latest push yet |
 
 Fix any failures and re-push before Completion.
 
