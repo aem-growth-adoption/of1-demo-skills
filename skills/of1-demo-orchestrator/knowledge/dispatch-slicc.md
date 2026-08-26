@@ -19,9 +19,14 @@ Model per skill: Stage 1 + Stage 2 = `claude-opus-4-8`. Stage 3 = of1-integratio
 scoop_scoop({
   name: "of1-demo-orchestrator",
   writablePaths: ["/scoops/of1-demo-orchestrator/", "/shared/sprinkles/of1-demo-orchestrator/"],
-  prompt: "You own the sprinkle 'of1-demo-orchestrator'. Copy /workspace/skills/of1-demo-orchestrator/of1-demo-orchestrator.shtml to /shared/sprinkles/of1-demo-orchestrator/of1-demo-orchestrator.shtml, then run: sprinkle open of1-demo-orchestrator. Stay ready for feed_scoop updates."
+  prompt: "You own the sprinkle 'of1-demo-orchestrator'. Copy /workspace/skills/of1-demo-orchestrator/of1-demo-orchestrator.shtml.tpl to /shared/sprinkles/of1-demo-orchestrator/of1-demo-orchestrator.shtml, then run: sprinkle open of1-demo-orchestrator. Stay ready for feed_scoop updates."
 })
 ```
+
+The sprinkle source ships as `of1-demo-orchestrator.shtml.tpl` (not `.shtml`) so SLICC's
+install-time sprinkle discovery — which matches `.shtml` only — does not surface it on skill
+install. Copying it to `/shared/sprinkles/…/of1-demo-orchestrator.shtml` at runtime is what makes
+it a live sprinkle, opened explicitly by the `sprinkle open` above.
 
 The sprinkle must stay open and receiving updates throughout. After each step completes, push its
 status via `sprinkle send of1-demo-orchestrator '<json>'`. **Only this cone calls `sprinkle send`** —
