@@ -112,6 +112,8 @@ echo "✓ stardust:prototype prerequisites in place"
 
 ### 3. Invoke `stardust:prototype` (DO NOT generate prototypes by hand)
 
+> **⚠️ You are running as a subagent — NO child agents.** The orchestrator dispatches this skill as a Claude Code subagent, and a subagent has **no `Agent` tool**. `stardust:prototype` may suggest fanning its per-page work out to parallel background agents — **do NOT**. Child agents dispatched from a subagent are killed immediately, produce nothing, and leave you waiting forever on results that never arrive (this stalls the pipeline; it has happened). **Run the full multi-page prototype loop sequentially in your own context.** When the stardust instructions say "dispatch an agent per page" / "fan out", read that as "do the next page yourself, in-line."
+
 This step's whole job is to delegate to `stardust:prototype`. **Do NOT hand-author HTML, do NOT shell out to playwright/curl/wget to build pages yourself** — the stardust skill owns design-token application, image insertion, layout fidelity, and the visual-diff loop. Reimplementing it here is the most common failure mode.
 
 Invoke the `stardust:prototype` skill:

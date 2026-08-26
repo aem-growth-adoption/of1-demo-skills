@@ -62,6 +62,8 @@ Everything else in stardust:deploy's Deploy section (git push → Code Sync buil
 
 ### 2. Invoke the `stardust:deploy` skill
 
+> **⚠️ You are running as a subagent — NO child agents.** The orchestrator dispatches this skill as a Claude Code subagent, and a subagent has **no `Agent` tool**. `stardust:deploy` may suggest fanning its per-page conversion/deploy work out to parallel background agents — **do NOT**. Child agents dispatched from a subagent are killed immediately, produce nothing, and leave you waiting forever on results that never arrive (this stalls the pipeline; it has happened). **Run the full conversion + deploy sequentially in your own context.** When the stardust instructions say "dispatch an agent per page" / "fan out", read that as "do the next page yourself, in-line."
+
 Invoke `stardust:deploy` **once** — it owns the full multi-page conversion + deploy (its bundled `deploy-batch.mjs` driver handles all pages with a persistent ledger). Do NOT loop it per prototype, and do NOT reimplement its phases by hand.
 
 **How to invoke in each runtime:**
@@ -145,6 +147,50 @@ done
 ```
 
 All should return `200`. If anything 404s, inspect `content/.deploy-ledger.json` for the failing page to see where stardust:deploy stopped, fix, and re-run its batch driver (idempotent — it skips already-delivered pages).
+
+### 5. Chrome fidelity reconciliation (header + footer) — MANDATORY
+
+`stardust:deploy` regenerates the site chrome (`blocks/header/*`, `blocks/footer/*`) as a **re-interpretation** of the prototype's header/footer, at replica-style (not pixel-copy) fidelity. That re-interpretation reliably drifts from the prototype — and the prototype is near pixel-perfect to the live site, so **the prototype's `<header>`/`<footer>` markup + CSS are the source of truth**. Reconcile the deployed chrome back to the prototype before finishing.
+
+**Observed drift modes (all seen in real runs — check each):**
+
+| Symptom in deployed render | Cause | Fix |
+|---|---|---|
+| Nav tools show **text words** ("Cart Search Account") instead of the prototype's **icons** | `header.js` didn't map the authored text links to the prototype's inline icon SVGs | Port the prototype's tool-icon SVGs into `blocks/header/header.js` and swap each authored tool link's text for its icon (same pattern the brand-logo swap already uses) |
+| **Footer has no logo** — plain text brand name | `header.js` injects the logo SVG but `footer.js` does **not** | Add the same `LOGO_SVG` inline-injection to `blocks/footer/footer.js` (footer fill colors for the dark/cream footer bg) |
+| Announcement "SHOP NOW" **wraps** instead of right-aligned | announce-bar flex/justify lost in the CSS re-derivation | Carry the prototype's announcement-bar CSS (flex row, `justify-content: space-between`) into `blocks/header/header.css` |
+| Footer column headers / legal links wrong font or **no `\|` separators** | typography + inline separators dropped | Carry the prototype's `.footer-col h*` type rules and the legal-row separator markup/CSS |
+
+**Procedure:**
+
+1. Extract the prototype's chrome as the reference. The prototype is self-contained (inline `<style>`), so its exact header/footer CSS lives in that `<style>` block:
+   ```bash
+   cd "$OF1_DEMO_REPO"
+   PROTO=deliverables/prototype-home.html
+   # The prototype's <header>/<footer> markup + the CSS rules scoped to their
+   # classes (.site-header/.announcement*/.main-nav/.header-actions and
+   # .site-footer/.footer-*) are the target. Read them directly.
+   ```
+2. Reconcile `blocks/header/header.css` and `blocks/footer/footer.css` so the rendered chrome matches the prototype — port the prototype's rules (scoped under the EDS block classes; `.header`→`.site-header` mapping already handled by `of1-prototype` step 5b). Reconcile `header.js`/`footer.js` so the logo SVG appears in **both** header and footer and the nav tools render as the prototype's icons, not text.
+3. **Verify by rendering, not by eyeballing markup.** Screenshot the deployed page and the prototype at desktop width and compare header + footer crops:
+   ```bash
+   B="https://${BRANCH}--${REPO}--${OWNER}.aem.page"
+   playwright-cli open "$B/" --fullPage=true --filename /tmp/deployed.png
+   playwright-cli open "$B/deliverables/prototype-home.html" --fullPage=true --filename /tmp/proto.png
+   # Compare the header band (top ~420px) and the footer band. The deployed
+   # chrome must match the prototype: same logo (image, not text) in header AND
+   # footer, icon tools (not text), announce bar right-aligned, footer columns
+   # + legal row aligned. Iterate on blocks/header + blocks/footer until it does.
+   ```
+4. Commit + push the reconciled chrome so Code Sync rebuilds (CSS/JS live on the code bus — no DA re-PUT needed):
+   ```bash
+   cd "$OF1_DEMO_REPO"
+   git add blocks/header blocks/footer styles/styles.css
+   git commit -m "fix: reconcile deployed chrome to prototype (logo, nav icons, announce, footer)"
+   git push origin "$BRANCH"
+   ```
+
+Do **not** write the Stage-2 done file (below) until the rendered header + footer match the prototype. Chrome drift is the single most-noticed defect in the finished demo.
 
 ## Completion
 
