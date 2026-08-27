@@ -154,6 +154,25 @@ Array. **Vectorized for RAG.**
 
 ---
 
+## knowledge.json
+
+Array of generic entities — the single factual store for knowledge-only tenants.
+**Required for tenant readiness (in lieu of products/features/faqs). Vectorized for RAG.**
+Authored in DA as `of1-config` blocks (`knowledge.plain.html`), committed JSON kept as fallback.
+
+| Field | Required | Used for |
+|-------|----------|----------|
+| `id` | YES | vector id, image-mapping key |
+| `type` | no | origin discriminator: `product\|feature\|faq\|testimonial\|…`; personalize prefers `type:"product"` |
+| `title` | YES | entity id (`idFrom: title`), embedding + prompt |
+| `description` | no | embedding + prompt |
+| `keywords` | no | embedding |
+| `facts` | no | RAG grounding text injected verbatim into the prompt |
+| `images` | no | template image-slot filling (product/testimonial entities) |
+| `persona` | no | forward-compat; inert under knowledgeMode |
+
+---
+
 ## testimonials.json
 
 Array of real customer quotes. Consumed by the worker's template-fill path:
@@ -356,19 +375,20 @@ Free-form object embedded into the default-flow prompt. **The `ready` gate needs
 ## Summary: Required vs Optional
 
 The `ready` column reflects the worker's `isTenantReady` (`worker/src/tenant.js`) — the exact gate
-`/api/tenants/<id>/status` returns. It requires `products`, `personas`, `use-cases`, `features`,
-`faqs`, `suggestions`, `of1-endpoint`, and `cta-template` (ALL), **plus either `block-guide` or
-`templates`** (the template-routing flow ships `templates`; the default flow ships `block-guide`;
-both is fine). `brand-voice` is NOT part of the ready gate — but always generate it, it drives
-prompt quality.
+`/api/tenants/<id>/status` returns. It requires EITHER `knowledge` OR (`products` + `features` +
+`faqs`), plus `suggestions`, `of1-endpoint`, and `cta-template` (ALL), **plus either `block-guide`
+or `templates`** (the template-routing flow ships `templates`; the default flow ships
+`block-guide`; both is fine). `personas` and `use-cases` are NOT part of the ready gate.
+`brand-voice` is NOT part of the ready gate either — but always generate it, it drives prompt
+quality.
 
 | File | Required for `ready` | Vectorized |
 |------|---------------------|------------|
-| `products.json` | YES | YES |
+| `knowledge.json` | YES (or products+features+faqs) | yes |
+| `products.json` (legacy) | YES | YES |
 | `personas.json` | YES | no |
-| `use-cases.json` | YES | no |
-| `features.json` | YES | YES |
-| `faqs.json` | YES | YES |
+| `features.json` (legacy) | YES | YES |
+| `faqs.json` (legacy) | YES | YES |
 | `suggestions.json` | YES | no |
 | `of1-endpoint.json` | YES | no |
 | `cta-template.json` | YES | no |
