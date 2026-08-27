@@ -51,7 +51,7 @@ Invoked with a target domain — e.g. "one-shot demo for frescopa.coffee" or
 
 ## Phase 0 — Verify dependencies + repo state (inline)
 
-Run `of1-check-dependencies` in your own context (CC: via the **Skill tool**, not an Agent — it's
+Run `of1-skills:of1-check-dependencies` in your own context (CC: via the **Skill tool**, not an Agent — it's
 light and may need `AskUserQuestion` for continue/restart; SLICC: inline in the cone). It verifies
 prerequisites AND repo state and writes `repo-config.json`. It does NOT create a branch — it uses
 whatever branch is checked out at `OF1_DEMO_REPO`. If it fails, surface the exact error and stop.
