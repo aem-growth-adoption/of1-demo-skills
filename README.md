@@ -28,18 +28,16 @@ Within Stage 3, `of1-integration` runs its own internal step graph — templates
 | Skill | Description |
 |-------|-------------|
 | `of1-demo-orchestrator` | Orchestrate full demo preparation — 3-stage pipeline; runs on both Claude Code and SLICC (detects the runtime, sprinkle UI on SLICC) |
-| `of1-check-dependencies` | Verify prerequisites — skills, tools, and repo state; verify EDS repo + prepare repo-config.json |
 | `of1-discovery` | Crawl a target website and propose a demo focus/narrative |
-| `of1-build-templates` | Generate 15 branded templates (5 intents × 3 variations) |
-| `of1-style-generative-block` | Generate CSS for dynamically-rendered generative sections |
-| `of1-extract-brand-voice` | Extract brand voice from a website and generate `brand-voice.json` |
-| `of1-extract-content` | Scrape product data, personas, use cases, features, and FAQs |
-| `of1-build-quick-suggestions` | Generate suggestion chips and search UI copy |
-| `of1-build-cta-template` | Extract site design system and generate a branded CTA template |
-| `of1-generate-config-review` | Generate the config-review.html deliverable from tenant config |
-| `of1-publish` | Commit config, sync to OF1 worker, generate demo hub, and verify |
+| `of1-prototype` | Recreate key pages as pixel-faithful prototypes ahead of the EDS conversion |
+| `of1-deploy` | Convert prototypes into a block-based, authorable EDS site via `stardust:deploy` |
 | `of1-signals` | Standalone (not a pipeline step) — author `signals.json`, the OF1 **preview extension's** own config for simulating how a demo visitor arrived (fake email/ads/LLM referrals) |
-| `of1-integration` | Stage 3 of the `of1-demo-orchestrator` pipeline (pipeline mode) — also runs standalone against an existing EDS/Stardust site, reusing whatever design tokens/blocks/pages already exist instead of crawling an external domain. Works on both Claude Code and SLICC with no sprinkle/scoop UI. |
+
+Stage 3 (OF1 integration — templates, styling, brand voice/content
+extraction, quick suggestions, CTA template, config review, publish) is
+provided by the separate [of1-skills](https://github.com/aem-growth-adoption/of1-skills)
+plugin, which this plugin depends on. See that repo's README and its
+`of1-integration/SKILL.md` for the full step graph.
 
 ## Usage
 
@@ -59,7 +57,7 @@ Then run the orchestrator:
 
 The setup step (`of1-check-dependencies`) verifies all of the following:
 
-- **Skills installed** — OF1 demo skills + Adobe stardust skills (`adobe/skills`, includes `replica` for Stage 2 and `deploy`) + impeccable (`pbakaus/impeccable`)
+- **Skills installed** — OF1 demo skills + the of1-skills plugin (for Stage 3) + Adobe stardust skills (`adobe/skills`, includes `replica` for Stage 2 and `deploy`) + impeccable (`pbakaus/impeccable`)
 - **Playwright** — `playwright-cli` available on PATH
 - **Node.js** — `node` available on PATH
 - **Git credentials** — `~/.git-credentials` present for push access
@@ -69,6 +67,7 @@ The following plugins are also required by the pipeline:
 
 ```bash
 upskill aem-growth-adoption/of1-demo-skills --all --branch skills-v3 --force
+upskill aem-growth-adoption/of1-skills --all
 upskill adobe/skills --path plugins/stardust --all
 upskill pbakaus/impeccable --all
 ```

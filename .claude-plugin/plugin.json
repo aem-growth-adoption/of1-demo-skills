@@ -1,31 +1,24 @@
 {
   "name": "of1-demo-skills",
-  "version": "0.1.0",
-  "description": "Turn any website into an OF1 generative-search demo on Adobe Edge Delivery Services (prototype+deploy pipeline — block-based Stage 2 via stardust:deploy), or introduce OF1 onto an existing EDS/Stardust site. Ships one runtime-agnostic orchestrator plus 10 step skills, plus a standalone signals.json authoring skill.",
+  "version": "0.2.0",
+  "description": "Turn any website into an OF1 generative-search demo on Adobe Edge Delivery Services (prototype+deploy pipeline — block-based Stage 2 via stardust:deploy). Ships the runtime-agnostic orchestrator plus the demo-build skills (discovery, prototype, deploy) and a standalone signals.json authoring skill. Depends on of1-skills for the actual OF1-integration step.",
   "skills": "./skills/",
   "entrypoints": {
     "skills": [
       "of1-demo-orchestrator",
-      "of1-check-dependencies",
       "of1-discovery",
-      "of1-build-templates",
-      "of1-style-generative-block",
-      "of1-extract-brand-voice",
-      "of1-extract-content",
-      "of1-build-quick-suggestions",
-      "of1-build-cta-template",
-      "of1-generate-config-review",
-      "of1-publish",
-      "of1-signals",
-      "of1-integration"
+      "of1-prototype",
+      "of1-deploy",
+      "of1-signals"
     ]
   },
   "dependencies": [
+    "of1-skills@of1-skills",
     "stardust@adobe-skills",
     "aem-edge-delivery-services@adobe-skills",
     "impeccable@impeccable"
   ],
   "_notes": {
-    "entrypoints": "of1-demo-orchestrator is the single runtime-agnostic orchestrator — it detects Claude Code vs SLICC at start and follows knowledge/dispatch-cc.md or knowledge/dispatch-slicc.md accordingly. of1-signals is a standalone skill, not a numbered pipeline step — it authors extension-only config (signals.json) that neither the sync/deploy pipeline nor the OF1 worker ever reads."
+    "entrypoints": "of1-demo-orchestrator is the single runtime-agnostic orchestrator — it detects Claude Code vs SLICC at start and follows knowledge/dispatch-cc.md or knowledge/dispatch-slicc.md accordingly. Stage 3 (OF1 integration) dispatches the of1-skills plugin's skills directly — see of1-skills's of1-integration/SKILL.md for that step graph. of1-signals is a standalone skill, not a numbered pipeline step — it authors extension-only config (signals.json) that neither the sync/deploy pipeline nor the OF1 worker ever reads."
   }
 }
