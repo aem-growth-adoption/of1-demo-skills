@@ -384,9 +384,9 @@ quality.
 
 | File | Required for `ready` | Vectorized |
 |------|---------------------|------------|
-| `knowledge.json` | YES (or products+features+faqs) | yes |
+| `knowledge.json` | YES (or products+features+faqs) | YES |
 | `products.json` (legacy) | YES | YES |
-| `personas.json` | YES | no |
+| `personas.json` | no | no |
 | `features.json` (legacy) | YES | YES |
 | `faqs.json` (legacy) | YES | YES |
 | `suggestions.json` | YES | no |
