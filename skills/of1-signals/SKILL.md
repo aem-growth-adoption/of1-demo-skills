@@ -25,7 +25,7 @@ JSON file on the EDS site — no code change, no real ad campaign needed.
 This is **extension-only config**. It is fetched directly by the extension's background service
 worker from `https://<branch>--<repo>--<owner>.aem.page/of1/config/signals.json` — it is never
 synced to the OF1 worker/R2, never read by `/api/generate` or `/api/personalize` server-side, and
-does not appear in `of1-demo-orchestrator`'s worker-config-schemas.md.
+does not appear in of1-skills' `of1-integration/knowledge/worker-config-schemas.md`.
 
 ## Priority order (highest wins)
 
