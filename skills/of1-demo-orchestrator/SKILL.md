@@ -147,7 +147,7 @@ Runtime-independent rules are NOT restated in this file — they live in the sha
   progress-tracking, and audit-capture mechanics. Read the one matching your runtime (see detection above).
 - **`knowledge/pipeline-contract.md`** — 3-stage model, nesting cap, per-step status/output contract, deliverable-URL rules, and the pipeline-audit schema. Fix any of these there once.
 - **`knowledge/common-pitfalls.md`** — DA/EDS/git/image/logo rules, curl traps, DA+EDS preview auth, allowed-domain table (`[SLICC]`/`[CC]` tagged). Consult on any DA/EDS/upload issue.
-- **`knowledge/worker-config-schemas.md`** — JSON schemas for every `of1/config/*.json`.
+- **`of1-integration/knowledge/worker-config-schemas.md`** (in the **of1-skills** repo, not here) — JSON schemas for every `of1/config/*.json`.
 - **`knowledge/design-tokens-resolution.md`** — the one `DESIGN.json` resolver + fail-loudly rule.
 
 ## Notes

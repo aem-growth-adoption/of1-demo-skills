@@ -253,5 +253,5 @@ left as audit notes.
 
 The orchestrator (both runtime dispatch files) and the step skills rely on:
 - `knowledge/common-pitfalls.md` — DA/EDS/git/image/logo rules, curl traps, DA+EDS preview auth, allowed-domain table (carries `[SLICC]`/`[CC]` variants).
-- `knowledge/worker-config-schemas.md` — JSON schemas for every `of1/config/*.json`.
+- `of1-integration/knowledge/worker-config-schemas.md` (in the **of1-skills** repo) — JSON schemas for every `of1/config/*.json`.
 - `knowledge/design-tokens-resolution.md` — the one `DESIGN.json` resolver + fail-loudly rule.
