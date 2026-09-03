@@ -234,7 +234,7 @@ with the input named `q` (so a typed query arrives as `/of1?q=…`), or make the
 `<a href="/of1">`. Never leave the input unbound and never keep the brand's original search action. This is
 the one correct destination for search across the whole demo — `/of1` is the OF1 generative landing page.
 
-**Canonical reference:** this section. `of1-build-templates` (CRITICAL RULE 6) and the prototype/deploy
+**Canonical reference:** this section. `of1-build-templates` (CRITICAL RULE 7) and the prototype/deploy
 skills should link here rather than restating.
 
 ---
