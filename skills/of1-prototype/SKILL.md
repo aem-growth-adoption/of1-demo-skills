@@ -249,7 +249,7 @@ stardust:prototype already enforces this, but for clarity:
 
 ## Notes
 
-Cross-cutting rules (logo completeness, EDS class collisions, announcement-bar placement, image format) are also documented in `of1-demo/knowledge/common-pitfalls.md`. Prototype-specific gotchas: heroes set to `100vh` are usually way too tall (sites typically use 200–400 px — check the live site's actual height); don't invent box-shadows that aren't on the original ("pixel-perfect copy" means matching, not improving).
+Cross-cutting rules (logo completeness, EDS class collisions, announcement-bar placement, image format, and on-page search wiring) are also documented in `of1-demo/knowledge/common-pitfalls.md`. If the cloned page has a search bar, wire it to `/of1` per pitfall §10 — pixel-perfect visuals, but the search must reach the generative page, not the brand's dead original endpoint. Prototype-specific gotchas: heroes set to `100vh` are usually way too tall (sites typically use 200–400 px — check the live site's actual height); don't invent box-shadows that aren't on the original ("pixel-perfect copy" means matching, not improving).
 
 ## Expected output structure
 
