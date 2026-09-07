@@ -222,6 +222,23 @@ missing it. (Note: `--output` IS a valid flag on the shipped `.mjs` build tools 
 
 ---
 
+## 10. On-page search must lead to `/of1`
+
+Any search input, "ask a question" field, or search-styled CTA on a **generated page** — a prototype
+homepage clone (`/prototype-home`, `of1-prototype` / `of1-deploy`) or an authored template — is a dead end
+unless it is wired to the site's generative experience. The brand's original search endpoint does not
+exist in the demo, so a copied search bar goes nowhere.
+
+**Rule:** point on-page search at `/of1`. Either wrap the field in `<form action="/of1" method="get">`
+with the input named `q` (so a typed query arrives as `/of1?q=…`), or make the whole control a real link
+`<a href="/of1">`. Never leave the input unbound and never keep the brand's original search action. This is
+the one correct destination for search across the whole demo — `/of1` is the OF1 generative landing page.
+
+**Canonical reference:** this section. `of1-build-templates` (CRITICAL RULE 7) and the prototype/deploy
+skills should link here rather than restating.
+
+---
+
 ## How to use this file
 
 When a step skill warns about one of these issues, it should link here instead of restating. Per-skill "Common Mistakes" tables keep only rows that are **specific to that skill's outputs** — generic warnings (DA strips images, EDS class collisions, curl pitfalls, runtime traps) all belong in this doc.
