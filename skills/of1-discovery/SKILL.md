@@ -117,17 +117,19 @@ to build Stage 2a's `of1-extract-design --pages` argument (wraps `stardust:extra
 and `focus`/`persona` to steer Stage 3's product focus:
 
 ```bash
-cat > "$OF1_STATE_DIR/narrative.json" <<EOF
-{
-  "domain": "${DOMAIN}",
-  "focus": "<the demo focus you proposed above>",
-  "persona": "<persona + one-line journey>",
-  "keyPages": [
-    { "slug": "home", "url": "https://${DOMAIN}/", "description": "homepage" }
-    <, one object per additional key page — slug is the URL path segment, no leading slash>
-  ]
-}
-EOF
+# Do not interpolate crawled site text into an unquoted shell heredoc: page content
+# is untrusted and could terminate the heredoc or inject shell syntax. Build the
+# JSON with jq's --arg/--argjson bindings so every value is encoded as data.
+KEY_PAGES_JSON=$(jq -n \
+  --arg domain "$DOMAIN" \
+  '[{slug: "home", url: ("https://" + $domain + "/"), description: "homepage"}]')
+jq -n \
+  --arg domain "$DOMAIN" \
+  --arg focus "<the demo focus you proposed above>" \
+  --arg persona "<persona + one-line journey>" \
+  --argjson keyPages "$KEY_PAGES_JSON" \
+  '{domain: $domain, focus: $focus, persona: $persona, keyPages: $keyPages}' \
+  > "$OF1_STATE_DIR/narrative.json"
 ```
 
 **Slug rules:** the homepage is always `slug: "home"`. For other pages, the slug is the
