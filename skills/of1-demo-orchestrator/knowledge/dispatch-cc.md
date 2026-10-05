@@ -20,7 +20,7 @@ Use **TaskCreate** with one task per stage, plus one task per OF1-integration sk
    extraction · of1-build-templates(base) · of1-build-templates(intent-*) ·
    of1-build-templates(assemble) · of1-style-generative-block · of1-extract-brand-voice ·
    of1-extract-content · of1-build-quick-suggestions ·
-   of1-build-cta-template (pipeline mode only) · of1-publish
+   of1-build-cta-template (always — the orchestrator always runs in pipeline mode) · of1-publish
 ```
 
 Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`failed` around its dispatch.
@@ -68,7 +68,7 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
    mode the content track — `of1-extract-brand-voice` ∥ `of1-extract-content` →
    `of1-build-quick-suggestions` — was already kicked off at step 2 above, so the site track's first
    fan-out is `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template`
-   (pipeline mode only). `of1-publish` waits for `of1-build-templates`(assemble) +
+   (always dispatched — the orchestrator always runs in pipeline mode). `of1-publish` waits for `of1-build-templates`(assemble) +
    `of1-style-generative-block` + `of1-build-quick-suggestions` + `of1-build-cta-template`.)
 6. **Fan out in parallel at every eligible point** — dispatch all currently-eligible skills in one
    message with multiple Agent blocks (e.g. `of1-build-templates`(base) ∥ `of1-style-generative-block`
@@ -148,6 +148,7 @@ export OF1_STATE_DIR="<stateDir>"
 export OF1_DEMO_REPO="<of1Repo>"
 export ADOBE_IMS_TOKEN="<token>"    # or: export OF1_TOKEN_FILE="<path>"
 export SKILL_DIR="<absolute path to the step skill's directory>"
+export OF1_PIPELINE_MODE=1          # always — the orchestrator runs every Integrate skill in pipeline mode
 
 ## Project context
 - Branch: <branch>          (from repo-config.json)
@@ -171,7 +172,11 @@ If status is `failed`, also write what specifically broke and what to retry.
 ```
 
 **`of1-publish` (deploy) runs inline in the orchestrator's own context** (not as an Agent) —
-follow `of1-integration`'s "Deploy" section directly. There is no separate config review step: authored config lives in DA and the demo hub
+follow `of1-integration`'s "Deploy" section directly. **Run every `of1-publish` shell command with
+`OF1_PIPELINE_MODE=1` in the same `Bash` invocation** (prefix each command, or start each single
+invocation with `export OF1_PIPELINE_MODE=1`) — `export`s do not persist across `Bash` calls, and
+without it `of1-publish` runs standalone: `of1/config/cta-template.json` is never committed/synced
+and check 7 is skipped. There is no separate config review step: authored config lives in DA and the demo hub
 (`deliverables/index.html`) links each item.
 
 ## Auto-approve vs review mode

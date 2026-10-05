@@ -709,7 +709,7 @@
         { key: 'deploy',    name: 'Deploy' }
       ] },
     { id: 3, name: 'OF1 integration', key: 'of1',
-      desc: 'Run of1-integration: content, styling, and deploy (config is authored in DA)', reviewNote: 'Demo hub (deliverables/index.html)',
+      desc: 'OF1 integration skills: content, styling, deploy (config authored in DA)', reviewNote: 'Demo hub (deliverables/index.html)',
       openLabel: 'Demo Hub', requires: [0],
       subSteps: [
         { key: 'brand',     name: 'Brand voice' },

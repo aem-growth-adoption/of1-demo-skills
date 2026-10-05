@@ -202,11 +202,16 @@ reference for what each skill does and its dependency edges — the cone is the 
 - **Fan out at every eligible point** once the check passes, following the dependency edges
   in `of1-integration` § "Pipeline-mode timing" — do not re-derive them here. The site track's first
   fan-out is the extraction step (if `DESIGN.json` absent) → `of1-build-templates`(base) ∥
-  `of1-style-generative-block` ∥ `of1-build-cta-template` (pipeline mode only); the content track
+  `of1-style-generative-block` ∥ `of1-build-cta-template` (always dispatched — the orchestrator always
+  runs in pipeline mode); the content track
   (`of1-extract-brand-voice` ∥ `of1-extract-content` → `of1-build-quick-suggestions`) was already
   dispatched in the 2a turn above. `of1-publish` runs inline once `of1-build-templates`(assemble) +
   `of1-style-generative-block` + `of1-build-quick-suggestions` + `of1-build-cta-template` are done
   (there is no separate config review step — authored config lives in DA, linked from the demo hub).
+  The cone is not a scoop, so it gets no `env`: **run every `of1-publish` shell command with
+  `OF1_PIPELINE_MODE=1` in the same invocation** (prefix each command, or start each single
+  invocation with `export OF1_PIPELINE_MODE=1`). Without it `of1-publish` runs standalone —
+  `of1/config/cta-template.json` is never committed/synced and check 7 is skipped.
 - Each scoop reads its own skill first and writes `of1-<skill>-status.json` (phase scoops of
   `of1-build-templates` write `of1-build-templates-<phase>-status.json`); does NOT call
   `sprinkle send`.

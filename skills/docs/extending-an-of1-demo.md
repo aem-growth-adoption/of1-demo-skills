@@ -10,6 +10,8 @@ You have a working OF1 demo (built via `of1-demo-orchestrator` or `of1-integrati
 | CTA visual template (pipeline-built demos only) | `of1-build-cta-template` | `of1-publish` |
 | Fake acquisition signals (email/ads/LLM referral simulation) | `of1-signals` | **No redeploy** — extension-only config, never synced to the OF1 worker |
 
+**Orchestrator-built demos: run `of1-publish` and `of1-build-cta-template` with `OF1_PIPELINE_MODE=1`.** A demo built by `of1-demo-orchestrator` has `of1/config/cta-template.json` tracked in git; standalone `of1-publish` (no `OF1_PIPELINE_MODE`) does not allow that file in its git config set, so check 1 fails. Set `OF1_PIPELINE_MODE=1` in the same shell invocation as each of their commands (e.g. prefix each command — `export`s don't persist across Claude Code `Bash` calls). Demos built standalone via `of1-integration` (no CTA template) run them without it.
+
 For a small hand edit you don't need a skill at all: open the item from the demo hub's DA edit links (`deliverables/index.html`), edit it in DA, then preview + sync (the **Sync OF1** DA app does both in one click).
 
 ## Why no orchestrator
@@ -20,7 +22,7 @@ Each config skill already reads `repo-config.json` (owner/repo/branch/domain) fr
 
 After any config change, redeploy so the change actually reaches the OF1 worker:
 
-1. **`of1-publish`** — asserts the git config set, syncs the OF1 worker (`POST /api/tenants/<id>/sync`), regenerates the demo hub (`deliverables/index.html`, with DA edit links + a status panel), commits, pushes, and re-runs the pre-launch checklist.
+1. **`of1-publish`** (with `OF1_PIPELINE_MODE=1` for orchestrator-built demos — see above) — asserts the git config set, syncs the OF1 worker (`POST /api/tenants/<id>/sync`), regenerates the demo hub (`deliverables/index.html`, with DA edit links + a status panel), commits, pushes, and re-runs the pre-launch checklist.
 
 There is no separate config review step — authored config lives in DA and is reviewed/edited there; the demo hub links each item.
 

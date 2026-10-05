@@ -21,7 +21,7 @@ stardust:replica --pages                       of1-integration (pipeline mode)
 | 2 Replica | `stardust:replica --pages` | Bounded same-design migration; no site-wide rollout |
 | 3 OF1 integration | `of1-integration` | Pipeline mode: live content source + replica-done gate |
 
-Within Stage 3, `of1-integration` runs its own internal step graph — templates, OF1 styling, brand voice/content extraction, quick suggestions, CTA template, config review, and deploy — fanning out in parallel where dependencies allow (see that skill's own `SKILL.md` for the full step graph and dependency table).
+Within Stage 3, `of1-integration` runs its own internal step graph — templates, OF1 styling, brand voice/content extraction, quick suggestions, CTA template, and deploy (config is authored in DA — there is no config-review step) — fanning out in parallel where dependencies allow (see that skill's own `SKILL.md` for the full step graph and dependency table).
 
 ## Skills
 
@@ -34,7 +34,7 @@ Within Stage 3, `of1-integration` runs its own internal step graph — templates
 | `of1-signals` | Standalone (not a pipeline step) — author `signals.json`, the OF1 **preview extension's** own config for simulating how a demo visitor arrived (fake email/ads/LLM referrals) |
 
 Stage 3 (OF1 integration — templates, styling, brand voice/content
-extraction, quick suggestions, CTA template, config review, publish) is
+extraction, quick suggestions, CTA template, publish) is
 provided by the separate [of1-skills](https://github.com/aem-growth-adoption/of1-skills)
 plugin, which this plugin depends on. See that repo's README and its
 `of1-integration/SKILL.md` for the full step graph.

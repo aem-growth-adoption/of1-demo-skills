@@ -43,7 +43,7 @@ Never document `DA_TOKEN` as a credential to set — set `ADOBE_IMS_TOKEN` (or `
 Stage 2's three substeps run **sequentially** — 2a → 2b → 2c — since each consumes the prior
 substep's output (2b needs 2a's `DESIGN.json`; 2c needs 2b's prototypes). Stage 2 (as a whole) and
 the Stage 3 **content track** (`of1-extract-brand-voice` ∥ `of1-extract-content` → `of1-build-quick-suggestions`) dispatch concurrently after Stage 1.
-The Stage 3 **site-integration track** (`of1-build-templates`(base) → (intent-*) → (assemble) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` (pipeline mode only), then `of1-publish` once those + `of1-build-quick-suggestions` are done) gates on Stage 2's
+The Stage 3 **site-integration track** (`of1-build-templates`(base) → (intent-*) → (assemble) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` (always dispatched — the orchestrator always runs in pipeline mode), then `of1-publish` once those + `of1-build-quick-suggestions` are done) gates on Stage 2's
 `$OF1_STAGE2_DONE_FILE` (written by 2c/`of1-deploy`). **The Integrate-stage skill graph, dependency edges, and pipeline-mode
 timing are defined once in `of1-integration`** — the orchestrator reads them there on both
 runtimes.
