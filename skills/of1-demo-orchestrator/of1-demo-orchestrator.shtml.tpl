@@ -709,8 +709,8 @@
         { key: 'deploy',    name: 'Deploy' }
       ] },
     { id: 3, name: 'OF1 integration', key: 'of1',
-      desc: 'Delegate content, styling, config review, and deploy to of1-integration', reviewNote: 'Config review page',
-      openLabel: 'Config Review', requires: [0],
+      desc: 'Run of1-integration: content, styling, and deploy (config is authored in DA)', reviewNote: 'Demo hub (deliverables/index.html)',
+      openLabel: 'Demo Hub', requires: [0],
       subSteps: [
         { key: 'brand',     name: 'Brand voice' },
         { key: 'content',   name: 'Content' },
@@ -718,7 +718,6 @@
         { key: 'templates', name: 'Templates' },
         { key: 'styling',   name: 'OF1 styling' },
         { key: 'cta',       name: 'CTA' },
-        { key: 'config',    name: 'Config review' },
         { key: 'deploy',    name: 'Deploy' }
       ] }
   ];
@@ -894,7 +893,7 @@
     var QUICKLINKS = [
       { label: 'Discovery', step: 1 },
       { label: 'Preview', step: 2 },
-      { label: 'Config Review', step: 3 }
+      { label: 'Demo Hub', step: 3 }
     ];
 
     var linkIcon = '<svg class="of1-quicklink__icon" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V10m-3-7h4m0 0v4m0-4L8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';

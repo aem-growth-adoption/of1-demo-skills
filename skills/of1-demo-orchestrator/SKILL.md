@@ -60,8 +60,8 @@ also clear the prior run's Stage 1/2 output (prototypes, deliverables, generated
 wipe is owned by **this orchestrator** and runs **before** dispatching `of1-check-dependencies`,
 only when ALL of:
 
-- `OF1_PIPELINE_MODE=1` (the orchestrator always runs the full demo pipeline — export it before
-  this step), AND
+- the orchestrator is running the full demo pipeline — it marks this with `OF1_PIPELINE_MODE=1`
+  (see "How to run it" below for where that must be set), AND
 - an earlier demo exists (`$OF1_STATE_DIR/repo-config.json` and `$OF1_STATE_DIR/setup.json` are
   present), AND
 - the user chose **Restart** — summarize the prior demo from `repo-config.json` + the
@@ -69,10 +69,18 @@ only when ALL of:
 
 On **Continue**, or when no earlier demo exists, skip this step entirely. When
 `of1-check-dependencies` then asks Continue/Restart, forward the same choice — do not ask the user
-twice (after a full wipe its OF1-owned-only reset is a no-op).
+twice. Its Restart reset then completes the clean-up — it removes the OF1-owned paths this wipe
+does not cover (DA `/of1/**` and `/templates/**` recursively, git `blocks/of1/` and `of1/config/`).
 
-Run it as **one** shell invocation (the guard must abort everything that follows). Do not drop the
-guard and do not reuse this block outside the demo pipeline — it deletes customer-shaped content:
+**How to run it.** Run the block below as **one** shell invocation, with `OF1_PIPELINE_MODE=1` set
+**in that same invocation** by the orchestrator as its pipeline-mode marker — Claude Code `Bash`
+calls do not persist `export`s across calls, so an `export` in an earlier call does not reach the
+guard. E.g. write the block to `$OF1_STATE_DIR/restart-wipe.sh` and run
+`OF1_PIPELINE_MODE=1 OF1_STATE_DIR="$OF1_STATE_DIR" bash "$OF1_STATE_DIR/restart-wipe.sh"` (plus
+`ADOBE_IMS_TOKEN`, if that is the token source) in a single call. **Never** add an
+`OF1_PIPELINE_MODE=1` assignment inside the block itself — that would make the guard meaningless.
+The guard aborts everything that follows. Do not drop it and do not reuse this block outside the
+demo pipeline — it deletes customer-shaped content:
 
 ```bash
 [ "$OF1_PIPELINE_MODE" = "1" ] || { echo "refusing full wipe outside the demo pipeline" >&2; exit 1; }
@@ -95,7 +103,7 @@ fi
 
 # Clean slate — remove previous demo artifacts but preserve EDS boilerplate
 # (`styles/styles.css`, `scripts/`, `blocks/{header,footer,fragment}/`, `head.html`).
-cd "$REPO_DIR"
+cd "$REPO_DIR" || exit 1
 rm -rf stardust/ deliverables/ templates/ fragments/ content/ drafts/ \
        gallery/ of1/config/ tools/ output/ screenshots/ tmp/ da/
 rm -rf styles/of1-*.css styles/prototype-*.css
@@ -215,8 +223,7 @@ The Integrate-skill graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing ar
   `$OF1_STAGE2_DONE_FILE` exist) before dispatching Stage 3 or deploying — a lighter check than the
   old replica fidelity gate, since 2a/2b/2c already fail loud on their own problems.
 - **`of1-publish` (deploy + pre-launch checklist)** runs **inline** in the orchestrator's own
-  context, following `of1-integration`'s Deploy section (including its check-5 adaptation for the
-  adopt flow). `of1-publish`'s checklist gates the OF1-integration stage's `done` status; it also
+  context, following `of1-integration`'s Deploy section. `of1-publish`'s checklist gates the OF1-integration stage's `done` status; it also
   regenerates the demo hub (`deliverables/index.html`) with DA edit links + a status panel.
 
 ## Iteration & completion

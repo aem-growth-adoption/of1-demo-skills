@@ -171,8 +171,7 @@ If status is `failed`, also write what specifically broke and what to retry.
 ```
 
 **`of1-publish` (deploy) runs inline in the orchestrator's own context** (not as an Agent) —
-follow `of1-integration`'s "Deploy" section directly, including its check-5 adaptation for the
-adopt flow. There is no separate config review step: authored config lives in DA and the demo hub
+follow `of1-integration`'s "Deploy" section directly. There is no separate config review step: authored config lives in DA and the demo hub
 (`deliverables/index.html`) links each item.
 
 ## Auto-approve vs review mode
