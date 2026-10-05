@@ -202,9 +202,11 @@ reference for what each skill does and its dependency edges — the cone is the 
 - **Fan out at every eligible point** once the check passes, following the dependency edges
   in `of1-integration` § "Pipeline-mode timing" — do not re-derive them here. The site track's first
   fan-out is the extraction step (if `DESIGN.json` absent) → `of1-build-templates`(base) ∥
-  `of1-style-generative-block` ∥ `of1-build-cta-template`; the content track (`of1-extract-brand-voice`
-  ∥ `of1-extract-content` → `of1-build-quick-suggestions`) was already dispatched in the 2a turn
-  above. `config-review` and `of1-publish` run inline.
+  `of1-style-generative-block` ∥ `of1-build-cta-template` (pipeline mode only); the content track
+  (`of1-extract-brand-voice` ∥ `of1-extract-content` → `of1-build-quick-suggestions`) was already
+  dispatched in the 2a turn above. `of1-publish` runs inline once `of1-build-templates`(assemble) +
+  `of1-style-generative-block` + `of1-build-quick-suggestions` + `of1-build-cta-template` are done
+  (there is no separate config review step — authored config lives in DA, linked from the demo hub).
 - Each scoop reads its own skill first and writes `of1-<skill>-status.json` (phase scoops of
   `of1-build-templates` write `of1-build-templates-<phase>-status.json`); does NOT call
   `sprinkle send`.
@@ -235,7 +237,6 @@ case "$SKILL_OR_PHASE" in
   of1-extract-content)         KEY=content ;;
   of1-build-quick-suggestions) KEY=suggest ;;
   of1-build-cta-template)      KEY=cta ;;
-  config-review)  KEY=config ;;
   of1-publish)                 KEY=deploy ;;
   *)                           KEY="" ;;
 esac
@@ -246,7 +247,7 @@ esac
   animates; on completion push the terminal status.
 - Keep pushing the top-level `{"stage":3,"status":...}` (active when the first skill starts, done when
   `of1-publish` returns).
-- **subStep keys are EXACTLY** `brand, content, suggest, templates, styling, cta, config, deploy` —
+- **subStep keys are EXACTLY** `brand, content, suggest, templates, styling, cta, deploy` —
   they must match the sprinkle's `subSteps[]` keys or the row won't update.
 
 ## scoop_wait timeout policy
@@ -260,7 +261,9 @@ scoop_wait({ scoop_names: ["of1-s2b-prototype"], timeout_ms: 1800000 })  // 30 m
 `timeout_ms` does NOT kill the scoop — it only wakes the cone. When it fires:
 1. Do NOT immediately `drop_scoop` — the scoop is likely still working.
 2. Check whether expected output files exist (`ls stardust/current/` for 2a, `ls stardust/prototypes/`
-   for 2b; `ls of1/config/` for the content track).
+   for 2b; for the content track, the DA items it writes — `/of1/brand-voice`, the
+   `/of1/config/personas` / `/of1/config/suggestions` sheets (e.g. `curl -s -H "Authorization: Bearer $DA_TOKEN" https://admin.da.live/list/${OWNER}/${REPO}/of1/config`)
+   — or its state files such as `$OF1_STATE_DIR/knowledge-pages.json`).
 3. If files exist but the status file doesn't: it's in its final steps (commit/push/status-write) —
    wait another minute or let the notify lick arrive.
 4. Only `drop_scoop` if silent for 5+ minutes AND no output files.
@@ -309,7 +312,7 @@ sprinkle send of1-demo-orchestrator '{"type":"audit","file":"/shared/of1-demo-or
 ## SLICC inline-execution gotchas
 
 The cone itself runs little inline (reading `narrative.json`, building the slug list, pushing
-sprinkle status, inline `config-review`/`of1-publish`). For those:
+sprinkle status, inline `of1-publish`). For those:
 1. **`set -o pipefail` is not supported** — execute commands manually.
 2. **`python3` heredocs must use a quoted delimiter** (`python3 << 'EOF'`) — see `common-pitfalls.md` §7.4; `node`/`jq` are also fine. The shipped build tools are `.mjs` run via `node` (§7.1). Don't rely on synchronous subprocess calls inside a script.
 3. **Sprinkle valid statuses** — only `pending`, `active`, `done`, `review`, `failed`. Anything else
