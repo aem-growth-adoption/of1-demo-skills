@@ -51,6 +51,92 @@ Invoked with a target domain — e.g. "one-shot demo for frescopa.coffee" or
 
 ## Phase 0 — Verify dependencies + repo state (inline)
 
+### 0a. Restart a provisioned demo repo (full wipe — throwaway demo repos only)
+
+`of1-check-dependencies` never wipes a repo — on Restart it removes only OF1-owned paths (DA
+`/of1/**` + `/templates/**`, git `blocks/of1/` + `of1/config/`), because it also runs against real
+customer sites. The demo pipeline instead provisions a **throwaway** repo, so a Restart here must
+also clear the prior run's Stage 1/2 output (prototypes, deliverables, generated pages). That full
+wipe is owned by **this orchestrator** and runs **before** dispatching `of1-check-dependencies`,
+only when ALL of:
+
+- `OF1_PIPELINE_MODE=1` (the orchestrator always runs the full demo pipeline — export it before
+  this step), AND
+- an earlier demo exists (`$OF1_STATE_DIR/repo-config.json` and `$OF1_STATE_DIR/setup.json` are
+  present), AND
+- the user chose **Restart** — summarize the prior demo from `repo-config.json` + the
+  `of1-*-status.json` files and ask once via `AskUserQuestion` (**Continue** / **Restart**).
+
+On **Continue**, or when no earlier demo exists, skip this step entirely. When
+`of1-check-dependencies` then asks Continue/Restart, forward the same choice — do not ask the user
+twice (after a full wipe its OF1-owned-only reset is a no-op).
+
+Run it as **one** shell invocation (the guard must abort everything that follows). Do not drop the
+guard and do not reuse this block outside the demo pipeline — it deletes customer-shaped content:
+
+```bash
+[ "$OF1_PIPELINE_MODE" = "1" ] || { echo "refusing full wipe outside the demo pipeline" >&2; exit 1; }
+
+# Never let a git op block on an interactive credential prompt.
+export GIT_TERMINAL_PROMPT=0
+export GIT_ASKPASS=true GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=20
+
+SETUP=$(cat "$OF1_STATE_DIR/setup.json")
+OWNER=$(echo "$SETUP" | jq -r .owner)
+REPO=$(echo "$SETUP" | jq -r .repo)
+BRANCH=$(echo "$SETUP" | jq -r .branch)
+REPO_DIR=$(echo "$SETUP" | jq -r .of1Repo)
+
+if [ "$(echo "$SETUP" | jq -r .tokenFromEnv)" = "true" ]; then
+  DA_TOKEN="$ADOBE_IMS_TOKEN"
+else
+  DA_TOKEN=$(jq -r .access_token "$(echo "$SETUP" | jq -r .tokenFile)")
+fi
+
+# Clean slate — remove previous demo artifacts but preserve EDS boilerplate
+# (`styles/styles.css`, `scripts/`, `blocks/{header,footer,fragment}/`, `head.html`).
+cd "$REPO_DIR"
+rm -rf stardust/ deliverables/ templates/ fragments/ content/ drafts/ \
+       gallery/ of1/config/ tools/ output/ screenshots/ tmp/ da/
+rm -rf styles/of1-*.css styles/prototype-*.css
+rm -f PRODUCT.md
+
+# Clean prior state
+rm -rf "$OF1_STATE_DIR"/of1-*-status.json
+rm -f "$OF1_STATE_DIR/discovery.html"
+
+# Stage ONLY the cleaned paths (scoped `-A -- <pathspec>`, never a bare `git add -A`/`.`
+# — see common-pitfalls.md § 6; a bare add can wipe the repo on a partial SLICC tree).
+# Quoted globs are expanded by git against tracked files, so they stage the deletions.
+git add -A -- \
+  stardust deliverables templates fragments content drafts gallery of1/config \
+  tools output screenshots tmp da PRODUCT.md \
+  'styles/of1-*.css' 'styles/prototype-*.css' 2>/dev/null || true
+if ! git diff --cached --quiet; then
+  git commit -m "chore: clean slate for ${BRANCH}"
+  git push origin "$BRANCH"
+  echo "✓ Clean slate committed + pushed"
+else
+  echo "✓ Branch already clean"
+fi
+
+# Then clean DA content for the branch:
+DA_LIST=$(curl -s --connect-timeout 10 --max-time 30 -H "Authorization: Bearer $DA_TOKEN" \
+  "https://admin.da.live/list/${OWNER}/${REPO}" 2>/dev/null || echo "[]")
+
+echo "$DA_LIST" | jq -r '.[] | select(.ext == "html") | .name' 2>/dev/null | while read -r name; do
+  [ -n "$name" ] || continue
+  curl -s --connect-timeout 10 --max-time 30 -X DELETE -H "Authorization: Bearer $DA_TOKEN" \
+    "https://admin.da.live/source/${OWNER}/${REPO}/${name}.html" >/dev/null
+done
+echo "✓ DA content cleaned"
+```
+
+(Sourced from the former `of1-check-dependencies` §3 "Clean slate" in the **of1-skills** repo,
+which no longer wipes anything outside OF1-owned paths.)
+
+### 0b. Run `of1-check-dependencies`
+
 Run `of1-skills:of1-check-dependencies` in your own context (CC: via the **Skill tool**, not an Agent — it's
 light and may need `AskUserQuestion` for continue/restart; SLICC: inline in the cone). It verifies
 prerequisites AND repo state and writes `repo-config.json`. It does NOT create a branch — it uses
