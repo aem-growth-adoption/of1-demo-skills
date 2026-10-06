@@ -18,7 +18,7 @@ One name per thing. Skills must use these names and not invent synonyms.
 | `SKILL_DIR` | orchestrator | the dispatched step | Absolute path to the step skill's own directory (for its `assets/`). |
 | `ADOBE_IMS_TOKEN` | user / environment | `of1-check-dependencies`, `of1-publish` | **Canonical DA credential** — the raw IMS token value. First choice in the token-resolution order. |
 | `OF1_TOKEN_FILE` | user / environment | `of1-check-dependencies`, `of1-publish`, `download-images.mjs` | Alternative to `ADOBE_IMS_TOKEN`: a path to a JSON file `{"access_token":"..."}`. Second in the resolution order. |
-| `OF1_PIPELINE_MODE` | orchestrator (Stage 3) | `of1-integration` + content-track skills | `1` when of1-integration runs inside the full pipeline (vs standalone). |
+| `OF1_PIPELINE_MODE` | orchestrator (Phase 0 restart wipe + Stage 3) | orchestrator's Phase 0a full-wipe guard, `of1-integration` + content-track skills | `1` when running inside the full demo pipeline (vs standalone). Phase 0a: must be set in the same shell invocation as the wipe block (it gates the full wipe). |
 | `OF1_CONTENT_SOURCE` | orchestrator (Stage 3) | content-track skills (`of1-extract-brand-voice`, `of1-extract-content`, `of1-build-quick-suggestions`) | The external domain to extract content from, in pipeline mode. |
 | `OF1_STAGE2_DONE_FILE` | orchestrator (Stage 2) | `of1-deploy` (writes it), orchestrator's site-track gate (reads it) | Path to `stage2-done.json` (default basename) — written by 2c (`of1-deploy`) on completion; the gate, not passed to Stage-3 step agents. |
 | `STRICT` | user / environment | `of1-check-dependencies` | Optional: makes dependency warnings fatal. |
@@ -43,7 +43,7 @@ Never document `DA_TOKEN` as a credential to set — set `ADOBE_IMS_TOKEN` (or `
 Stage 2's three substeps run **sequentially** — 2a → 2b → 2c — since each consumes the prior
 substep's output (2b needs 2a's `DESIGN.json`; 2c needs 2b's prototypes). Stage 2 (as a whole) and
 the Stage 3 **content track** (`of1-extract-brand-voice` ∥ `of1-extract-content` → `of1-build-quick-suggestions`) dispatch concurrently after Stage 1.
-The Stage 3 **site-integration track** (`of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` → `of1-build-templates`(assemble) → `config-review` → `of1-publish`) gates on Stage 2's
+The Stage 3 **site-integration track** (`of1-build-templates`(base) → (intent-*) → (assemble) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template` (always dispatched — the orchestrator always runs in pipeline mode), then `of1-publish` once those + `of1-build-quick-suggestions` are done) gates on Stage 2's
 `$OF1_STAGE2_DONE_FILE` (written by 2c/`of1-deploy`). **The Integrate-stage skill graph, dependency edges, and pipeline-mode
 timing are defined once in `of1-integration`** — the orchestrator reads them there on both
 runtimes.
@@ -135,7 +135,7 @@ derive from these; a missing URL greys them out).
 | 1 — discovery | `https://{branch}--{repo}--{owner}.aem.page/deliverables/discovery.html` |
 | 2a — extract design | `https://{branch}--{repo}--{owner}.aem.page/deliverables/brand-review.html` |
 | 2b/2c — prototype/deploy | each skill emits its own URLs in its status JSON (prototype previews, converted block-based EDS pages) — pass them through as-is |
-| 3 — Integrate skills | each skill emits its own URLs in its status JSON (gallery, `/of1`, `config-review.html`, final deploy index) — pass them through as-is; do NOT invent one URL for the whole stage |
+| 3 — Integrate skills | each skill emits its own URLs in its status JSON (gallery, `/of1`, final deploy index / demo hub `deliverables/index.html`) — pass them through as-is; do NOT invent one URL for the whole stage |
 
 ## Pipeline audit schema
 
@@ -167,7 +167,7 @@ individually** — there is no black-box Stage 3.
 | `stage` | Stage number (`0`, `1`, `2`, or `3`) |
 | `skill` | Skill id for stages 0/1/3 (`of1-build-templates`, `of1-publish`, …) or `of1-extract-design`/`of1-prototype`/`of1-deploy` for stage 2's three substeps. Skill-internal phases (`base`, `intent-*`, `assemble`) may be appended as `skill#phase` for the multi-dispatch templates skill. |
 | `name` | Human label (`discovery`, `extract-design`, `prototype`, `deploy`, `templates-base`, `styling`, `content`, …) |
-| `model` | Model used for this dispatch (`inline` for `config-review` and `of1-publish`, which run in the orchestrator's own context) |
+| `model` | Model used for this dispatch (`inline` for `of1-publish`, which runs in the orchestrator's own context) |
 | `startedAt` | ISO timestamp when dispatched |
 | `durationMs` | Wall-clock for this dispatch |
 | `totalTokens` | Token spend if available, else `null` |
@@ -236,8 +236,8 @@ retries, token spend >2× the expected range, duration >3× expected, or a recov
     },
     {
       "stage": 3,
-      "skill": "of1-build-cta-template",
-      "issue": "of1-build-cta-template returned 'review' over CTA copy tone — one revision round before deploy",
+      "skill": "of1-build-quick-suggestions",
+      "issue": "of1-build-quick-suggestions returned 'review' over suggestion-chip copy tone (DA /of1/config/suggestions sheet) — one revision round before deploy",
       "suggestion": "Have Stage 1's narrative.json carry an explicit tone/voice guideline the content track consumes"
     }
   ]
@@ -253,5 +253,5 @@ left as audit notes.
 
 The orchestrator (both runtime dispatch files) and the step skills rely on:
 - `knowledge/common-pitfalls.md` — DA/EDS/git/image/logo rules, curl traps, DA+EDS preview auth, allowed-domain table (carries `[SLICC]`/`[CC]` variants).
-- `of1-integration/knowledge/worker-config-schemas.md` (in the **of1-skills** repo) — JSON schemas for every `of1/config/*.json`.
+- `of1-integration/knowledge/worker-config-schemas.md` (in the **of1-skills** repo) — DA-first config: what lives in git (`of1/config/config.json`, + `cta-template.json` in pipeline mode) vs DA (`/of1/brand-voice`, `/of1/config/personas`, `/of1/config/suggestions`, …).
 - `of1-integration/knowledge/design-tokens-resolution.md` (in the **of1-skills** repo) — the one `DESIGN.json` resolver + fail-loudly rule.

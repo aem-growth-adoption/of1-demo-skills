@@ -1,6 +1,6 @@
 ---
 name: of1-demo-orchestrator
-description: Orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, run as 3 stages — discover a narrative and focus pages, recreate those pages as a branded EDS site via the three sequential substeps of1-extract-design → of1-prototype → of1-deploy, then run OF1 integration (content, styling, config review, deploy) as the Integrate-stage skills per of1-integration's step graph. Runs on both Claude Code and SLICC; it detects the runtime and follows the matching dispatch reference. Use when the user asks to build, demo, or one-shot an OF1 demo for a domain.
+description: Orchestrator that turns a website into a branded OF1 generative-search demo on Adobe Edge Delivery Services, run as 3 stages — discover a narrative and focus pages, recreate those pages as a branded EDS site via the three sequential substeps of1-extract-design → of1-prototype → of1-deploy, then run OF1 integration (content, styling, deploy) as the Integrate-stage skills per of1-integration's step graph. Runs on both Claude Code and SLICC; it detects the runtime and follows the matching dispatch reference. Use when the user asks to build, demo, or one-shot an OF1 demo for a domain.
 user-invocable: true
 ---
 
@@ -51,6 +51,133 @@ Invoked with a target domain — e.g. "one-shot demo for frescopa.coffee" or
 
 ## Phase 0 — Verify dependencies + repo state (inline)
 
+### Where `OF1_STATE_DIR` comes from
+
+Resolve `OF1_STATE_DIR` **before** step 0a, exactly as `of1-check-dependencies` Part 1 does (in the
+**of1-skills** repo): if the caller already set it, use that; otherwise default to
+`/shared/of1-demo-orchestrator` on SLICC and `$PWD/.of1/state` on Claude Code (the `verify.sh`
+default). Pass the same value to step 0a's wipe, to `of1-check-dependencies` in step 0b, and to every
+dispatched skill — a mismatch means the wipe guard reads a different `setup.json` than the one
+step 0b writes.
+
+### 0a. Restart a repo previously built by this orchestrator (full wipe)
+
+`of1-check-dependencies` never wipes a repo — on Restart it removes only OF1-owned paths (DA
+`/of1/**` + `/templates/**`, git `blocks/of1/` + `of1/config/`), because it also runs against real
+customer sites. The orchestrator does **not** provision its own repo — it uses whatever EDS checkout
+is at `OF1_DEMO_REPO`. A Restart here additionally clears the prior run's Stage 1/2 output
+(prototypes, deliverables, generated pages), which is only safe on **a repo previously built by this
+orchestrator**. That full wipe is owned by **this orchestrator** and runs **before** dispatching
+`of1-check-dependencies`, only when ALL of:
+
+- the orchestrator is running the full demo pipeline — it marks this with `OF1_PIPELINE_MODE=1`
+  (see "How to run it" below for where that must be set), AND
+- an earlier demo exists (`$OF1_STATE_DIR/repo-config.json` and `$OF1_STATE_DIR/setup.json` are
+  present), AND
+- the user chose **Restart** — summarize the prior demo from `repo-config.json` + the
+  `of1-*-status.json` files and ask once via `AskUserQuestion` (**Continue** / **Restart**).
+
+On **Continue**, or when no earlier demo exists, skip this step entirely. When
+`of1-check-dependencies` then asks Continue/Restart, forward the same choice — do not ask the user
+twice. Its Restart reset then completes the clean-up — it removes the OF1-owned paths this wipe
+does not cover (DA `/of1/**` and `/templates/**` recursively, git `blocks/of1/` and `of1/config/`).
+
+**How to run it.** Run the block below as **one** shell invocation, with `OF1_PIPELINE_MODE=1` set
+**in that same invocation** by the orchestrator as its pipeline-mode marker — Claude Code `Bash`
+calls do not persist `export`s across calls, so an `export` in an earlier call does not reach the
+guard. E.g. write the block to `$OF1_STATE_DIR/restart-wipe.sh` and run
+`OF1_PIPELINE_MODE=1 OF1_STATE_DIR="$OF1_STATE_DIR" bash "$OF1_STATE_DIR/restart-wipe.sh"` (plus
+`ADOBE_IMS_TOKEN`, if that is the token source) in a single call. **Never** add an
+`OF1_PIPELINE_MODE=1` assignment inside the block itself — that would make the guard meaningless.
+The `OF1_PIPELINE_MODE` guard alone is only an intent marker (the orchestrator sets it itself), so
+the block also **fails closed** unless the repo demonstrably is one this orchestrator built: the
+state dir's `setup.json` + `repo-config.json` exist and point at the same repo, that repo already has
+a committed Stage-2 output (`stardust/` tracked in `HEAD`), and the checked-out branch is the one
+recorded in `setup.json`. Any failed check prints a refusal and exits 1 before anything is deleted.
+Do not drop these checks and do not reuse this block outside the demo pipeline — it deletes
+customer-shaped content:
+
+```bash
+[ "$OF1_PIPELINE_MODE" = "1" ] || { echo "refusing full wipe outside the demo pipeline" >&2; exit 1; }
+
+# Fail closed: only wipe a repo this orchestrator previously built.
+[ -n "$OF1_STATE_DIR" ] || { echo "refusing full wipe: OF1_STATE_DIR is not set" >&2; exit 1; }
+[ -f "$OF1_STATE_DIR/setup.json" ] || { echo "refusing full wipe: $OF1_STATE_DIR/setup.json not found (no prior orchestrator run)" >&2; exit 1; }
+[ -f "$OF1_STATE_DIR/repo-config.json" ] || { echo "refusing full wipe: $OF1_STATE_DIR/repo-config.json not found (no prior orchestrator run)" >&2; exit 1; }
+
+# Never let a git op block on an interactive credential prompt.
+export GIT_TERMINAL_PROMPT=0
+export GIT_ASKPASS=true GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=20
+
+SETUP=$(cat "$OF1_STATE_DIR/setup.json")
+OWNER=$(echo "$SETUP" | jq -r .owner)
+REPO=$(echo "$SETUP" | jq -r .repo)
+BRANCH=$(echo "$SETUP" | jq -r .branch)
+REPO_DIR=$(echo "$SETUP" | jq -r .of1Repo)
+
+[ -n "$REPO_DIR" ] && [ "$REPO_DIR" != "null" ] && [ -d "$REPO_DIR/.git" ] \
+  || { echo "refusing full wipe: setup.json of1Repo '$REPO_DIR' is not a git checkout (no .git directory)" >&2; exit 1; }
+CFG_REPO_DIR=$(jq -r '.repoDir // empty' "$OF1_STATE_DIR/repo-config.json")
+REAL_REPO_DIR=$(cd "$REPO_DIR" && pwd -P) || { echo "refusing full wipe: cannot resolve $REPO_DIR" >&2; exit 1; }
+REAL_CFG_DIR=$( [ -n "$CFG_REPO_DIR" ] && cd "$CFG_REPO_DIR" 2>/dev/null && pwd -P ) || REAL_CFG_DIR=""
+[ -n "$REAL_CFG_DIR" ] && [ "$REAL_CFG_DIR" = "$REAL_REPO_DIR" ] \
+  || { echo "refusing full wipe: repo-config.json repoDir '$CFG_REPO_DIR' does not match setup.json of1Repo '$REPO_DIR'" >&2; exit 1; }
+git -C "$REPO_DIR" ls-tree -d HEAD stardust 2>/dev/null | grep -q . \
+  || { echo "refusing full wipe: $REPO_DIR has no Stage-2 output (stardust/) committed in HEAD — not a repo built by this orchestrator" >&2; exit 1; }
+CUR_BRANCH=$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null)
+[ -n "$BRANCH" ] && [ "$CUR_BRANCH" = "$BRANCH" ] \
+  || { echo "refusing full wipe: checked-out branch '$CUR_BRANCH' != recorded branch '$BRANCH'" >&2; exit 1; }
+
+if [ "$(echo "$SETUP" | jq -r .tokenFromEnv)" = "true" ]; then
+  DA_TOKEN="$ADOBE_IMS_TOKEN"
+else
+  DA_TOKEN=$(jq -r .access_token "$(echo "$SETUP" | jq -r .tokenFile)")
+fi
+
+# Clean slate — remove previous demo artifacts but preserve EDS boilerplate
+# (`styles/styles.css`, `scripts/`, `blocks/{header,footer,fragment}/`, `head.html`).
+cd "$REPO_DIR" || exit 1
+rm -rf stardust/ deliverables/ templates/ fragments/ content/ drafts/ \
+       gallery/ of1/config/ tools/ output/ screenshots/ tmp/ da/
+rm -rf styles/of1-*.css styles/prototype-*.css
+rm -f PRODUCT.md
+
+# Clean prior state
+rm -rf "$OF1_STATE_DIR"/of1-*-status.json
+rm -f "$OF1_STATE_DIR/discovery.html"
+
+# Stage ONLY the cleaned paths (scoped `-A -- <pathspec>`, never a bare `git add -A`/`.`
+# — see common-pitfalls.md § 6; a bare add can wipe the repo on a partial SLICC tree).
+# Quoted globs are expanded by git against tracked files, so they stage the deletions.
+git add -A -- \
+  stardust deliverables templates fragments content drafts gallery of1/config \
+  tools output screenshots tmp da PRODUCT.md \
+  'styles/of1-*.css' 'styles/prototype-*.css' 2>/dev/null || true
+if ! git diff --cached --quiet; then
+  git commit -m "chore: clean slate for ${BRANCH}"
+  git push origin "$BRANCH"
+  echo "✓ Clean slate committed + pushed"
+else
+  echo "✓ Branch already clean"
+fi
+
+# Then clean DA content for the branch:
+DA_LIST=$(curl -s --connect-timeout 10 --max-time 30 -H "Authorization: Bearer $DA_TOKEN" \
+  "https://admin.da.live/list/${OWNER}/${REPO}" 2>/dev/null || echo "[]")
+
+echo "$DA_LIST" | jq -r '.[] | select(.ext == "html") | .name' 2>/dev/null | while read -r name; do
+  [ -n "$name" ] || continue
+  curl -s --connect-timeout 10 --max-time 30 -X DELETE -H "Authorization: Bearer $DA_TOKEN" \
+    "https://admin.da.live/source/${OWNER}/${REPO}/${name}.html" >/dev/null
+done
+echo "✓ DA content cleaned"
+```
+
+(Sourced from the former `of1-check-dependencies` §3 "Clean slate" in the **of1-skills** repo,
+which no longer wipes anything outside OF1-owned paths.)
+
+### 0b. Run `of1-check-dependencies`
+
 Run `of1-skills:of1-check-dependencies` in your own context (CC: via the **Skill tool**, not an Agent — it's
 light and may need `AskUserQuestion` for continue/restart; SLICC: inline in the cone). It verifies
 prerequisites AND repo state and writes `repo-config.json`. It does NOT create a branch — it uses
@@ -81,8 +208,8 @@ Stage 2: 2a of1-extract-design <URL>       Stage 3: OF1 integration (Integrate s
       → 2b of1-prototype                    THIS orchestrator dispatches each skill,
       → 2c of1-deploy                     per of1-integration's graph: content track
   → EDS site + DESIGN.json                   (brand-voice/content/suggestions) runs NOW;
-  → write $OF1_STAGE2_DONE_FILE              site-integration track (templates·styling·cta
-    (2c only, on completion)                 → assemble → config-review → publish)
+  → write $OF1_STAGE2_DONE_FILE              site-integration track (templates→assemble
+    (2c only, on completion)                 ∥ styling ∥ cta → publish)
                                               gates on $OF1_STAGE2_DONE_FILE
         └─────────────────────────┬─────────────────────────┘
                                   ↓  join + deploy (of1-publish) owned by THIS orchestrator
@@ -97,7 +224,11 @@ Stage 2: 2a of1-extract-design <URL>       Stage 3: OF1 integration (Integrate s
 - The **Stage 3 site-integration track** gates on Stage 2's `$OF1_STAGE2_DONE_FILE` (written by 2c),
   then follows `of1-integration`'s dependency graph — the first fan-out is the extraction step (if
   `DESIGN.json` absent) → `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥
-  `of1-build-cta-template`; `config-review` and `of1-publish` run inline at the tail. Do not
+  `of1-build-cta-template` (always dispatched — the orchestrator always runs in pipeline mode);
+  `of1-publish` runs inline at the tail once
+  `of1-build-templates`(assemble) + `of1-style-generative-block` + `of1-build-quick-suggestions` +
+  `of1-build-cta-template` are all done. There is no separate config review step — authored config
+  lives in DA and the demo hub (`deliverables/index.html`) links each item. Do not
   re-derive the per-skill edges here (they are defined once in `of1-integration` — see the note
   below).
 - **Fan out at every eligible point.** The pipeline is complete when `of1-publish` returns `done`.
@@ -125,10 +256,14 @@ The Integrate-skill graph, dependency edges, and `OF1_PIPELINE_MODE=1` timing ar
 - After 2c, the orchestrator does an **artifact-existence check** (the block-based EDS pages and
   `$OF1_STAGE2_DONE_FILE` exist) before dispatching Stage 3 or deploying — a lighter check than the
   old replica fidelity gate, since 2a/2b/2c already fail loud on their own problems.
-- **`config-review` (config review) and `of1-publish` (deploy + pre-launch checklist)**
-  run **inline** in the orchestrator's own context, following `of1-integration`'s Config review /
-  Deploy sections (including its check-5 adaptation for the adopt flow). `of1-publish`'s checklist gates the
-  OF1-integration stage's `done` status.
+- **`of1-publish` (deploy + pre-launch checklist)** runs **inline** in the orchestrator's own
+  context, following `of1-integration`'s Deploy section. `of1-publish`'s checklist gates the OF1-integration stage's `done` status; it also
+  regenerates the demo hub (`deliverables/index.html`) with DA edit links + a status panel.
+  **Every `of1-publish` shell command must run with `OF1_PIPELINE_MODE=1` in the same invocation**
+  (prefix each command, e.g. `OF1_PIPELINE_MODE=1 bash -c '…'`, or put `export OF1_PIPELINE_MODE=1`
+  at the top of each single invocation) — Claude Code `Bash` calls don't persist `export`s, and on
+  SLICC only scoops receive `env`, not the cone. Without it `of1-publish` treats the run as
+  standalone: `of1/config/cta-template.json` is never committed/synced and check 7 is skipped.
 
 ## Iteration & completion
 
@@ -147,7 +282,7 @@ Runtime-independent rules are NOT restated in this file — they live in the sha
   progress-tracking, and audit-capture mechanics. Read the one matching your runtime (see detection above).
 - **`knowledge/pipeline-contract.md`** — 3-stage model, nesting cap, per-step status/output contract, deliverable-URL rules, and the pipeline-audit schema. Fix any of these there once.
 - **`knowledge/common-pitfalls.md`** — DA/EDS/git/image/logo rules, curl traps, DA+EDS preview auth, allowed-domain table (`[SLICC]`/`[CC]` tagged). Consult on any DA/EDS/upload issue.
-- **`of1-integration/knowledge/worker-config-schemas.md`** (in the **of1-skills** repo, not here) — JSON schemas for every `of1/config/*.json`.
+- **`of1-integration/knowledge/worker-config-schemas.md`** (in the **of1-skills** repo, not here) — DA-first config: what lives in git (`of1/config/config.json`, + `cta-template.json` in pipeline mode) vs DA (`/of1/brand-voice`, `/of1/config/personas`, `/of1/config/suggestions`, …).
 - **`of1-integration/knowledge/design-tokens-resolution.md`** (in the **of1-skills** repo, not here) — the one `DESIGN.json` resolver + fail-loudly rule.
 
 ## Notes

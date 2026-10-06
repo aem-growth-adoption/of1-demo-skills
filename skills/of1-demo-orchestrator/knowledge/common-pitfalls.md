@@ -76,7 +76,7 @@ Construct image URLs with `format=png` or `format=jpg` for browser compatibility
 Only use URLs that were extracted from the live DOM via Playwright and downloaded successfully (>10KB). Inventing URLs leads to broken images and user frustration.
 
 ### 2.5 Image paths in committed HTML must be absolute from repo root
-HTML deliverables served on EDS need paths like `/deliverables/assets/screenshots/home.png`, not `assets/screenshots/...`. Relative paths break because the HTML is served at `/deliverables/config-review.html` while assets are at `/deliverables/assets/...`.
+HTML deliverables served on EDS need paths like `/deliverables/assets/screenshots/home.png`, not `assets/screenshots/...`. Relative paths break because the HTML is served at `/deliverables/index.html` while assets are at `/deliverables/assets/...`.
 
 ---
 
@@ -102,7 +102,7 @@ https://{branch}--{repo}--{owner}.aem.page/{page}
 The branch is NOT repeated as a path prefix. Not the domain, not the repo, not any other variant.
 
 ### 4.3 Static files served from git keep their `.html` extension
-A file committed at `deliverables/config-review.html` is served at `/deliverables/config-review.html` — NOT at `/deliverables/config-review` (that 404s). DA-authored content pages (like `/of1`, `/prototype-home`) do NOT need the extension.
+A file committed at `deliverables/index.html` is served at `/deliverables/index.html` — NOT at `/deliverables/index` (that 404s). DA-authored content pages (like `/of1`, `/prototype-home`) do NOT need the extension.
 
 ---
 
@@ -130,7 +130,7 @@ Multiple pushes per step waste 2-3 minutes each on preview triggers. Generate al
 
 ```bash
 # ✅ CORRECT — only stages the files this step produced
-git add templates/ styles/ fragments/ of1/config/
+git add templates/ styles/ fragments/ of1/config/config.json
 
 # ❌ WRONG — can destroy the entire repo if working tree is incomplete
 git add .
