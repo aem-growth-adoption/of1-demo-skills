@@ -43,7 +43,7 @@ Success criteria:
   above, then read `$OF1_STATE_DIR/of1-integration-result.json`
   (`status`, `summary`, `deliverables`, `checks`). `done` finishes the pipeline;
   anything else is reported and fails the run.
-- Keep writing `$OF1_STAGE2_DONE_FILE` (`stage2-done.json`) from `of1-deploy`: the lab maps
+- Keep writing `$OF1_STAGE2_DONE_FILE` (`stage2-done.json`) from `of1-deploy`: a harness uses
   it for progress. It is no longer a gate for anything in `of1-skills`.
 - Phase 0b stays: the orchestrator still runs `of1-skills:of1-check-dependencies` first
   (inline, `Skill` tool). It fails fast before Stage 1, writes `setup.json` and
@@ -72,7 +72,7 @@ to rely on:
 | `skills/of1-demo-orchestrator/knowledge/dispatch-slicc.md` (327 lines) | delete |
 | `skills/of1-demo-orchestrator/of1-demo-orchestrator.shtml.tpl` (1090 lines, SLICC sprinkle UI) | delete |
 | `skills/of1-demo-orchestrator/knowledge/dispatch-cc.md` (214 lines) | keep only Stage 1 and Stage 2 dispatch; drop the "Skill dispatch template (Integrate skills)" and Stage 3 sections |
-| `skills/of1-demo-orchestrator/knowledge/pipeline-contract.md` | drop SLICC rows, Integrate-skill dispatch contract, `OF1_PIPELINE_MODE`; keep env vars, state files, the Stage 1/2 status contract and the lab contract below |
+| `skills/of1-demo-orchestrator/knowledge/pipeline-contract.md` | drop SLICC rows, Integrate-skill dispatch contract, `OF1_PIPELINE_MODE`; keep env vars, state files, the Stage 1/2 status contract |
 | `skills/of1-demo-orchestrator/knowledge/common-pitfalls.md` | drop `[SLICC]` items and the section numbers nobody cites any more; keep §2, §3, §6, §9 numbering because `of1-skills` skills still cite them until their own cleanup lands |
 | `FINDINGS-2026-08-04.md`, `SCRIPT-AUDIT-2026-08-05.md`, `SKILLS-AUDIT-2026-08-05.md`, `logs.txt` | delete (tracked, unreferenced) |
 | `README.md` | rewrite for the current 3-stage pipeline (not `stardust:replica`, not `skills-v3`) |
