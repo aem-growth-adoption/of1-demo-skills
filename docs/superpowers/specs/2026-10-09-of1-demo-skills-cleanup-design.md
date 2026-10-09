@@ -1,8 +1,8 @@
-# of1-demo-skills cleanup: call of1-integration once, keep the lab contract
+# of1-demo-skills cleanup: call of1-integration once
 
 Date: 2026-10-09
 Status: draft, awaiting review
-Repos: `of1-demo-skills` (primary), `of1-labs` (small, required), `of1-skills` (see its cleanup spec)
+Repos: `of1-demo-skills` (primary), `of1-skills` (see its cleanup spec). The automation harness that runs this pipeline is changed in its own repo's spec.
 Related: `of1-skills/docs/superpowers/specs/2026-10-09-of1-skills-cleanup-design.md`
 
 ## Intent
@@ -15,13 +15,13 @@ internals, and no longer carries SLICC.
 
 Success criteria:
 
-1. A lab run of the demo produces the same experiment as today (same hub, same
-   `/of1` page, same step progress in the UI) with `of1-skills` on its new driver.
+1. A run of the demo produces the same experiment as today (same hub, same
+   `/of1` page, same progress files) with `of1-skills` on its new driver.
 2. The orchestrator never mentions an `of1-skills` skill other than `of1-integration`
    and `of1-check-dependencies`' outputs it needs.
 3. No SLICC code, no `OF1_PIPELINE_MODE`, no `OF1_STAGE2_DONE_FILE` gate for Stage 3.
 4. Dead files are gone and the README describes the real pipeline.
-5. The lab's progress tracking and completion check keep working (see "Lab contract").
+5. The caller contract below stays stable for any harness that runs the orchestrator.
 
 ## Decisions taken
 
@@ -44,10 +44,10 @@ Success criteria:
   (`status`, `summary`, `deliverables`, `checks`). `done` finishes the pipeline;
   anything else is reported and fails the run.
 - Keep writing `$OF1_STAGE2_DONE_FILE` (`stage2-done.json`) from `of1-deploy`: the lab maps
-  it to a UI step. It is no longer a gate for anything in `of1-skills`.
+  it for progress. It is no longer a gate for anything in `of1-skills`.
 - Phase 0b stays: the orchestrator still runs `of1-skills:of1-check-dependencies` first
   (inline, `Skill` tool). It fails fast before Stage 1, writes `setup.json` and
-  `repo-config.json` that Stage 1/2 skills read, and is the lab's step 1. The driver runs the
+  `repo-config.json` that Stage 1/2 skills read, and is the first progress file a caller sees. The driver runs the
   same skill again as its own step 1; that re-run is idempotent and cheap (spec of1-skills,
   stage 5 makes it skip the verification when `setup.json` is fresh).
 
@@ -78,85 +78,52 @@ to rely on:
 | `README.md` | rewrite for the current 3-stage pipeline (not `stardust:replica`, not `skills-v3`) |
 | `docs/superpowers/**` (about 12.5k lines) | add `Status:` headers and a `docs/README.md` index; do not delete |
 | `AGENTS.md` | add (a `CLAUDE.md` symlink already exists but its target is missing) |
-| `pipeline-version` | unchanged value `v5-deploy` (the lab reads it) |
+| `pipeline-version` | unchanged value `v5-deploy` (external tooling reads it) |
 
-## Lab contract (of1-labs reads this; must not change silently)
+## Caller contract (stable)
 
-From the 2026-10-09 audit of of1-labs `origin/main`:
+A harness that runs the orchestrator may rely on:
 
-- Progress: the lab polls `<shared dir>/<skill>-status.json`, reads `status` and `skill`
-  and acts only on `status:"done"`. Skill ids it knows: `of1-check-dependencies`,
-  `of1-discovery`, `of1-extract-design`, `of1-prototype`, `of1-deploy` (and `stage2-done.json`),
-  `of1-build-templates`, `of1-style-generative-block`, `of1-extract-brand-voice`,
-  `of1-extract-content`, `of1-build-quick-suggestions`, `of1-build-cta-template`,
-  `of1-publish`. The driver in `of1-skills` keeps writing these (its spec's lab contract).
-- It also matches skill ids inside Agent/TaskCreate tool-call text; the driver's dispatches
-  keep those ids.
-- Completion: `/shared/of1-demo/result.json` `{status, branchName, experimentUrl, message,
-  blockers}` is written by the orchestrator's final step, not by `of1-skills`. The
-  orchestrator keeps writing it; the lab's system prompt still instructs this.
-- `repo-config.json` is written by the lab before the run with fields `owner, repo, branch,
-  branchName, repoDir, sharedDir, jobId, domain`; the orchestrator keeps reading it.
-- `pipeline-version` stays one of `v4|v5|v5-prototype|v5-deploy`; branch names are
-  not renamed.
-- Hub link `https://<branch>--<repo>--<org>.aem.page/deliverables/index.html`.
-- The lab sets no `OF1_PIPELINE_MODE`; today the orchestrator sets it itself. After this
-  change nothing sets it.
-
-## Required change in of1-labs (separate PR, same release)
-
-The lab's post-run check requires `of1/config/{brand-voice,knowledge,personas,suggestions,
-cta-template,templates}.json` in the shared dir (`container/bin/server.ts`,
-`requiredConfigFiles`, around line 246) and fails the job `incomplete_pipeline` otherwise.
-DA-first skills write only `of1/config/config.json` (+ `cta-template.json`) to git, so
-this check fails today on `main` skills. Change:
-
-- `requiredConfigFiles` returns `["config.json", "cta-template.json"]` for the knowledge-only
-  contract (the default branch `main` and `skills-v5*`); the legacy list stays for
-  other skill branches.
-- `buildSystemPrompt`'s `configFilesBlock` and the "STEP 11 / STEP 12" paragraphs
-  describe the DA-first deliverables and the single `of1-integration` call (step 11
-  does not exist any more); the `result.json` rules stay.
-- Add `of1-integration` to the lab's skill allow-list/step map only if its UI should show
-  the driver as a card; otherwise leave the map alone (unknown ids are ignored by the
-  tracker, but the events endpoint rejects unknown ids with 400, so never post them).
-- Update `container/tests/server.test.ts` fixtures (`:613-666` area) for the new required
-  list.
-- Image rebuild is needed (the check lives in the image, not in the skills).
+- Progress: `<state dir>/<skill>-status.json` with `status` and `skill` (the `of1-skills`
+  progress contract, `docs/contract.md` there) for the Stage 3 skills, and for this repo's
+  own: `of1-discovery`, `of1-extract-design`, `of1-prototype`, `of1-deploy`, plus
+  `stage2-done.json`.
+- The caller sets `OF1_STATE_DIR`, `OF1_DEMO_REPO` and the token env vars, pre-writes
+  `repo-config.json` (`owner, repo, branch, domain` at least) and says in its own system
+  prompt where to write its result. The orchestrator writes no result file of its own; it
+  ends by reporting `of1-integration-result.json` (`done|review|failed`, `summary`,
+  `deliverables`).
+- `pipeline-version` stays one of `v4|v5|v5-prototype|v5-deploy`; branch names are not
+  renamed.
+- Skill ids and the orchestrator name `of1-demo-skills:of1-demo-orchestrator` stay.
+- Hub link `<preview>/deliverables/index.html`.
+- Nothing sets `OF1_PIPELINE_MODE` any more.
 
 ## Verification
 
-1. Unit: markdown/link checks on the changed knowledge docs; `bash -n` on the wipe block
-   (extract it to a script with a test that runs its guards against a fake state dir).
-2. Contract: the `of1-skills` contract test (status-file names vs the lab's list).
-3. Lab dry run before merge: run one experiment with `of1SkillsBranch` and `skillsBranch`
-   set to the PR branches. Pass: all 12 UI steps complete, hub link loads, `ready: true`
-   on the worker `/status`, `result.json` `ok`, no `incomplete_pipeline`. Capture the
-   baseline shape (`of1-skills` `scripts/baseline`) from that run: it becomes the golden run
-   that stages 3-5 are compared to.
+1. Markdown/link checks on the changed knowledge docs; the wipe block is extracted to a
+   script with a test that runs its fail-closed guards against a fake state dir.
+2. The `of1-skills` contract test.
+3. A full run on a throwaway repo with both repos on their PR branches: all progress files
+   appear, hub loads, worker `/status` is `ready`, `of1-integration-result.json` is
+   `done`. Capture the baseline shape (`of1-skills` `scripts/baseline`) from that run; it
+   becomes the golden run for later changes.
 
 ## Order and release
 
 1. `of1-skills` PR #13 (hygiene) merges.
-2. `of1-labs` PR (required config) merges and the image is rebuilt (safe on its own:
-   it only relaxes the check).
-3. `of1-skills` stages 3-6 (branch `main` stays untouched until a lab run passes on the
-   branch).
-4. `of1-demo-skills` PR (this spec), run in the lab on branches of both repos, then merge
-   both together.
+2. The harness repo's PR (its own spec) merges and ships first; it only relaxes a check.
+3. `of1-skills` stages 3-6 on a branch; `main` stays untouched until a full run passes.
+4. This repo's PR, run on branches of both repos, then merged together.
 
 ## Risks
 
-- The lab check fails every DA-first run today; the labs PR must land (or the lab run
-  uses legacy skill branches) before any test run.
-- Sequential content track increases wall-clock time; measure it in the lab run.
-- The driver and the wipe block together are the only remaining destructive pieces;
-  the wipe keeps all fail-closed guards and its new DA deletion keeps the two-root path
-  guard.
-- Status files land in a different directory than the lab polls if the default
-  `OF1_STATE_DIR` changes (see the `of1-skills` open question); the lab dry run verifies it.
+- Sequential content track increases wall-clock time; measure it in the first run.
+- The wipe block is the only destructive piece left; all guards stay and its new DA
+  deletion keeps a two-root path guard.
 
 ## Out of scope
 
 `of1-discovery`, `of1-extract-design`, `of1-prototype`, `of1-deploy` internals; the
-worker template-publish fix; the portal; editing `of1-skills` skills (their own spec).
+worker template-publish fix; the portal; editing `of1-skills` skills (their own spec);
+the harness repo's changes (its own spec).
