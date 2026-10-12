@@ -1,5 +1,7 @@
 # OF1 Skills Review — Checklist (2026-08-11)
 
+Status: Historical
+
 Branch: `skills-v5-next`. Recurring anti-patterns to watch: cloned-from-sibling boilerplate,
 dead extracted vars, re-deriving upstream artifacts, DRY-violating pasted commands, correctness
 rules living in soft-referenced prose instead of executed code.

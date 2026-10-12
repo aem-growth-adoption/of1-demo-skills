@@ -1,5 +1,7 @@
 # of1-adopt + AuthorKit-removal cleanup — Implementation Plan
 
+Status: Historical
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fix two skills that still assume the AuthorKit runtime `stardust:deploy` removed upstream, teach two shared step skills to detect existing artifacts instead of hard-requiring an external-domain crawl, and add a new `of1-adopt` skill that runs OF1 on top of an existing EDS/Stardust site — on both Claude Code and SLICC, with no sprinkle/scoop UI push.

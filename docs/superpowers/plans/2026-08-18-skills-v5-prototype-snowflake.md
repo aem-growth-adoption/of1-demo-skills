@@ -1,5 +1,7 @@
 # skills-v5 Prototype + Snowflake Implementation Plan
 
+Status: Historical
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `skills-v5` a distinct pipeline variant whose Stage 2 is `stardust:extract → stardust:prototype → snowflake` (mirroring `main`/v4), and teach the OF1 Labs event API + dashboard to track it as a third variant.

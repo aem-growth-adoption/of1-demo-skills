@@ -1,5 +1,7 @@
 # OF1 pipeline rework: stardust:deploy + DA.live-authored config
 
+Status: Historical
+
 ## Context
 
 The OF1 demo pipeline (`of1-demo-skills`) currently:

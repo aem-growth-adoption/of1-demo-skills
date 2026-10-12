@@ -1,5 +1,7 @@
 # OF1 3-Stage Pipeline Re-Architecture — Implementation Plan
 
+Status: Historical
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Restructure the OF1 demo pipeline into three stages — Collect (discovery), Replica (`stardust:replica`), OF1 integration (delegate to `of1-adopt-existing-site`) — eliminating three bespoke skills and the duplicated steps 6–12.

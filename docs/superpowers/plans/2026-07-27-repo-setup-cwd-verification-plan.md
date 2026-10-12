@@ -1,5 +1,7 @@
 # Fold repo-setup into of1-setup Implementation Plan
 
+Status: Historical
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Delete `of1-repo-setup` as a standalone skill/pipeline step, fold its
