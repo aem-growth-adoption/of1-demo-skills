@@ -27,7 +27,7 @@ Within Stage 3, `of1-integration` runs its own internal step graph — templates
 
 | Skill | Description |
 |-------|-------------|
-| `of1-demo-orchestrator` | Orchestrate full demo preparation — 3-stage pipeline; runs on both Claude Code and SLICC (detects the runtime, sprinkle UI on SLICC) |
+| `of1-demo-orchestrator` | Orchestrate full demo preparation — 3-stage pipeline on Claude Code |
 | `of1-discovery` | Crawl a target website and propose a demo focus/narrative |
 | `of1-prototype` | Recreate key pages as pixel-faithful prototypes ahead of the EDS conversion |
 | `of1-deploy` | Convert prototypes into a block-based, authorable EDS site via `stardust:deploy` |

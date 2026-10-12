@@ -1,14 +1,12 @@
-# Dispatch mechanics — Claude Code runtime
+# Dispatch mechanics — Claude Code
 
-Read this when `of1-demo-orchestrator` detects it is running in **Claude Code** (the `Agent`
-and `TaskCreate` tools are available; `scoop_scoop` is not). It supplies the CC-specific *how*;
-the runtime-agnostic *what* (stage model, step graph, nesting cap, audit schema) lives in
-`SKILL.md` and `pipeline-contract.md`.
+Stage 1 and Stage 2 dispatch for `of1-demo-orchestrator`. The *what* (stage model, status contract,
+audit schema) lives in `SKILL.md` and `pipeline-contract.md`. Stage 3 is a single inline `Skill` call
+to `of1-skills:of1-integration` described in `SKILL.md`; nothing in this file dispatches it.
 
 ## Progress tracking — TaskCreate
 
-Use **TaskCreate** with one task per stage, plus one task per OF1-integration skill under Stage 3
-(the orchestrator owns the Integrate-stage skills directly — see the nesting cap):
+Use **TaskCreate** with one task per stage:
 
 ```
 0. Setup            (done if you got here — deps + repo-config.json)
@@ -16,25 +14,17 @@ Use **TaskCreate** with one task per stage, plus one task per OF1-integration sk
 2a. Extract design  — of1-extract-design <URL> → stardust/current/DESIGN.json + brand-review.html
 2b. Prototype       — of1-prototype → stardust/prototypes/prototype-*.html
 2c. Deploy          — of1-deploy → block-based EDS pages + $OF1_STAGE2_DONE_FILE
-3. OF1 integration  — Integrate skills, dispatched by THIS orchestrator:
-   extraction · of1-build-templates(base) · of1-build-templates(intent-*) ·
-   of1-build-templates(assemble) · of1-style-generative-block · of1-extract-brand-voice ·
-   of1-extract-content · of1-build-quick-suggestions ·
-   of1-build-cta-template (always — the orchestrator always runs in pipeline mode) · of1-publish
+3. OF1 integration  — of1-skills:of1-integration (one inline Skill call)
 ```
 
 Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`failed` around its dispatch.
 
 ## Model assignment
 
-- Stage 1 (discovery): `opus` — narrative synthesis drives both later stages.
+- Stage 1 (discovery): `opus` — narrative synthesis drives the later stages.
 - Stage 2 (2a/2b/2c): `opus`, `effort: "high"` for 2b (`of1-prototype`) — its iterative visual-diff
-  fix loop benefits from deeper per-iteration reasoning (see the Stage 2 dispatch template below
-  for the wall-clock budget that goes with it). 2a (`of1-extract-design`) and 2c (`of1-deploy`)
-  run `opus` at default effort.
-- Stage 3 (Integrate skills): **read the per-skill model from `of1-integration`'s model-assignment
-  rule** (Opus only where output quality cascades — `of1-style-generative-block` and the extraction
-  step; Sonnet for the rest). Do not maintain a second copy of that list here.
+  fix loop benefits from deeper per-iteration reasoning (see the Stage 2b dispatch template below
+  for the wall-clock budget that goes with it). 2a and 2c run `opus` at default effort.
 
 ## Dispatch sequence
 
@@ -42,38 +32,20 @@ Mark task 0 completed immediately. Mark each task `in_progress`/`completed`/`fai
    (`OF1_STATE_DIR`, `OF1_DEMO_REPO`, and **`SKILL_DIR`** — discovery's `fill-discovery.mjs`
    needs it). Await `done`. Read `narrative.json`;
    build `SLUGS=$(jq -r '.keyPages[].slug' <<<"$NARRATIVE" | paste -sd, -)`.
-2. **Kick off Stage 2's first substep + the Stage 3 content track in ONE message:**
-   - **Stage 2a Agent** (`opus`): invoke `of1-extract-design https://<DOMAIN> --pages <SLUGS>`. Await
-     `done`/`review` — on `failed` (blocked capture or other fail-loud condition), pause and follow
-     "Failure recovery" below; do NOT dispatch 2b.
-   - **Stage 3 content-track Agents** (`of1-extract-brand-voice`, `of1-extract-content`): dispatch immediately with `OF1_PIPELINE_MODE=1`,
-     `OF1_CONTENT_SOURCE=<DOMAIN>` — they need only the live external site.
+2. **Stage 2a Agent** (`opus`): invoke `of1-extract-design https://<DOMAIN> --pages <SLUGS>`. Await
+   `done`/`review` — on `failed` (blocked capture or other fail-loud condition), pause and follow
+   "Failure recovery" below; do NOT dispatch 2b.
 3. **On 2a `done`, dispatch Stage 2b** (`of1-prototype`, `opus`, `effort: "high"` — see the Stage 2b
    dispatch template below for the wall-clock budget). Await `done`.
 4. **On 2b `done`, dispatch Stage 2c** (`of1-deploy`, `opus`). It invokes `stardust:deploy` once
    over the whole prototype set from 2b and, on success, writes `$OF1_STAGE2_DONE_FILE`. Await `done`.
-5. **When `$OF1_STAGE2_DONE_FILE` exists, run the Stage 2 artifact-existence check BEFORE
-   dispatching the site-integration track.** This replaces the old replica fidelity gate — 2a/2b/2c
-   each fail loud on their own problems, so this check only confirms Stage 2's outputs actually
-   landed:
+5. **When `$OF1_STAGE2_DONE_FILE` exists, run the Stage 2 artifact-existence check** (see
+   `pipeline-contract.md` § "Stage 2 completion check"):
    - Confirm `$OF1_STAGE2_DONE_FILE` parses as `{"stage":2,"status":"done"}`.
    - Confirm the block-based EDS pages 2c reported in `of1-deploy-status.json` exist in the repo.
-   - If both hold, proceed to the site-integration track. If `$OF1_STAGE2_DONE_FILE` is missing or
-     malformed, or an expected page is absent, treat it as a Stage 2 failure — identify
-     which substep (2a/2b/2c) didn't complete and re-dispatch it. See `pipeline-contract.md`
-     § "Stage 2 completion check".
-
-   **The dependency edges and the pipeline-mode start gates are defined once in `of1-integration`
-   § "Pipeline-mode timing" — follow that graph; do not re-derive the edges here.** (In pipeline
-   mode the content track — `of1-extract-brand-voice` ∥ `of1-extract-content` →
-   `of1-build-quick-suggestions` — was already kicked off at step 2 above, so the site track's first
-   fan-out is `of1-build-templates`(base) ∥ `of1-style-generative-block` ∥ `of1-build-cta-template`
-   (always dispatched — the orchestrator always runs in pipeline mode). `of1-publish` waits for `of1-build-templates`(assemble) +
-   `of1-style-generative-block` + `of1-build-quick-suggestions` + `of1-build-cta-template`.)
-6. **Fan out in parallel at every eligible point** — dispatch all currently-eligible skills in one
-   message with multiple Agent blocks (e.g. `of1-build-templates`(base) ∥ `of1-style-generative-block`
-   ∥ `of1-build-cta-template` once Stage 2 is done; `of1-build-templates`(intent-*) in one
-   message once base returns). When `of1-publish` returns `done`, the pipeline is complete.
+   - If `$OF1_STAGE2_DONE_FILE` is missing or malformed, or an expected page is absent, treat it as a
+     Stage 2 failure — identify which substep (2a/2b/2c) didn't complete and re-dispatch it.
+6. Write the pipeline audit (before Stage 3), then run Stage 3 per `SKILL.md`.
 
 ## Stage 2b dispatch template (prototype)
 
@@ -131,59 +103,11 @@ End with the JSON status block:
 ```
 ```
 
-## Skill dispatch template (Integrate skills)
-
-Each skill is a single `Agent` call. Sub-agents see none of this conversation — the prompt must be
-self-contained. **Always pass `model` and `mode: "bypassPermissions"`.**
-
-```
-You are executing the **<skill> skill** (Integrate stage) of the OF1 demo pipeline for `<DOMAIN>`.
-
-## Load the skill
-Read the skill file and follow it as written:
-  Read: <absolute path to .claude/skills/<skill>/SKILL.md>
-
-## Environment (export these at the top of your work)
-export OF1_STATE_DIR="<stateDir>"
-export OF1_DEMO_REPO="<of1Repo>"
-export ADOBE_IMS_TOKEN="<token>"    # or: export OF1_TOKEN_FILE="<path>"
-export SKILL_DIR="<absolute path to the step skill's directory>"
-export OF1_PIPELINE_MODE=1          # always — the orchestrator runs every Integrate skill in pipeline mode
-
-## Project context
-- Branch: <branch>          (from repo-config.json)
-- DA owner/repo: <owner>/<repo>  (from repo-config.json)
-- Prior skill outputs you need: <list specific files>
-
-## Platform notes
-- If the skill calls `upskill ...`: STOP — that means a dependency is missing; report failure.
-- playwright-cli: if you write your own calls, follow `common-pitfalls.md` § 9 "playwright-cli syntax"
-  (`open` not visit, `--filename` not --output, `--full-page` bare, `eval` as a function form).
-
-## Output contract
-End your last message with EXACTLY this fenced block (the orchestrator parses it) — canonical
-grammar and `deliverables` rules are in `pipeline-contract.md`:
-
-```json
-{"stage": 3, "skill": "<skill>", "status": "done" | "review" | "failed", "summary": "<one sentence>", "deliverables": [{"url": "...", "label": "..."}]}
-```
-
-If status is `failed`, also write what specifically broke and what to retry.
-```
-
-**`of1-publish` (deploy) runs inline in the orchestrator's own context** (not as an Agent) —
-follow `of1-integration`'s "Deploy" section directly. **Run every `of1-publish` shell command with
-`OF1_PIPELINE_MODE=1` in the same `Bash` invocation** (prefix each command, or start each single
-invocation with `export OF1_PIPELINE_MODE=1`) — `export`s do not persist across `Bash` calls, and
-without it `of1-publish` runs standalone: `of1/config/cta-template.json` is never committed/synced
-and check 7 is skipped. There is no separate config review step: authored config lives in DA and the demo hub
-(`deliverables/index.html`) links each item.
-
 ## Auto-approve vs review mode
 
-After each skill's Agent returns:
+After each Stage 1/2 Agent returns:
 - **One-shot mode (default):** mark the task completed, continue immediately.
-- **Step mode:** if the returned status is `review`, call `AskUserQuestion` with "Approve and
+- **Step mode** (interactive only; ignored when `OF1_NON_INTERACTIVE=1`): if the returned status is `review`, call `AskUserQuestion` with "Approve and
   continue" / "Revise — describe changes". On "Revise", re-dispatch the same skill's Agent with the
   user's feedback appended under a `## Revision feedback` section.
 
@@ -192,23 +116,22 @@ The user can interrupt at any time ("revise `<skill>`") — re-dispatch with the
 ## Failure recovery
 
 If a skill returns `failed`:
-1. Mark its task `failed` and pause (do NOT dispatch downstream skills).
+1. Mark its task `failed` and pause (do NOT dispatch downstream stages).
 2. Show the user the failure message.
 3. Ask: retry as-is / retry with guidance / skip / abort.
 4. On retry, re-dispatch with guidance appended.
 5. On skip, only allow if no downstream skill structurally depends on it.
 
-## Audit capture (CC-specific)
+## Audit capture
 
 Record telemetry from each Agent result's `<usage>` block (`duration_ms`, `total_tokens`,
 `tool_uses`). Track in memory across dispatches; write the audit per `pipeline-contract.md`
-§ "Pipeline audit schema" — **write it right before dispatching `of1-publish`, not after it
-returns** (its own step 3 reads this file to render the hub's audit section; writing it later
-means the hub was already generated without it). `of1-publish` is inline
-(`model: "inline"`).
+§ "Pipeline audit schema" — **write it right before the Stage 3 call, not after it returns**
+(`of1-integration` generates the hub and reads this file; writing it later means the hub was
+already generated without it). Stage 3 is a single inline record (`model: "inline"`).
 
-## State files (CC)
+## State files
 
-The complete state-file inventory lives in `pipeline-contract.md` § "State files". On CC they sit
+The complete state-file inventory lives in `pipeline-contract.md` § "State files". They sit
 under `$OF1_STATE_DIR/`. Do not write `stage-<N>-summary.json` or `pipeline.log` — those were never
 real; the audit + per-step status files are the only run records.

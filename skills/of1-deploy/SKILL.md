@@ -68,19 +68,11 @@ Invoke `stardust:deploy` **once** — it owns the full multi-page conversion + d
 
 **How to invoke in each runtime:**
 
-- **Claude Code:** use the `Skill` tool:
+Use the `Skill` tool:
   ```
   Skill: stardust:deploy
   ```
 
-- **SLICC:** read the skill and execute it inline:
-  ```bash
-  # 1. Read the skill instructions
-  read_file /workspace/skills/deploy/SKILL.md
-  # 2. Follow those instructions directly — the skill IS the procedure.
-  #    It handles audit, block naming, foundation, chrome, blocks, content
-  #    scaffold, DA deploy, and post-deploy reconciliation.
-  ```
   Do NOT reimplement the conversion by hand. The skill owns the entire prototype-to-EDS-blocks methodology.
 
 Supply these values upfront (do NOT let it prompt — provide them in the invocation context):
@@ -234,4 +226,4 @@ EOF
 printf '{"stage":2,"status":"done"}' > "${OF1_STAGE2_DONE_FILE:?OF1_STAGE2_DONE_FILE unset}"
 ```
 
-The orchestrator (CC: agent-return parsing; SLICC: sprinkle polling) handles the approve/done transition.
+The orchestrator (agent-return parsing) handles the approve/done transition.

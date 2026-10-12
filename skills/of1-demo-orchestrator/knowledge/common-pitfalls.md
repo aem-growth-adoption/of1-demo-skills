@@ -2,7 +2,7 @@
 
 Durable, cross-skill rules. Each step skill should reference this file rather than restating the same warnings; per-skill tables keep only entries genuinely specific to that skill's outputs.
 
-Tagging legend: `[SLICC]` = only applies in the SLICC runtime, `[CC]` = only applies in Claude Code, no tag = applies in both.
+Runtime: Claude Code. Section numbers §2, §3, §6 and §9 are cited by `of1-skills` skills; keep them stable.
 
 ---
 
@@ -108,16 +108,7 @@ A file committed at `deliverables/index.html` is served at `/deliverables/index.
 
 ## 5. Curl pitfalls
 
-### 5.1 `--data-binary` silently fails in SLICC scoops
-Under SLICC's sandboxed shell, BOTH `--data-binary @/path/file` AND `cat file | curl --data-binary @-` (stdin) store the literal string instead of the file contents — the upload appears to succeed but the file is corrupt. Reliable methods by content type:
-- **`[SLICC]` short HTML/JSON** — put the content in a shell variable and use `-d "$VAR"`.
-- **`[SLICC]` binary (images)** — use a multipart POST: `-F "data=@/path/file;type=image/png"`.
-- **`[CC]` any content** — `cat file | curl --data-binary @-` (stdin) works.
-
-Always verify by reading the content back (`curl -s -H "Authorization: Bearer $DA_TOKEN" "https://admin.da.live/source/..."`) and checking it contains the expected bytes.
-
-### 5.2 Use `-d "$VAR"` only for short strings
-For short JSON or headers, `-d "$VAR"` is fine in both runtimes. For binary/multi-KB content, follow 5.1 per runtime.
+Upload file content with `cat file | curl --data-binary @-` (stdin). Use `-d "$VAR"` only for short strings. Always verify by reading the content back (`curl -s -H "Authorization: Bearer $DA_TOKEN" "https://admin.da.live/source/..."`) and checking it contains the expected bytes.
 
 ---
 
@@ -126,7 +117,7 @@ For short JSON or headers, `-d "$VAR"` is fine in both runtimes. For binary/mult
 ### 6.1 One commit + one push per step
 Multiple pushes per step waste 2-3 minutes each on preview triggers. Generate all artifacts first, then commit + push once.
 
-⚠️ **NEVER use `git add .` or `git add -A` in a scoop.** SLICC scoops may have an incomplete working tree — `git add .` creates a commit containing ONLY the local files, effectively deleting everything else on push. Always add specific paths:
+⚠️ **NEVER use `git add .` or `git add -A`.** A partial working tree makes a bare add commit only the local files, effectively deleting everything else on push. Always add specific paths:
 
 ```bash
 # ✅ CORRECT — only stages the files this step produced
@@ -142,29 +133,10 @@ git add -A
 
 ---
 
-## 7. Runtime-specific traps
+## 7. Claude Code traps
 
-### 7.1 `[SLICC]` `node` works, but only the portable surface — and NO synchronous subprocess
-The pipeline's build scripts are single `.mjs` files run via `node "$SKILL_DIR/assets/<tool>.mjs" <args>` on **both** runtimes (the `.py`/`.jsh` twins were retired — see `docs/superpowers/specs/2026-08-03-of1-mjs-script-consolidation-design.md`). SLICC's `node` runs these fine **provided** they stay on the cross-runtime surface:
-- **No synchronous subprocess** — `child_process.execSync`/`spawnSync`/`execFileSync` throw on SLICC. Use `node:*` builtins, `process.argv`, and global `fetch` only.
-- Don't write `npm` scripts or run `npx`; invoke the `.mjs` directly with `node`.
-- SLICC init runs `ipk add esbuild-wasm` (see of1-labs `of1-prompt.ts`) so the scripts' deps resolve.
-
-Ad-hoc scripting inline in a step is still fine in either `python3` or `node`; the point is the *shipped* build tools are `.mjs` and portable.
-
-### 7.2 `[SLICC]` These auth approaches DO NOT exist
-- `npx da-auth-helper` — the package isn't installed
-- `~/.aem/da-token.json` — the file doesn't exist
-- Use `oauth-token adobe` to get the IMS token; that's the only working path.
-
-### 7.3 `[SLICC]` `set -o pipefail` is not supported
-Don't run scripts that use it. Execute commands manually instead.
-
-### 7.4 `[SLICC]` Python heredocs must use quoted delimiters
-`python3 << 'EOF'` — quoted. Unquoted heredocs mangle indentation and shell-expand `$variables` you didn't intend.
-
-### 7.5 `[CC]` The DA mount at `/mnt/da/` does NOT exist
-Claude Code has no SLICC-style VFS mount. ALL DA writes must use `admin.da.live` API:
+### 7.1 The DA mount at `/mnt/da/` does NOT exist
+ALL DA writes must use the `admin.da.live` API:
 ```bash
 cat file | curl -s -X PUT \
   -H "Authorization: Bearer $DA_TOKEN" \
@@ -173,12 +145,11 @@ cat file | curl -s -X PUT \
   "https://admin.da.live/source/$OWNER/$REPO/page.html"
 ```
 
-### 7.6 `[CC]` IMS token comes from a file, not a command
-There is no `oauth-token` binary. The token is at `$PWD/.hlx/.da-token.json` (project-local) or `$OF1_DEMO_REPO/.hlx/.da-token.json` (repo-local). Read with:
+### 7.2 IMS token comes from env or a file, not a command
+Use `$ADOBE_IMS_TOKEN` when exported, else the token file at `$PWD/.hlx/.da-token.json` (project-local) or `$OF1_DEMO_REPO/.hlx/.da-token.json` (repo-local):
 ```bash
 DA_TOKEN=$(jq -r .access_token .hlx/.da-token.json)
 ```
-Or pick it up from `$ADOBE_IMS_TOKEN` env var if exported.
 
 ---
 
@@ -204,10 +175,9 @@ curl -X POST \
 
 ---
 
-## 9. playwright-cli syntax (both runtimes)
+## 9. playwright-cli syntax
 
-The step skills call the modern `@playwright/cli` binary, which is present on both the SLICC-native
-and CC images. When a skill (or a sub-agent writing its own calls) drives it, use this surface:
+The step skills call the modern `@playwright/cli` binary. When a skill (or a sub-agent writing its own calls) drives it, use this surface:
 
 - **`open <url>`** to navigate — NOT `visit`.
 - **`screenshot --full-page --filename <path>`** — `--full-page` is a bare boolean (no `=value`);
@@ -241,4 +211,4 @@ skills should link here rather than restating.
 
 ## How to use this file
 
-When a step skill warns about one of these issues, it should link here instead of restating. Per-skill "Common Mistakes" tables keep only rows that are **specific to that skill's outputs** — generic warnings (DA strips images, EDS class collisions, curl pitfalls, runtime traps) all belong in this doc.
+When a step skill warns about one of these issues, it should link here instead of restating. Per-skill "Common Mistakes" tables keep only rows that are **specific to that skill's outputs** — generic warnings (DA strips images, EDS class collisions, curl pitfalls) all belong in this doc.
