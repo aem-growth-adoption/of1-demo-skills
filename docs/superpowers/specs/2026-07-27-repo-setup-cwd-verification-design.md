@@ -1,5 +1,7 @@
 # Fold repo-setup into of1-setup; drop it as a separate pipeline step
 
+Status: Historical
+
 ## Problem
 
 `of1-repo-setup` currently starts by asking the user for a repo URL (bring

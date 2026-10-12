@@ -1,5 +1,7 @@
 # Remove Snowflake, Adopt stardust:deploy — Implementation Plan
 
+Status: Historical
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace `of1-snowflake` (the Adobe `snowflake` skill wrapper — DOM-preserving, `data-slot`-marked overlay conversion) with a new `of1-stardust-deploy` skill wrapping `stardust:deploy` (real EDS block-based conversion), update every downstream skill/orchestrator that referenced snowflake's output shape, and unlock the pipeline parallelism this unblocks (step 7 no longer needs to wait on step 6).

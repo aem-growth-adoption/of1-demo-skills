@@ -26,7 +26,7 @@ BRANCH=$(jq -r .branch <<<"$REPO_CONFIG")
 DOMAIN=$(jq -r .domain <<<"$REPO_CONFIG")
 ```
 
-`playwright-cli` calls below follow `of1-demo-orchestrator/knowledge/common-pitfalls.md` § 9 "playwright-cli syntax" (`open`, `--full-page` bare, `--filename`, `eval` as a function form). Works on both SLICC-native and CC binaries.
+`playwright-cli` calls below follow `of1-demo-orchestrator/knowledge/common-pitfalls.md` § 9 "playwright-cli syntax" (`open`, `--full-page` bare, `--filename`, `eval` as a function form).
 
 ## Process
 
@@ -194,4 +194,4 @@ EOF
 
 The `deliverables` field is an array of `{url, label?}` objects so steps that produce multiple artifacts (prototypes, EDS pages) can list them all. `label` is optional but recommended.
 
-The orchestrator (CC: agent-return parsing; SLICC: sprinkle polling) handles the approve/revise flow and the eventual `done` transition.
+The orchestrator (agent-return parsing) handles the approve/revise flow and the eventual `done` transition.

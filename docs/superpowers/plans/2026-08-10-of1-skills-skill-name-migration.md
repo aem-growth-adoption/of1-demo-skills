@@ -1,5 +1,7 @@
 # OF1 Skills — Skill-Name Identity Migration Implementation Plan
 
+Status: Historical
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the flat step-number identity (`"step": N`, `step-N-status.json`) across every of1-demo-skills unit with skill-name identity (`{stage, skill}`, `of1-<skill>-status.json`), removing step numbers from the status-file wire, the orchestrator contract, dispatch docs, SLICC scoop names, and the audit schema.

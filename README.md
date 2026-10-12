@@ -1,73 +1,69 @@
 # OF1 Demo Skills
 
-Claude Code skills for preparing OF1 generative web search demos. These skills automate the end-to-end process of turning any website into a branded, AI-powered search experience.
+Claude Code skills that turn any website into a branded OF1 generative-search demo on Adobe Edge
+Delivery Services (EDS). Entry point: `of1-demo-orchestrator`.
 
-## Pipeline Flow
+## Pipeline
 
 ```
-Stage 1 · Collect        of1-discovery → narrative.json (keyPages, focus)
-                                   │
-        ┌──────────────────────────┴──────────────────────────┐
-Stage 2 · Replica                              Stage 3 · OF1 integration
-stardust:replica --pages                       of1-integration (pipeline mode)
-→ EDS site + DESIGN.json                        content track ∥ replica; site track after
-        └──────────────────────────┬──────────────────────────┘
-                              (adopt-site owns deploy)
+Stage 1 · Collect     of1-discovery → narrative.json (keyPages, focus, persona)
+        ↓
+Stage 2 · Migrate     2a of1-extract-design → 2b of1-prototype → 2c of1-deploy
+                      → branded block-based EDS site + DESIGN.json + stage2-done.json
+        ↓
+Stage 3 · Integrate   one inline call: of1-skills:of1-integration
+                      content-source=<DOMAIN> non-interactive cta-template
+                      → of1-integration-result.json (done | review | failed)
 ```
 
-| Stage | Skill | Notes |
-|-------|-------|-------|
-| 1 Collect | `of1-discovery` | Emits `narrative.json` (keyPages drive Stage 2) |
-| 2 Replica | `stardust:replica --pages` | Bounded same-design migration; no site-wide rollout |
-| 3 OF1 integration | `of1-integration` | Pipeline mode: live content source + replica-done gate |
-
-Within Stage 3, `of1-integration` runs its own internal step graph — templates, OF1 styling, brand voice/content extraction, quick suggestions, CTA template, and deploy (config is authored in DA — there is no config-review step) — fanning out in parallel where dependencies allow (see that skill's own `SKILL.md` for the full step graph and dependency table).
+Before Stage 1 the orchestrator (Phase 0) optionally wipes a repo it previously built
+(`skills/of1-demo-orchestrator/scripts/wipe.sh`, fail-closed) and runs
+`of1-skills:of1-check-dependencies`. Stages run sequentially. Stage 3 is an opaque dependency: the
+`of1-skills` plugin owns its step graph (templates, styling, brand voice/content, suggestions, CTA
+template, publish); this repo only makes the one call and reads the result file.
 
 ## Skills
 
 | Skill | Description |
 |-------|-------------|
-| `of1-demo-orchestrator` | Orchestrate full demo preparation — 3-stage pipeline; runs on both Claude Code and SLICC (detects the runtime, sprinkle UI on SLICC) |
-| `of1-discovery` | Crawl a target website and propose a demo focus/narrative |
-| `of1-prototype` | Recreate key pages as pixel-faithful prototypes ahead of the EDS conversion |
-| `of1-deploy` | Convert prototypes into a block-based, authorable EDS site via `stardust:deploy` |
-| `of1-signals` | Standalone (not a pipeline step) — author `signals.json`, the OF1 **preview extension's** own config for simulating how a demo visitor arrived (fake email/ads/LLM referrals) |
+| `of1-demo-orchestrator` | Runs the full 3-stage pipeline for a domain |
+| `of1-discovery` | Crawl the target site and propose a demo focus/narrative |
+| `of1-extract-design` | Capture the live site's design (`stardust:extract`); shipped by the `of1-skills` plugin, run as Stage 2a |
+| `of1-prototype` | Recreate key pages as faithful prototypes (`stardust:prototype`) |
+| `of1-deploy` | Convert prototypes into a block-based EDS site (`stardust:deploy`) |
+| `of1-signals` | Standalone: author `signals.json` for the OF1 preview extension |
 
-Stage 3 (OF1 integration — templates, styling, brand voice/content
-extraction, quick suggestions, CTA template, publish) is
-provided by the separate [of1-skills](https://github.com/aem-growth-adoption/of1-skills)
-plugin, which this plugin depends on. See that repo's README and its
-`of1-integration/SKILL.md` for the full step graph.
+## Caller contract
+
+A harness running the orchestrator sets `OF1_STATE_DIR`, `OF1_DEMO_REPO` and a DA token
+(`ADOBE_IMS_TOKEN` or `OF1_TOKEN_FILE`), pre-writes `repo-config.json`, and may set
+`OF1_NON_INTERACTIVE=1`. Progress is `<state dir>/<skill>-status.json` plus `stage2-done.json`; the run
+ends with `of1-integration-result.json`. The orchestrator writes no result file of its own. See
+`skills/of1-demo-orchestrator/knowledge/pipeline-contract.md`.
 
 ## Usage
-
-Install the skills as a Claude Code plugin:
 
 ```bash
 claude plugins install /path/to/of1-demo-skills
 ```
 
-Then run the orchestrator:
-
 ```
-/of1-demo-orchestrator
+/of1-demo-orchestrator frescopa.coffee
 ```
 
 ## Prerequisites
 
-The setup step (`of1-check-dependencies`) verifies all of the following:
-
-- **Skills installed** — OF1 demo skills + the of1-skills plugin (for Stage 3) + Adobe stardust skills (`adobe/skills`, includes `replica` for Stage 2 and `deploy`) + impeccable (`pbakaus/impeccable`)
-- **Playwright** — `playwright-cli` available on PATH
-- **Node.js** — `node` available on PATH
-- **Git credentials** — `~/.git-credentials` present for push access
-- **EDS repo** — a valid Edge Delivery Services checkout at `OF1_DEMO_REPO` (any org/repo; verified structurally, not by identity)
-
-The following plugins are also required by the pipeline:
+Verified by `of1-skills:of1-check-dependencies`: installed skill plugins, `playwright-cli`, `node`,
+git credentials, a valid EDS checkout at `OF1_DEMO_REPO`, and a DA token. Required plugins:
 
 ```bash
-upskill aem-growth-adoption/of1-demo-skills --all --branch skills-v3 --force
+upskill aem-growth-adoption/of1-demo-skills --all
 upskill aem-growth-adoption/of1-skills --all
 upskill adobe/skills --path plugins/stardust --all
 upskill pbakaus/impeccable --all
 ```
+
+## Development
+
+- Tests: `node --test skills/of1-demo-orchestrator/scripts/*.test.mjs skills/*/assets/*.test.mjs`
+- Docs index: `docs/README.md`

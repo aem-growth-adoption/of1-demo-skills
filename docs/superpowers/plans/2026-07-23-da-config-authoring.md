@@ -1,5 +1,7 @@
 # DA.live Config Authoring Implementation Plan
 
+Status: Historical
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Move OF1 tenant config (products, personas, brand-voice, use-cases, features, faqs, testimonials, suggestions, cta-template, templates-routing) from git-committed JSON (`of1/config/*.json`) to DA.live-authored HTML table pages, parsed from the rendered preview HTML by both the `of1-gen-web` worker (backward-compatible fallback) and the static HTML report shells (client-side, dynamic).

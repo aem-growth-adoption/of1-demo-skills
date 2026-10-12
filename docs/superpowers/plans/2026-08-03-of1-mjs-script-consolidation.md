@@ -1,5 +1,7 @@
 # OF1 Build Scripts → Portable `.mjs` Implementation Plan
 
+Status: Historical
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the 5 `.jsh`/`.py` build-script pairs (10 files) with 5 single `.mjs` files that run identically on Claude Code and SLICC via `node <tool>.mjs <args>`.

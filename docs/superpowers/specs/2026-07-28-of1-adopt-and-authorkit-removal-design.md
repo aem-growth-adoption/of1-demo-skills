@@ -1,5 +1,7 @@
 # of1-adopt: OF1 on an existing EDS/Stardust site, plus AuthorKit cleanup
 
+Status: Historical
+
 ## Context
 
 `of1-demo-skills` today serves exactly one use case well: turning a brand-new

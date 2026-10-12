@@ -15,7 +15,7 @@ Generate pixel-perfect, self-contained HTML reproductions of key pages from the 
 | `OF1_STATE_DIR` | state + IPC dir; receives `of1-prototype-status.json` |
 | `OF1_DEMO_REPO` | absolute path to the local `of1-demo` git clone |
 
-`playwright-cli` calls use `open` + `--fullPage=true` + `--filename` (SLICC-native syntax; CC shim passes through unchanged).
+`playwright-cli` calls use `open` + `--fullPage=true` + `--filename` .
 
 ## Inputs
 
@@ -118,20 +118,11 @@ This step's whole job is to delegate to `stardust:prototype`. **Do NOT hand-auth
 
 Invoke the `stardust:prototype` skill:
 
-- **Claude Code:** use the `Skill` tool:
+Use the `Skill` tool:
   ```
   Skill: stardust:prototype
   ```
 
-- **SLICC:** read the skill and execute it inline:
-  ```bash
-  # 1. Read the skill instructions
-  read_file /workspace/skills/prototype/SKILL.md
-  # 2. Follow those instructions directly — the skill IS the procedure.
-  #    Step 2 above already satisfied all its prerequisites (DESIGN.md at root,
-  #    direction.md with active direction, state.json with directed pages).
-  #    It reads stardust/current/, generates prototypes, and runs visual-diff loops.
-  ```
   Do NOT invent your own prototype generation approach. The stardust:prototype skill already handles design-token application, image insertion, layout fidelity, and the visual-diff loop.
 
   **IMPORTANT: stardust:prototype IS designed for redesigns, but step 2 set the direction to "pixel-perfect faithful reproduction." This is intentional — we use stardust's visual-diff loop and slot markup applied to COPYING, not redesigning. The direction tells it the target IS the existing site. If you see that stardust:prototype is "for redesigns" and think it doesn't apply here, STOP — you are wrong. Step 2 handled this. Follow the skill.**
@@ -301,4 +292,4 @@ cat > "$OF1_STATE_DIR/of1-prototype-status.json" <<EOF
 EOF
 ```
 
-The orchestrator (CC: agent-return parsing; SLICC: sprinkle polling) handles the approve/done transition.
+The orchestrator (agent-return parsing) handles the approve/done transition.
