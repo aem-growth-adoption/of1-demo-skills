@@ -139,7 +139,7 @@ arguments: content-source=<DOMAIN> non-interactive cta-template
 
 Make sure `OF1_STATE_DIR`, `OF1_DEMO_REPO` and the DA token (`ADOBE_IMS_TOKEN` or `OF1_TOKEN_FILE`) are
 in the environment the driver sees (the same values used for Phase 0). Write the pipeline audit
-(`pipeline-contract.md` § "Pipeline audit schema") **before** this call.
+(`pipeline-contract.md` § "Pipeline audit schema") **before** this call. The driver exports `SKILL_DIR` for the skills it runs; the orchestrator does not need to set it.
 
 When the call returns, read `$OF1_STATE_DIR/of1-integration-result.json`
 (`status`, `summary`, `deliverables`, `checks`):

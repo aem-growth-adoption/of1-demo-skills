@@ -11,12 +11,19 @@ da_delete_tree() {
     /of1|/of1/*|/templates|/templates/*) ;;
     *) echo "✗ refusing to delete outside /of1, /templates: $dir" >&2; return 1 ;;
   esac
+  case "$dir" in
+    *//*|*/../*|*/..|*/./*|*/.)
+      echo "✗ refusing to delete path with empty or dot segments: $dir" >&2; return 1 ;;
+  esac
   local list
   list=$(curl -s --connect-timeout 10 --max-time 30 -H "Authorization: Bearer $DA_TOKEN" \
     "https://admin.da.live/list/${OWNER}/${REPO}${dir}" 2>/dev/null || echo "[]")
   echo "$list" | jq -r '.[]? | [.name, (.ext // "")] | @tsv' 2>/dev/null |
   while IFS=$'\t' read -r name ext; do
-    [ -n "$name" ] || continue
+    case "$name" in
+      ''|.|..|*/*|*[[:cntrl:]]*)
+        echo "✗ skipping unsafe DA listing name under $dir: '$name'" >&2; continue ;;
+    esac
     if [ -z "$ext" ]; then
       da_delete_tree "${dir}/${name}"            # folder -> recurse
     else
@@ -83,10 +90,11 @@ wipe_main() {
 
   # Stage ONLY the cleaned paths (scoped `-A -- <pathspec>`, never a bare `git add -A`/`.`;
   # see common-pitfalls.md § 6). Quoted globs are expanded by git against tracked files.
-  git add -A -- \
-    stardust deliverables templates fragments content drafts gallery of1/config blocks/of1 \
-    tools output screenshots tmp da PRODUCT.md \
-    'styles/of1-*.css' 'styles/prototype-*.css' 2>/dev/null || true
+  # One pathspec per call: a single unmatched pathspec makes `git add` stage nothing at all.
+  for p in stardust deliverables templates fragments content drafts gallery of1/config blocks/of1 \
+           tools output screenshots tmp da PRODUCT.md 'styles/of1-*.css' 'styles/prototype-*.css'; do
+    git add -A -- "$p" 2>/dev/null || true
+  done
   if ! git diff --cached --quiet; then
     git commit -m "chore: clean slate for ${BRANCH}"
     git push origin "$BRANCH"
