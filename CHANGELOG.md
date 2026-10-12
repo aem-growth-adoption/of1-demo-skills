@@ -9,7 +9,7 @@ Breaking: requires `of1-skills` 0.3.0 or later.
 - The Phase 0a wipe is now `skills/of1-demo-orchestrator/scripts/wipe.sh` (tested, still fail-closed, requires `OF1_DEMO_WIPE=1`). It also removes the OF1-owned DA (`/of1/**`, `/templates/**`) and git (`blocks/of1/`) paths that `of1-check-dependencies` no longer removes.
 - SLICC support removed (runtime detection, `dispatch-slicc.md`, the sprinkle UI template). Claude Code only.
 - Removed stale audit files and rewrote the README for the current pipeline; added `AGENTS.md` and a docs index.
-- `pipeline-version` is unchanged (`v5-deploy`).
+- `pipeline-version` now holds the plugin version (`0.3.0`) instead of the graph name `v5-deploy`, and a test keeps it equal to `plugin.json`. The lab must run the release that understands semver (of1-labs `feat/pipeline-version-semver`) before this lands: a harness that only knows `v4|v5|v5-prototype|v5-deploy` falls back to guessing from the skills branch name.
 
 ## 0.2.0
 
