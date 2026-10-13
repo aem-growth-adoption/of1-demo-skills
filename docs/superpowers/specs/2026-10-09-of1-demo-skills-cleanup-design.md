@@ -1,7 +1,7 @@
 # of1-demo-skills cleanup: call of1-integration once
 
 Date: 2026-10-09
-Status: draft, awaiting review
+Status: Implemented (shipped in 0.3.0, #17)
 Repos: `of1-demo-skills` (primary), `of1-skills` (see its cleanup spec). The automation harness that runs this pipeline is changed in its own repo's spec.
 Related: `of1-skills/docs/superpowers/specs/2026-10-09-of1-skills-cleanup-design.md`
 
