@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `pipeline-version` is now the plugin semver (`0.3.0`) instead of the graph name `v5-deploy`. of1-labs (prod since 2026-10-13, #233) maps 0.N.x with N >= 3 to the v5-deploy graph. Keep it equal to `.claude-plugin/plugin.json` on each release.
+
 ## 0.3.0
 
 Breaking: requires `of1-skills` 0.3.0 or later.
