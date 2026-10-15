@@ -5,6 +5,19 @@
 #   OF1_DEMO_WIPE=1 OF1_STATE_DIR="$OF1_STATE_DIR" bash scripts/wipe.sh
 # Never export OF1_DEMO_WIPE from inside this file. All guards fail closed.
 
+# Token goes via stdin config (curl -K -), never on the command line.
+da_curl() {
+  local x=$-
+  set +x
+  case "$DA_TOKEN" in
+    ''|*[\"\\[:cntrl:]]*) echo "✗ refusing DA token with quote, backslash or control characters" >&2; return 1 ;;
+  esac
+  local rc=0
+  printf '%s\n' "header = \"Authorization: Bearer $DA_TOKEN\"" | curl -K - "$@" || rc=$?
+  case "$x" in *x*) set -x ;; esac
+  return $rc
+}
+
 da_delete_tree() {
   local dir="$1"   # repo-relative, e.g. "/of1/config"
   case "$dir" in
@@ -16,7 +29,7 @@ da_delete_tree() {
       echo "✗ refusing to delete path with empty or dot segments: $dir" >&2; return 1 ;;
   esac
   local list
-  list=$(curl -s --connect-timeout 10 --max-time 30 -H "Authorization: Bearer $DA_TOKEN" \
+  list=$(da_curl -s --connect-timeout 10 --max-time 30 \
     "https://admin.da.live/list/${OWNER}/${REPO}${dir}" 2>/dev/null || echo "[]")
   echo "$list" | jq -r '.[]? | [.name, (.ext // "")] | @tsv' 2>/dev/null |
   while IFS=$'\t' read -r name ext; do
@@ -27,14 +40,12 @@ da_delete_tree() {
     if [ -z "$ext" ]; then
       da_delete_tree "${dir}/${name}"            # folder -> recurse
     else
-      curl -s -o /dev/null --connect-timeout 10 --max-time 30 -X DELETE \
-        -H "Authorization: Bearer $DA_TOKEN" \
+      da_curl -s -o /dev/null --connect-timeout 10 --max-time 30 -X DELETE \
         "https://admin.da.live/source/${OWNER}/${REPO}${dir}/${name}.${ext}"
     fi
   done
   # Remove the (now empty) folder itself; best-effort.
-  curl -s -o /dev/null --connect-timeout 10 --max-time 30 -X DELETE \
-    -H "Authorization: Bearer $DA_TOKEN" \
+  da_curl -s -o /dev/null --connect-timeout 10 --max-time 30 -X DELETE \
     "https://admin.da.live/source/${OWNER}/${REPO}${dir}" || true
 }
 
@@ -108,11 +119,11 @@ wipe_main() {
   da_delete_tree /templates
 
   # DA: top-level root *.html pages of the previous demo.
-  DA_LIST=$(curl -s --connect-timeout 10 --max-time 30 -H "Authorization: Bearer $DA_TOKEN" \
+  DA_LIST=$(da_curl -s --connect-timeout 10 --max-time 30 \
     "https://admin.da.live/list/${OWNER}/${REPO}" 2>/dev/null || echo "[]")
   echo "$DA_LIST" | jq -r '.[] | select(.ext == "html") | .name' 2>/dev/null | while read -r name; do
     [ -n "$name" ] || continue
-    curl -s --connect-timeout 10 --max-time 30 -X DELETE -H "Authorization: Bearer $DA_TOKEN" \
+    da_curl -s --connect-timeout 10 --max-time 30 -X DELETE \
       "https://admin.da.live/source/${OWNER}/${REPO}/${name}.html" >/dev/null
   done
   echo "✓ DA content cleaned"

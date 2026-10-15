@@ -53,6 +53,8 @@ claude plugins install /path/to/of1-demo-skills
 
 ## Prerequisites
 
+Requires `of1-skills` >= 0.4.0 (checked by the orchestrator at step 0b when the installed version is discoverable).
+
 Verified by `of1-skills:of1-check-dependencies`: installed skill plugins, `playwright-cli`, `node`,
 git credentials, a valid EDS checkout at `OF1_DEMO_REPO`, and a DA token. Required plugins:
 
