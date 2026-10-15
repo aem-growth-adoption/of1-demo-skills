@@ -5,6 +5,8 @@ Runtime: Claude Code. The `of1-demo-orchestrator` skill cites this file instead 
 file, or they will drift (that drift is what produced the `stages`/`steps` audit bug; see the audit
 schema note).
 
+**Dependency:** requires `of1-skills` >= 0.4.0 (of1-migrate, `publish-live` driver arg, config in DA, tenant id `org/repo`).
+
 ## Environment variables — canonical vocabulary
 
 One name per thing. Skills must use these names and not invent synonyms.

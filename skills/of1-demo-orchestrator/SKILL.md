@@ -71,6 +71,12 @@ light and must run in this context). It verifies
 prerequisites AND repo state and writes `repo-config.json`. It does NOT create a branch — it uses
 whatever branch is checked out at `OF1_DEMO_REPO`. If it fails, surface the exact error and stop.
 
+**Version precondition: requires `of1-skills` >= 0.4.0.** Before running it, best-effort read the installed
+version: `jq -r '.plugins | to_entries[] | select(.key|startswith("of1-skills")) | .value[0].version' ~/.claude/plugins/installed_plugins.json 2>/dev/null`
+(Claude Code layout). If a version is found and is below 0.4.0, stop and tell the user to upgrade
+`of1-skills`. If it cannot be determined (other harness, different layout), continue and treat 0.4.0 as a
+manual precondition.
+
 Then read `setup.json` (`stateDir`/`of1Repo`) and `repo-config.json` (`owner`/`repo`/`branch`/`domain`)
 and use them for all subsequent steps:
 

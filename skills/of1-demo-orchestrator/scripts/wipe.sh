@@ -7,11 +7,15 @@
 
 # Token goes via stdin config (curl -K -), never on the command line.
 da_curl() {
+  local x=$-
   set +x
   case "$DA_TOKEN" in
     ''|*[\"\\[:cntrl:]]*) echo "✗ refusing DA token with quote, backslash or control characters" >&2; return 1 ;;
   esac
-  curl -K - "$@" <<<"header = \"Authorization: Bearer $DA_TOKEN\""
+  local rc=0
+  printf '%s\n' "header = \"Authorization: Bearer $DA_TOKEN\"" | curl -K - "$@" || rc=$?
+  case "$x" in *x*) set -x ;; esac
+  return $rc
 }
 
 da_delete_tree() {

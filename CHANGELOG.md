@@ -6,6 +6,8 @@
 
 ## 0.3.1
 
+- Requires `of1-skills` >= 0.4.0 (of1-migrate, `publish-live` driver arg, config in DA, tenant id `org/repo`). Orchestrator step 0b checks the installed version when discoverable.
+
 - Stage 3 passes `publish-live` (`of1-skills:of1-integration content-source=<DOMAIN> non-interactive cta-template publish-live`); older `of1-skills` ignore it.
 - Fixed stale docs: tenant id is `org/repo`, proxy host `<branch>--<repo>--<owner>.of1.live`, config lives in DA sheets.
 - `wipe.sh` sends the DA token via `curl -K -` (stdin) instead of a command-line header.
