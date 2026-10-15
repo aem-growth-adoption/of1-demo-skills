@@ -94,7 +94,7 @@ Stage 1: of1-discovery  (narrative.json: keyPages, focus, persona)
 Stage 2: 2a of1-extract-design <URL> → 2b of1-prototype → 2c of1-deploy
    → EDS site + DESIGN.json; 2c writes $OF1_STAGE2_DONE_FILE (stage2-done.json) on completion
    ↓
-Stage 3: ONE inline call: of1-skills:of1-integration content-source=<DOMAIN> non-interactive cta-template
+Stage 3: ONE inline call: of1-skills:of1-integration content-source=<DOMAIN> non-interactive cta-template publish-live
    → $OF1_STATE_DIR/of1-integration-result.json
 ```
 
@@ -134,7 +134,7 @@ subagent cannot dispatch subagents):
 
 ```
 Skill: of1-skills:of1-integration
-arguments: content-source=<DOMAIN> non-interactive cta-template
+arguments: content-source=<DOMAIN> non-interactive cta-template publish-live
 ```
 
 Make sure `OF1_STATE_DIR`, `OF1_DEMO_REPO` and the DA token (`ADOBE_IMS_TOKEN` or `OF1_TOKEN_FILE`) are

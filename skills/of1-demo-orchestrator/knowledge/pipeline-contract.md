@@ -36,7 +36,7 @@ Never document `DA_TOKEN` as a credential to set — set `ADOBE_IMS_TOKEN` (or `
 | 2a | Extract design — capture the live site's design tokens/brand surface | `of1-extract-design <URL>` (wraps `stardust:extract`) |
 | 2b | Prototype — render redesigned key pages | `of1-prototype` (wraps `stardust:prototype`) |
 | 2c | Deploy — convert the prototypes into a block-based EDS site | `of1-deploy` (wraps `stardust:deploy`, one invocation for the whole site) |
-| 3 | OF1 integration — one inline `Skill` call | `of1-skills:of1-integration content-source=<DOMAIN> non-interactive cta-template` |
+| 3 | OF1 integration — one inline `Skill` call | `of1-skills:of1-integration content-source=<DOMAIN> non-interactive cta-template publish-live` |
 
 All stages run sequentially: 1 → 2a → 2b → 2c → 3. Stage 3 is invoked inline in the orchestrator's
 top-level context (never through an `Agent`) and is opaque to the orchestrator: it ends by writing
@@ -221,5 +221,5 @@ left as audit notes.
 
 The orchestrator and the Stage 1/2 step skills rely on:
 - `knowledge/common-pitfalls.md` — DA/EDS/git/image/logo rules, curl traps, DA+EDS preview auth, allowed-domain table.
-- `of1-integration/knowledge/worker-config-schemas.md` (in the **of1-skills** repo) — DA-first config: what lives in git (`of1/config/config.json`, + `cta-template.json` with `cta-template`) vs DA (`/of1/brand-voice`, `/of1/config/personas`, `/of1/config/suggestions`, …).
+- `of1-integration/knowledge/worker-config-schemas.md` (in the **of1-skills** repo) — config lives in DA sheets/documents, not git (`/of1/brand-voice`, `/of1/config/personas`, `/of1/config/suggestions`, …); the tenant is `org/repo`.
 - `of1-integration/knowledge/design-tokens-resolution.md` (in the **of1-skills** repo) — the one `DESIGN.json` resolver + fail-loudly rule.

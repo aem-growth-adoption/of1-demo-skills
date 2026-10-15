@@ -93,7 +93,7 @@ Only the fill color changes (e.g. `fill="#F4E9DC"` for dark footer backgrounds).
 ## 4. URL patterns
 
 ### 4.1 Tenant ID format
-The OF1 worker tenant ID is `{branch}--{repo}--{owner}` (e.g. `wknd-3--labs-abc123--of1-labs`). Setting it to the customer domain breaks worker generation. Never use the site domain as the tenant ID.
+The OF1 tenant ID is `org/repo` (e.g. `of1-labs/labs-abc123`); the branch is not part of it. The proxy host is `<branch>--<repo>--<owner>.of1.live`. Setting the tenant ID to the customer domain breaks worker generation. Never use the site domain as the tenant ID.
 
 ### 4.2 Content URLs — branch is in the subdomain only
 ```
