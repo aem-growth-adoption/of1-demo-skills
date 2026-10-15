@@ -6,7 +6,13 @@
 # Never export OF1_DEMO_WIPE from inside this file. All guards fail closed.
 
 # Token goes via stdin config (curl -K -), never on the command line.
-da_curl() { curl -K - "$@" <<<"header = \"Authorization: Bearer $DA_TOKEN\""; }
+da_curl() {
+  set +x
+  case "$DA_TOKEN" in
+    ''|*[\"\\[:cntrl:]]*) echo "✗ refusing DA token with quote, backslash or control characters" >&2; return 1 ;;
+  esac
+  curl -K - "$@" <<<"header = \"Authorization: Bearer $DA_TOKEN\""
+}
 
 da_delete_tree() {
   local dir="$1"   # repo-relative, e.g. "/of1/config"

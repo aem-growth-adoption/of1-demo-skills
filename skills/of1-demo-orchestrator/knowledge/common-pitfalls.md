@@ -121,7 +121,7 @@ Multiple pushes per step waste 2-3 minutes each on preview triggers. Generate al
 
 ```bash
 # ✅ CORRECT — only stages the files this step produced
-git add templates/ styles/ fragments/ of1/config/config.json
+git add templates/ styles/ fragments/
 
 # ❌ WRONG — can destroy the entire repo if working tree is incomplete
 git add .

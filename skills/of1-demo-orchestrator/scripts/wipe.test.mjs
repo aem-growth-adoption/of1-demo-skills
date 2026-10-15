@@ -18,6 +18,7 @@ function fakeBin(root) {
   const p = join(bin, 'curl');
   writeFileSync(p, `#!/bin/sh
 echo "$*" >> "${root}/curl.log"
+case "$*" in *"-K -"*) cat >> "${root}/stdin.log";; esac
 case "$*" in *"-X DELETE"*) exit 0;; esac
 for a in "$@"; do u="$a"; done
 f="${root}/list/$(echo "$u" | sed 's#https://admin.da.live/list/##; s#/#_#g')"
@@ -145,6 +146,30 @@ test('da_delete_tree skips unsafe listing names and deletes only the safe one', 
 test('da_delete_tree refuses a path outside /of1 and /templates', () => {
   const r = spawnSync('bash', ['-c', `source "${WIPE}"; da_delete_tree /nav`], { encoding: 'utf8' });
   assert.equal(r.status, 1); assert.match(r.stderr, /refusing to delete outside/);
+});
+
+test('da_curl sends the token via -K - stdin, never in argv', () => {
+  const f = fixture();
+  setList(f, '/of1', [{ name: 'page', ext: 'html' }]);
+  const r = run(f, { ADOBE_IMS_TOKEN: 'sekrit-token' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(curlLog(f).length > 0);
+  assert.ok(!curlLog(f).includes('sekrit-token'));
+  assert.ok(!curlLog(f).includes('Authorization'));
+  for (const l of curlLog(f).split('\n').filter(Boolean)) assert.match(l, /-K -/);
+  const stdin = readFileSync(join(f.root, 'stdin.log'), 'utf8');
+  assert.match(stdin, /Authorization: Bearer sekrit-token/);
+});
+
+test('da_curl refuses tokens with quote, backslash or control characters', () => {
+  const f = fixture();
+  for (const tok of ['a"b', 'a\\b', 'a\nb']) {
+    const r = spawnSync('bash', ['-c', `source "${WIPE}"; OWNER=o REPO=r DA_TOKEN="$TOK" da_delete_tree /of1`], {
+      encoding: 'utf8', env: { PATH: `${f.bin}:${process.env.PATH}`, TOK: tok },
+    });
+    assert.match(r.stderr, /refusing DA token/);
+  }
+  assert.equal(curlLog(f), '');
 });
 
 test('happy path: commit, push, recursive DA delete', () => {
