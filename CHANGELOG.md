@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `of1-signals` authors `of1/config/signals` as a DA sheet (`param,value,source,context`) uploaded and previewed on `main` by a bundled `write-signals.mjs`, instead of a `signals.json` committed to git. Corrected: the edge proxy reads it too, not only the extension. `pathPattern`/`label` are no longer authored.
+
 - `pipeline-version` is now the plugin semver (`0.3.0`) instead of the graph name `v5-deploy`. of1-labs (prod since 2026-10-13, #233) maps 0.N.x with N >= 3 to the v5-deploy graph. Keep it equal to `.claude-plugin/plugin.json` on each release.
 
 ## 0.3.1
