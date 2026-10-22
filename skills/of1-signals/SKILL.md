@@ -8,24 +8,26 @@ user-invocable: true
 
 **Standalone operator tool — NOT part of the demo pipeline.** Invoke it directly; no orchestrator
 dispatches it, no step graph includes it, and `of1-check-dependencies`/`verify.sh` intentionally
-does not check for it. It authors extension-only config that neither the sync/deploy pipeline nor
-the OF1 worker ever reads. Being off the step graph is deliberate — do not wire it in.
+does not check for it. It authors config (a DA sheet) that the sync/deploy pipeline and the OF1
+worker never read. Being off the step graph is deliberate — do not wire it in.
 
-Author and verify `of1/config/signals.json` — a config file read directly by the **OF1 preview
-extension** (not the OF1 worker) that lets a demo operator fake how a visitor "arrived" at the
+Author and verify the `of1/config/signals` DA sheet (served as `of1/config/signals.json`) — config read by the **OF1 preview
+extension** and the **OF1 edge proxy** (not the OF1 worker) that lets a demo operator fake how a visitor "arrived" at the
 site, without a real email campaign, ad click, or LLM referral ever happening.
 
 ## What signals.json is for
 
 The extension normally classifies how a visitor arrived (`EntryContext.source`/`label`) from real
-signals: `document.referrer`, UTM params, `gclid`/`fbclid`/`msclkid`. `signals.json` lets a demo
-operator override or supplement that classification for one specific URL, purely by editing a
-JSON file on the EDS site — no code change, no real ad campaign needed.
+signals: `document.referrer`, UTM params, `gclid`/`fbclid`/`msclkid`. The signals sheet lets a demo
+operator override or supplement that classification for a URL param, purely by editing config in DA
+— no code change, no real ad campaign needed.
 
-This is **extension-only config**. It is fetched directly by the extension's background service
-worker from `https://<branch>--<repo>--<owner>.aem.page/of1/config/signals.json` — it is never
-synced to the OF1 worker/R2, never read by `/api/generate` or `/api/personalize` server-side, and
-does not appear in of1-skills' `of1-integration/knowledge/worker-config-schemas.md`.
+All OF1 config lives in DA, so this is a **DA sheet at `of1/config/signals`**, never a file committed
+to git. It is read by the extension's background service worker and by the OF1 edge proxy (see of1-edge-proxy
+"Edge context enrichment") from `https://main--<repo>--<owner>.aem.page/of1/config/signals.json`. It is not
+synced to the OF1 worker/R2, not read by `/api/generate` or `/api/personalize` server-side, and does not appear
+in of1-skills' `of1-integration/knowledge/worker-config-schemas.md`. (A bare JSON array committed to git is still
+accepted by both readers during the transition, but must no longer be authored.)
 
 ## Priority order (highest wins)
 
@@ -40,26 +42,27 @@ does not appear in of1-skills' `of1-integration/knowledge/worker-config-schemas.
 4. **Referrer/UTM/click-id heuristics** (`gclid`, `fbclid`, `msclkid`, `utm_medium=email`, known AI
    referrer hosts, etc.) — the extension's built-in fallback classification.
 
-Understanding this order matters when authoring an entry: a `signals.json` entry with no
-`source`/`label` (see Schema) still lets real detection (step 4) run and set those fields — the
-entry only *adds* free-text context on top. A `signals.json` entry that does set `source`/`label`
+Understanding this order matters when authoring an entry: a signals row with no
+`source` (see Schema) still lets real detection (step 4) run and set those fields — the
+entry only *adds* free-text context on top. A row that does set `source`
 *replaces* whatever step 4 would have produced.
 
 ## Schema
 
-`of1/config/signals.json` is a flat JSON array. Each entry:
+The sheet has the columns `param,value,source,context`, one row per entry:
 
-| Field | Required | Notes |
-|-------|----------|-------|
+| Column | Required | Notes |
+|--------|----------|-------|
 | `param` | yes | URL query param name to match, e.g. `mkt_tok`, `gclid`, `demo_signal` |
 | `value` | yes | Exact value that param must equal (string equality, no wildcards) |
-| `pathPattern` | no | Regex string tested against `location.pathname` via `new RegExp(pathPattern).test(pathname)` — plain, unanchored (write `^/pricing` explicitly for a prefix match). Omit to match any path. |
-| `source` | no | Free-form string overriding the classified acquisition source (e.g. `email`, `ads`, `ai`, or any new channel name — not restricted to a fixed enum). Omit to keep whatever real detection determines. |
-| `label` | no | Free-form display label shown in the side panel's "Arrived via" row (e.g. `E-Mail`, `Google Ads`). Omit alongside `source`. |
-| `context` | yes | Free-text string shown in the side panel's "Signal context" card, and forwarded to the OF1 worker as the `injected_context` acquisition param when the user clicks Personalize/Generate. |
+| `source` | no | Free-form string overriding the classified acquisition source (e.g. `email`, `ads`, `ai`, or any new channel name). Empty keeps whatever real detection determines. |
+| `context` | no | Free-text string shown in the side panel's "Signal context" card, and forwarded to the OF1 worker as the `injected_context` acquisition param on Personalize/Generate. |
 
-First entry whose `param`+`value` (and `pathPattern`, if present) match wins — list more specific
-entries first if a URL could match more than one.
+All cells are plain strings (an empty cell means "not set"). Cells may contain `\n` newlines but no other
+control characters; the writer rejects them. First row whose `param`+`value` match wins; list more specific
+rows first if a URL could match more than one. Authoring uses a JSON array of entries
+`{param, value, source?, context?}` (the converter turns it into rows). The older `pathPattern` and `label`
+fields are not authored any more.
 
 **Two entry shapes:**
 
@@ -68,13 +71,11 @@ entries first if a URL could match more than one.
   "param": "mkt_tok",
   "value": "demo-q3-nurture-multientity",
   "source": "email",
-  "label": "E-Mail",
   "context": "Existing customer, Q3 nurture campaign, evaluating multi-entity consolidation."
 }
 ```
-Full override — sets source, label, and context. Use this for a channel that has no real
-detection path (email, most demo-only params) or when the demo needs a specific label regardless
-of what real detection would say.
+Full override — sets source and context. Use this for a channel that has no real detection path (email,
+most demo-only params) or when the demo needs a specific source regardless of real detection.
 
 ```json
 {
@@ -83,10 +84,9 @@ of what real detection would say.
   "context": "WKND Adventures | Guided Trips for Every Explorer\nStop scrolling generic travel sites — get itineraries matched to your pace, budget, and terrain preference in minutes, not hours."
 }
 ```
-Context-only — no `source`/`label`. `gclid` already triggers real ads detection (source `ads`,
-label `Google Ads`); this entry just attaches specific ad-copy context on top of that real
-classification, keyed to one known ad's click ID. Use this shape whenever the param already
-triggers correct real detection and the demo only needs to add richer context text.
+Context-only — no `source`. `gclid` already triggers real ads detection; this entry just attaches specific
+ad-copy context on top, keyed to one known ad's click ID. Use this shape whenever the param already triggers
+correct real detection and the demo only needs richer context text.
 
 ## Authoring a new signal (guided)
 
@@ -104,27 +104,23 @@ When a user wants to simulate a new arrival scenario:
    - Do not use `llm_app_ctx` as the `param` in a `signals.json` entry — it is already natively
      handled by the extension (priority 3 above) and does not need a config entry. To simulate an
      LLM app referral, send the visitor to `?llm_app_ctx=<context text>` directly.
-3. Add `pathPattern` only if the signal should apply on some pages but not others (e.g. an email
-   campaign that only makes sense landing on `/pricing`).
-4. Read the current file (if it exists) at `of1/config/signals.json` in the target repo, append
-   the new entry (don't clobber existing entries — list more specific/narrower entries first if
-   overlap is possible), and write it back with `python3 -m json.tool <file> > /dev/null` to
-   confirm valid JSON before committing.
-5. Commit and push — stage ONLY `signals.json` (never `git add .`/`-A`; see
-   `of1-demo-orchestrator/knowledge/common-pitfalls.md` § 6). It rides the code bus (git), so no
-   DA upload or preview trigger is needed — it's served statically once EDS builds the push.
+3. Collect the entries to author (existing ones plus the new one). To keep existing entries, fetch the
+   current sheet first:
    ```bash
-   cd "${REPO_DIR:-<repo path>}"
-   git add of1/config/signals.json
-   git commit -m "chore: add demo acquisition signal"
-   git push origin "$(git branch --show-current)"
+   curl -s "https://main--<repo>--<owner>.aem.page/of1/config/signals.json" | jq '[.data[] | {param,value,source,context}]'
    ```
-   Confirm live:
+   (a 404 just means no sheet yet). Write the full array of entries, most specific first, to a temp file,
+   e.g. `$OF1_STATE_DIR/signals-entries.json` or `$(mktemp)`.
+4. Upload, preview on `main`, and verify with the bundled writer. It converts entries to sheet rows, rejects
+   cells a sheet cannot hold, refuses an empty list, uploads `of1/config/signals` to DA, previews it, then
+   fetches `https://main--<repo>--<owner>.aem.page/of1/config/signals.json` and checks it parses as a sheet
+   with exactly the rows written. Token comes from `DA_TOKEN`, `ADOBE_IMS_TOKEN` or `OF1_TOKEN_FILE`.
    ```bash
-   curl -s https://<branch>--<repo>--<owner>.aem.page/of1/config/signals.json
+   node "${CLAUDE_SKILL_DIR}/assets/write-signals.mjs" --owner <owner> --repo <repo> --rows <entries.json>
    ```
-   (a 404 means the push hasn't propagated to EDS preview yet, or the path is wrong — check
-   `of1/config/signals.json` is committed at the repo root, not nested).
+   It exits non-zero with a `FAIL`/`FATAL` message on any problem; do not report success otherwise. Nothing
+   is committed to git (a stale `of1/config/signals.json` file in the repo should be removed in a normal commit).
+5. Nothing else to publish: the preview on `main` is what the readers fetch.
 6. Hand the user the exact test URL: `https://<branch>--<repo>--<owner>.aem.page/<path>?<param>=<value>`
    (include any other params the scenario narrative needs, e.g. `&utm_medium=email` alongside a
    `mkt_tok` value, purely for narrative realism — the extension only checks the configured

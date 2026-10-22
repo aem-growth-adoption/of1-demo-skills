@@ -31,7 +31,7 @@ template, publish); this repo only makes the one call and reads the result file.
 | `of1-extract-design` | Capture the live site's design (`stardust:extract`); shipped by the `of1-skills` plugin, run as Stage 2a |
 | `of1-prototype` | Recreate key pages as faithful prototypes (`stardust:prototype`) |
 | `of1-deploy` | Convert prototypes into a block-based EDS site (`stardust:deploy`) |
-| `of1-signals` | Standalone: author `signals.json` for the OF1 preview extension |
+| `of1-signals` | Standalone: author the `of1/config/signals` DA sheet (extension + edge proxy) |
 
 ## Caller contract
 
@@ -52,6 +52,8 @@ claude plugins install /path/to/of1-demo-skills
 ```
 
 ## Prerequisites
+
+Requires `of1-skills` >= 0.4.0 (checked by the orchestrator at step 0b when the installed version is discoverable).
 
 Verified by `of1-skills:of1-check-dependencies`: installed skill plugins, `playwright-cli`, `node`,
 git credentials, a valid EDS checkout at `OF1_DEMO_REPO`, and a DA token. Required plugins:

@@ -2,9 +2,20 @@
 
 ## Unreleased
 
+- `of1-signals` authors `of1/config/signals` as a DA sheet (`param,value,source,context`) uploaded and previewed on `main` by a bundled `write-signals.mjs`, instead of a `signals.json` committed to git. Corrected: the edge proxy reads it too, not only the extension. `pathPattern`/`label` are no longer authored.
+
 - `pipeline-version` is now the plugin semver (`0.3.0`) instead of the graph name `v5-deploy`. of1-labs (prod since 2026-10-13, #233) maps 0.N.x with N >= 3 to the v5-deploy graph. Keep it equal to `.claude-plugin/plugin.json` on each release.
 
 - Docs/cleanup only: removed superseded specs/plans, the empty `of1-demo-orchestrator/assets/README.md` stub, and stale SLICC wording in `plugin.json`.
+
+## 0.3.1
+
+- Requires `of1-skills` >= 0.4.0 (of1-migrate, `publish-live` driver arg, config in DA, tenant id `org/repo`). Orchestrator step 0b checks the installed version when discoverable.
+
+- Stage 3 passes `publish-live` (`of1-skills:of1-integration content-source=<DOMAIN> non-interactive cta-template publish-live`); older `of1-skills` ignore it.
+- Fixed stale docs: tenant id is `org/repo`, proxy host `<branch>--<repo>--<owner>.of1.live`, config lives in DA sheets.
+- `wipe.sh` sends the DA token via `curl -K -` (stdin) instead of a command-line header.
+- `pipeline-version` and plugin version bumped to 0.3.1.
 
 ## 0.3.0
 
