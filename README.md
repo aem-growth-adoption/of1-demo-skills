@@ -31,7 +31,7 @@ template, publish); this repo only makes the one call and reads the result file.
 | `of1-extract-design` | Capture the live site's design (`stardust:extract`); shipped by the `of1-skills` plugin, run as Stage 2a |
 | `of1-prototype` | Recreate key pages as faithful prototypes (`stardust:prototype`) |
 | `of1-deploy` | Convert prototypes into a block-based EDS site (`stardust:deploy`) |
-| `of1-signals` | Standalone: author `signals.json` for the OF1 preview extension |
+| `of1-signals` | Standalone: author the `of1/config/signals` DA sheet (extension + edge proxy) |
 
 ## Caller contract
 
