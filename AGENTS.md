@@ -6,7 +6,7 @@ Claude Code plugin: skills that build an OF1 demo for a domain. `CLAUDE.md` is a
 
 - `skills/of1-demo-orchestrator/` - entry skill. `SKILL.md` (flow), `knowledge/` (`dispatch-cc.md` Stage 1/2 dispatch, `pipeline-contract.md`, `common-pitfalls.md`), `scripts/wipe.sh` (+ test).
 - `skills/of1-discovery`, `of1-prototype`, `of1-deploy` - Stage 1 and Stage 2b/2c (2a `of1-extract-design` ships in `of1-skills`). `of1-signals` is standalone.
-- `docs/` - specs and plans (index: `docs/README.md`). `pipeline-version` is read by of1-labs and holds the plugin semver (keep equal to `.claude-plugin/plugin.json`); do not change it casually.
+- `docs/` - current spec and skill docs (superseded specs/plans are deleted; see git history) (index: `docs/README.md`). `pipeline-version` is read by of1-labs and holds the plugin semver (keep equal to `.claude-plugin/plugin.json`); do not change it casually.
 
 ## Conventions
 

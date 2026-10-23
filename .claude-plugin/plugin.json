@@ -1,7 +1,7 @@
 {
   "name": "of1-demo-skills",
   "version": "0.3.1",
-  "description": "Turn any website into an OF1 generative-search demo on Adobe Edge Delivery Services (prototype+deploy pipeline — block-based Stage 2 via stardust:deploy). Ships the runtime-agnostic orchestrator plus the demo-build skills (discovery, prototype, deploy) and a standalone signals.json authoring skill. Depends on of1-skills for the actual OF1-integration step.",
+  "description": "Turn any website into an OF1 generative-search demo on Adobe Edge Delivery Services (prototype+deploy pipeline — block-based Stage 2 via stardust:deploy). Ships the orchestrator plus the demo-build skills (discovery, prototype, deploy) and a standalone signals.json authoring skill. Depends on of1-skills for the actual OF1-integration step.",
   "skills": "./skills/",
   "entrypoints": {
     "skills": [
@@ -19,6 +19,6 @@
     "impeccable@impeccable"
   ],
   "_notes": {
-    "entrypoints": "of1-demo-orchestrator is the single runtime-agnostic orchestrator — it detects Claude Code vs SLICC at start and follows knowledge/dispatch-cc.md or knowledge/dispatch-slicc.md accordingly. Stage 3 (OF1 integration) dispatches the of1-skills plugin's skills directly — see of1-skills's of1-integration/SKILL.md for that step graph. of1-signals is a standalone skill, not a numbered pipeline step — it authors the of1/config/signals DA sheet (read by the extension and edge proxy) that neither the sync/deploy pipeline nor the OF1 worker ever reads."
+    "entrypoints": "of1-demo-orchestrator is the single orchestrator (Claude Code only); it follows knowledge/dispatch-cc.md for Stage 1/2. Stage 3 (OF1 integration) is one inline call to of1-skills:of1-integration. of1-signals is a standalone skill, not a numbered pipeline step — it authors the of1/config/signals DA sheet (read by the edge proxy) that neither the sync/deploy pipeline nor the OF1 worker ever reads."
   }
 }

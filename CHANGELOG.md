@@ -6,6 +6,8 @@
 
 - `pipeline-version` is now the plugin semver (`0.3.0`) instead of the graph name `v5-deploy`. of1-labs (prod since 2026-10-13, #233) maps 0.N.x with N >= 3 to the v5-deploy graph. Keep it equal to `.claude-plugin/plugin.json` on each release.
 
+- Docs/cleanup only: removed superseded specs/plans, the empty `of1-demo-orchestrator/assets/README.md` stub, and stale SLICC wording in `plugin.json`.
+
 ## 0.3.1
 
 - Requires `of1-skills` >= 0.4.0 (of1-migrate, `publish-live` driver arg, config in DA, tenant id `org/repo`). Orchestrator step 0b checks the installed version when discoverable.
