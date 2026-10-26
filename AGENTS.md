@@ -21,3 +21,7 @@ Claude Code plugin: skills that build an OF1 demo for a domain. `CLAUDE.md` is a
 ## Tests
 
 `node --test skills/of1-demo-orchestrator/scripts/*.test.mjs skills/*/assets/*.test.mjs`
+
+## Documentation
+
+Product documentation lives in the umbrella repo: [of1/docs](https://github.com/Adobe-AEM-Foundation/of1/tree/main/docs). If a change alters behaviour described there (APIs, config, hosts, sync, skills, UI flows), update the docs in the same piece of work and link the docs PR in this PR's description. This also applies to PRs opened from the command line, which skip the PR template.
