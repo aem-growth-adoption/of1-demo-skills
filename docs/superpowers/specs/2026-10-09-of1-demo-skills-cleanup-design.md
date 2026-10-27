@@ -73,12 +73,12 @@ to rely on:
 | `skills/of1-demo-orchestrator/of1-demo-orchestrator.shtml.tpl` (1090 lines, SLICC sprinkle UI) | delete |
 | `skills/of1-demo-orchestrator/knowledge/dispatch-cc.md` (214 lines) | keep only Stage 1 and Stage 2 dispatch; drop the "Skill dispatch template (Integrate skills)" and Stage 3 sections |
 | `skills/of1-demo-orchestrator/knowledge/pipeline-contract.md` | drop SLICC rows, Integrate-skill dispatch contract, `OF1_PIPELINE_MODE`; keep env vars, state files, the Stage 1/2 status contract |
-| `skills/of1-demo-orchestrator/knowledge/common-pitfalls.md` | drop `[SLICC]` items and the section numbers nobody cites any more; keep §2, §3, §6, §9 numbering because `of1-skills` skills still cite them until their own cleanup lands |
+| `skills/of1-demo-orchestrator/knowledge/common-pitfalls.md` | drop `[SLICC]` items and the section numbers nobody cites any more; keep §2, §3, §6, §9 numbering because `of1-skills` skills still cite them until their own cleanup lands (superseded: `of1-skills` no longer cites this file; see `AGENTS.md`) |
 | `FINDINGS-2026-08-04.md`, `SCRIPT-AUDIT-2026-08-05.md`, `SKILLS-AUDIT-2026-08-05.md`, `logs.txt` | delete (tracked, unreferenced) |
 | `README.md` | rewrite for the current 3-stage pipeline (not `stardust:replica`, not `skills-v3`) |
 | `docs/superpowers/**` (about 12.5k lines) | add `Status:` headers and a `docs/README.md` index; do not delete |
 | `AGENTS.md` | add (a `CLAUDE.md` symlink already exists but its target is missing) |
-| `pipeline-version` | unchanged value `v5-deploy` (external tooling reads it) |
+| `pipeline-version` | unchanged value `v5-deploy` (external tooling reads it). Superseded: since 0.3.1 it holds the plugin semver (see `CHANGELOG.md`) |
 
 ## Caller contract (stable)
 
@@ -94,7 +94,8 @@ A harness that runs the orchestrator may rely on:
   ends by reporting `of1-integration-result.json` (`done|review|failed`, `summary`,
   `deliverables`).
 - `pipeline-version` stays one of `v4|v5|v5-prototype|v5-deploy`; branch names are not
-  renamed.
+  renamed. (Superseded: `pipeline-version` is now the plugin semver, which of1-labs maps to
+  the v5-deploy graph; see `CHANGELOG.md` 0.3.1.)
 - Skill ids and the orchestrator name `of1-demo-skills:of1-demo-orchestrator` stay.
 - Hub link `<preview>/deliverables/index.html`.
 - Nothing sets `OF1_PIPELINE_MODE` any more.

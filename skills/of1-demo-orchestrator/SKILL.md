@@ -68,23 +68,27 @@ surface the refusal and stop. Tests: `node --test scripts/wipe.test.mjs`.
 
 Run `of1-skills:of1-check-dependencies` in your own context (via the **Skill tool**, not an Agent — it is
 light and must run in this context). It verifies
-prerequisites AND repo state and writes `repo-config.json`. It does NOT create a branch — it uses
-whatever branch is checked out at `OF1_DEMO_REPO`. If it fails, surface the exact error and stop.
+prerequisites AND repo state and writes `repo-config.json`. It does NOT create or switch branches —
+`OF1_DEMO_REPO` must have `main` checked out. From `of1-skills` 0.4.4 it stops (exit 1,
+`OF1 setup runs from the main branch (checkout main)`) on any other branch before writing anything, and
+every host it and Stage 3 use is `main--<repo>--<owner>`. If it fails, surface the exact error and stop
+(for the branch error: tell the user to check out `main` and re-run; do not switch branches yourself).
 
 **Version precondition: requires `of1-skills` >= 0.4.0.** Before running it, best-effort read the installed
 version: `jq -r '.plugins | to_entries[] | select(.key|startswith("of1-skills")) | .value[0].version' ~/.claude/plugins/installed_plugins.json 2>/dev/null`
 (Claude Code layout). If a version is found and is below 0.4.0, stop and tell the user to upgrade
 `of1-skills`. If it cannot be determined (other harness, different layout), continue and treat 0.4.0 as a
-manual precondition.
+manual precondition. Current `of1-skills` (>= 0.4.4) is main-only, as above; older 0.4.x versions merely
+warn off `main`, but their URLs and sync already assume `main` (0.4.2+), so run from `main` regardless.
 
 Then read `setup.json` (`stateDir`/`of1Repo`) and `repo-config.json` (`owner`/`repo`/`branch`/`domain`)
 and use them for all subsequent steps:
 
 ```json
 {
-  "owner": "<org>", "repo": "<repo>", "branch": "<current-branch>",
-  "contentPrefix": "<current-branch>", "repoUrl": "https://github.com/<org>/<repo>",
-  "previewUrl": "https://<current-branch>--<repo>--<org>.aem.page/",
+  "owner": "<org>", "repo": "<repo>", "branch": "main",
+  "contentPrefix": "main", "repoUrl": "https://github.com/<org>/<repo>",
+  "previewUrl": "https://main--<repo>--<org>.aem.page/",
   "daSource": "da://<org>/<repo>", "repoDir": "<repo path>", "domain": "frescopa.coffee"
 }
 ```
