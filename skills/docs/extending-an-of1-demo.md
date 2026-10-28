@@ -10,7 +10,7 @@ You have a working OF1 demo (built via `of1-demo-orchestrator` or `of1-integrati
 | Brand tone/voice | `of1-extract-brand-voice` | `of1-publish` |
 | Suggestion chips / search UI copy | `of1-build-quick-suggestions` | `of1-publish` |
 | CTA visual template (pipeline-built demos only) | `of1-build-cta-template` | `of1-publish` |
-| Fake acquisition signals (email/ads/LLM referral simulation) | `of1-signals` | **No redeploy** — DA sheet `of1/config/signals`, read by the extension and edge proxy, never synced to the OF1 worker |
+| Fake acquisition signals (email/ads/LLM referral simulation) | `of1-signals` | **No worker sync**, but **publish** the DA sheet `of1/config/signals` (the skill previews it; the edge proxy on live hosts reads `aem.live`) |
 
 **Orchestrator-built demos need no special flag.** `of1-integration` (run with `cta-template`) writes the CTA template to DA with the rest of the tenant config (config is DA sheets now, not git); for later hand edits, re-run `of1-publish` the same way (`OF1_CTA_TEMPLATE=1`).
 
@@ -28,4 +28,4 @@ After any config change, redeploy so the change actually reaches the OF1 worker:
 
 There is no separate config review step — authored config lives in DA and is reviewed/edited there; the demo hub links each item.
 
-**Exception: `of1-signals`.** The `of1/config/signals` DA sheet is read directly by the **OF1 preview extension** and the **edge proxy**, not the OF1 worker — it's never synced, so no `of1-publish` step is needed after editing it. The skill uploads and previews the sheet on `main`; nothing is committed to git.
+**Exception: `of1-signals`.** The `of1/config/signals` DA sheet is read directly by the **OF1 preview extension** and the **edge proxy**, not the OF1 worker — it's never synced to the worker, so no worker sync is needed after editing it. The skill uploads and previews the sheet on `main` (enough for the extension and `prev--…of1.live` hosts); nothing is committed to git. It must **also be published**: the edge proxy on live hosts (`main--<repo>--<owner>.of1.live`, also `--dev`) reads the sheet from `aem.live`, so an unpublished edit never reaches them. Publish it from DA (**Publish** on `/of1/config/signals`), via `POST https://admin.hlx.page/live/<owner>/<repo>/main/of1/config/signals.json` (see the skill's step 5), or as part of a full `of1-skills:of1-publish` run with `publish-live` (`OF1_PUBLISH_LIVE=1`), which publishes all config sheets including `signals`.
