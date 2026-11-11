@@ -12,7 +12,7 @@ Stage 2 · Migrate     2a of1-extract-design → 2b of1-prototype → 2c of1-dep
                       → branded block-based EDS site + DESIGN.json + stage2-done.json
         ↓
 Stage 3 · Integrate   one inline call: of1-skills:of1-integration
-                      content-source=<DOMAIN> non-interactive cta-template
+                      content-source=<DOMAIN> non-interactive cta-template publish-live
                       → of1-integration-result.json (done | review | failed)
 ```
 
@@ -54,6 +54,8 @@ claude plugins install /path/to/of1-demo-skills
 ## Prerequisites
 
 Requires `of1-skills` >= 0.4.0 (checked by the orchestrator at step 0b when the installed version is discoverable).
+The demo repo at `OF1_DEMO_REPO` must have `main` checked out: from `of1-skills` 0.4.4,
+`of1-check-dependencies` stops (exit 1) on any other branch, and all hosts are `main--<repo>--<owner>`.
 
 Verified by `of1-skills:of1-check-dependencies`: installed skill plugins, `playwright-cli`, `node`,
 git credentials, a valid EDS checkout at `OF1_DEMO_REPO`, and a DA token. Required plugins:

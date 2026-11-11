@@ -23,8 +23,11 @@ operator override or supplement that classification for a URL param, purely by e
 — no code change, no real ad campaign needed.
 
 All OF1 config lives in DA, so this is a **DA sheet at `of1/config/signals`**, never a file committed
-to git. It is read by the extension's background service worker and by the OF1 edge proxy (see of1-edge-proxy
-"Edge context enrichment") from `https://main--<repo>--<owner>.aem.page/of1/config/signals.json`. It is not
+to git. It is read by the extension's background service worker from
+`https://main--<repo>--<owner>.aem.page/of1/config/signals.json`, and by the OF1 edge proxy (see of1-edge-proxy
+"Edge context enrichment") from the EDS origin behind the proxy host: `aem.page` (preview) for `prev--…of1.live`
+hosts, but **`aem.live` (publish) for every other host** (`main--<repo>--<owner>.of1.live`, `…--dev.of1.live`) — so the sheet must be
+both previewed and published (step 5). It is not
 synced to the OF1 worker/R2, not read by `/api/generate` or `/api/personalize` server-side, and does not appear
 in of1-skills' `of1-integration/knowledge/worker-config-schemas.md`. (A bare JSON array committed to git is still
 accepted by both readers during the transition, but must no longer be authored.)
@@ -120,10 +123,23 @@ When a user wants to simulate a new arrival scenario:
    ```
    It exits non-zero with a `FAIL`/`FATAL` message on any problem; do not report success otherwise. Nothing
    is committed to git (a stale `of1/config/signals.json` file in the repo should be removed in a normal commit).
-5. Nothing else to publish: the preview on `main` is what the readers fetch.
-6. Hand the user the exact test URL: `https://<branch>--<repo>--<owner>.aem.page/<path>?<param>=<value>`
+5. Publish the sheet too. The writer only previews, which is enough for the extension and for
+   `prev--main--<repo>--<owner>.of1.live`, but the edge proxy on the live hosts
+   (`main--<repo>--<owner>.of1.live`, also with `--dev`) reads `aem.live` and keeps serving the last *published* sheet (or none)
+   until you publish. Either click **Publish** on `/of1/config/signals` in DA, or trigger it via the admin
+   API with both auth headers (same token as step 4; `common-pitfalls.md` §8.1):
+   ```bash
+   curl -fsS -X POST -H "Authorization: Bearer $DA_TOKEN" -H "x-content-source-authorization: Bearer $DA_TOKEN" \
+     "https://admin.hlx.page/live/<owner>/<repo>/main/of1/config/signals.json"
+   curl -s "https://main--<repo>--<owner>.aem.live/of1/config/signals.json" | jq '.data | length'
+   ```
+   (`of1-skills:of1-publish` with `publish-live` / `OF1_PUBLISH_LIVE=1` also publishes `signals` with the other
+   config sheets, but it is a full sync — overkill for a signals-only edit.) Skip this only if the demo is
+   exercised exclusively through the extension or `prev--` hosts.
+6. Hand the user the exact test URL: `https://main--<repo>--<owner>.aem.page/<path>?<param>=<value>` for the
+   extension, or `https://main--<repo>--<owner>.of1.live/<path>?<param>=<value>` for the edge proxy (published sheet)
    (include any other params the scenario narrative needs, e.g. `&utm_medium=email` alongside a
-   `mkt_tok` value, purely for narrative realism — the extension only checks the configured
+   `mkt_tok` value, purely for narrative realism — the extension and proxy only check the configured
    `param`/`value`, not surrounding params).
 
 If `$OF1_STATE_DIR/repo-config.json` exists (this skill is running inside an `of1-demo-orchestrator` pipeline
